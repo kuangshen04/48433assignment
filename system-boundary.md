@@ -1,582 +1,754 @@
-# Agricultural Supply Chain Tracker — 当前系统边界
+# Agricultural Supply Chain Tracker System Boundary
 
-> 状态：Working draft  
-> 记录日期：2026-09-30  
-> 说明：本文记录目前讨论形成的系统边界。它用于约束后续业务和架构设计，不代表所有技术与治理决策已经最终确定。
+> Status: Architecture baseline for Week 9 modelling  
+> Updated: 2026-10-08  
+> Purpose: Fix the product position, scope, trust model and modelling constraints before producing quality scenarios and C4 views.  
+> Interpretation: This is a traceability platform with user-facing applications and enterprise integration. It is not a full ERP.
 
-## 1. 系统定位
+## 1. Architectural thesis
 
-Agricultural Supply Chain Tracker 是一个跨企业的农业供应链追踪平台。
+Agricultural Supply Chain Tracker is a cross-organisation traceability network for agricultural products.
 
-它不取代参与企业已有的 ERP、WMS、TMS、农场管理或 IoT 平台，而是在这些系统之上提供共同的追踪协议、可信事件记录和端到端查询能力。
+It allows independent supply-chain organisations to publish signed traceability events, associate those events with IoT and compliance evidence, and query an end-to-end product provenance without moving all operational data into one shared ERP or trusting one platform operator to control the complete history.
 
-```text
-Enterprise Operational Systems
-ERP / WMS / TMS / Farm Management / IoT Platform
-                         │
-            API / EPCIS / File / Platform UI
-                         │
-Agricultural Supply Chain Tracker
-Identity / Schema / Events / Ledger / Trace / Disclosure
-```
+The core responsibility is:
 
-系统的核心目标是：
+> Connect separately produced supply-chain assertions into an authorised, verifiable and non-silently-rewriteable provenance history.
 
-> 将多个相互独立、并不完全互信的供应链企业分别产生的追踪事件，连接成一条可验证、不可被静默改写、按权限查询的端到端产品 provenance。
-
-## 2. 主要参与者
-
-### 2.1 供应链参与组织
-
-- Farmer/Producer；
-- Processor/Packer；
-- Logistics Provider；
-- Distributor/Wholesaler；
-- Retailer。
-
-它们创建或处理 traceable objects，提交自己负责阶段的事件，并查询与自己有业务关系的数据。
-
-### 2.2 证据提供者
-
-- IoT platform/device operator；
-- Laboratory；
-- Certification body；
-- Inspector/Auditor。
-
-它们提供传感器观测、检测结果、证书或审计证据，但不一定参与产品 custody。
-
-### 2.3 查询者
-
-- Consumer：查询经过筛选的公共 provenance；
-- Auditor/Regulator：在被授权时查询更完整的历史和证据；
-- Supply-chain analyst/manager：查看流程、异常和可视化结果。
-
-### 2.4 平台和联盟治理方
-
-- Platform Operator：运行共享应用和部分基础设施；
-- Consortium Members：共同决定成员准入、schema/profile、账本规则和网络升级；
-- Node Operators：由独立利益方运行 ledger peer/orderer/validator 节点。
-
-平台运营者不应单独拥有所有企业签名密钥、全部账本节点和全部治理权限。
-
-## 3. 核心业务域：系统范围内
-
-### 3.1 Network, Organisation and Identity Management
-
-管理可信网络中的参与主体：
-
-- organisation；
-- site/location；
-- user；
-- device；
-- organisation membership；
-- role and delegation；
-- organisation/device certificate；
-- signing public key；
-- identity suspension/revocation；
-- organisation onboarding/offboarding。
-
-这一业务域回答：
+The platform does not replace ERP, WMS, TMS, MES, farm-management, POS, laboratory, certification or regulatory systems. Organisations with no suitable system can use the platform PWA; digitally mature organisations can publish the same canonical events through an API.
 
 ```text
-谁在提交事件？
-代表哪个组织？
-是否有资格提交这种事件？
-设备是否属于该组织且凭证仍然有效？
+Enterprise Operational Systems                 Platform Applications
+ERP / WMS / TMS / Farm System ── API ──┐       Participant PWA
+                                       │       Consumer Portal
+External IoT Platform ─ evidence API ──┼────── Audit Portal
+                                       │
+Small Organisation ───── PWA ─────────┘
+                                       │
+                                       ▼
+                    Agricultural Supply Chain Traceability Network
+                    Identity / Profiles / Events / Ledger / Trace
 ```
 
-身份、授权和联盟治理需要区分：
+## 2. Scope strategy
 
-- Identity：主体是谁；
-- Authorisation：主体可以做什么；
-- Governance：组织为什么有资格加入和参与网络。
+The architecture is narrow in business behaviour but broad enough in quality constraints to satisfy the case study.
 
-### 3.2 Schema and Profile Registry
+### 2.1 Reference product and scenario
 
-管理跨企业事件和对象扩展的共同语义：
+The detailed design uses temperature-sensitive fresh produce tracked primarily at lot or batch level and secondarily at pallet level.
 
-- EPCIS core model；
-- Core Business Vocabulary（CBV）子集；
-- product/industry profile；
-- regional/compliance profile；
-- extension fields；
-- schema version；
-- validation rules；
-- deprecation and migration rules。
+This is a reference product profile, not a single-product limitation. The core event model and services must support additional product lines through versioned profiles rather than product-specific services or databases.
 
-采用：
+### 2.2 Core vertical slice
+
+All detailed models must support one end-to-end slice:
 
 ```text
-Stable EPCIS core
-+ Consortium-approved versioned profiles
-+ Limited organisation-specific extensions
+Create batch
+→ split the batch into traceable outputs
+→ aggregate selected outputs into a pallet
+→ dispatch through one or more logistics or distribution organisations
+→ attach transport temperature evidence
+→ receive or report discrepancy
+→ disaggregate, split, merge or transform when the physical process requires it
+→ distribute derived quantities to multiple retailers
+→ expose an authorised provenance view
+→ verify history
+→ correct an error without deleting history
+→ calculate downstream impact when the batch is affected
 ```
 
-不允许每个企业为同类事件任意提交互不兼容的 JSON schema。
+Features that do not support this slice must be treated as an extension or an external responsibility.
 
-### 3.3 Traceable Object Registry
+### 2.3 Requirement depth
 
-管理可被事件引用的标识对象及其最小 master data。
+The project requirements are represented at different depths:
 
-当前考虑的对象类型包括：
+| Requirement | Architectural treatment |
+|---|---|
+| End-to-end traceability | Core business behaviour modelled in Context, Container, Component and Code views |
+| Blockchain-based immutable records | Core trust and integrity mechanism, with explicit chain/off-chain partitioning |
+| Multiple product lines | Versioned product profiles over a stable canonical event model |
+| Multiple regions | Horizontal scaling, partitioning and deployment constraints; not separate regional products |
+| Cloud adoption | Deployment and operational architecture; not a business subsystem |
+| IoT integration | External raw telemetry platform plus signed evidence or summaries inside the traceability system |
+| AI/ML | Optional asynchronous risk analysis extension; never the source of traceability truth |
+| Data visualisation | Batch timeline, provenance graph and temperature timeline only in the first release |
+| Food-safety compliance | Evidence linkage, audit export, completeness checks and affected or recalled status; not regulatory decision-making |
+| Rural accessibility | Offline event drafting, delayed submission, retry and idempotency |
 
-- Product class；
-- lot/batch；
-- serialized retail item；
-- case；
-- pallet；
-- reusable asset；
-- transport/logistic unit；
-- device；
-- location。
+## 3. Boundary at a glance
 
-第一版以 lot/batch 为食品安全追踪的主要粒度，以 case、pallet、container 等物流单元辅助运输追踪；零售 serial 可以作为消费者查询入口并关联所属 batch。
+| Inside the Traceability Network | Integration boundary | Outside the Traceability Network |
+|---|---|---|
+| Organisation, user, site, device and public-key registration | Participant PWA | ERP, WMS, TMS, MES, farm-management and POS |
+| Versioned EPCIS and product profiles | EPCIS or REST API | Complete agricultural production management |
+| Signed event capture and validation | IoT evidence API | IoT firmware, fleet management and raw telemetry platform |
+| Dispatch and receipt correlation | Laboratory or certificate evidence API | Laboratory testing and certificate issuance |
+| Append-only correction and dispute representation | Consumer QR or Digital Link query | Government approval, enforcement and regulatory databases |
+| Encrypted event payload store | Auditor query and export interface | Payment, accounting and contract management |
+| Consortium ledger commitments | Optional file import after the core API is stable | Detailed inventory, warehouse operations and route optimisation |
+| Provenance read model and impact query | Optional ML inference endpoint | Public blockchain, if future anchoring is adopted |
+| Consumer, participant and auditor projections | Notification provider if later adopted | Email, SMS and push infrastructure |
 
-对象支持以下关系：
+## 4. Stakeholders and actors
 
-- aggregation/disaggregation；
-- transformation；
-- persistent association；
-- derivation/split；
-- evidence attachment。
+### 4.1 Supply-chain participants
 
-对象当前状态主要从事件历史派生，不以持续覆盖一个万能 object record 为主要模型。
+- Farmer or Producer creates the source batch and publishes origin facts.
+- Processor or Packer transforms or aggregates products when the selected scenario requires it.
+- Logistics Provider supplies transport and custody facts and may provide IoT evidence.
+- Distributor or Wholesaler dispatches, receives, splits or aggregates traceable objects.
+- Retailer receives products and makes an approved consumer identifier available.
 
-### 3.4 Traceability Event Capture and Ledger
+These actors publish assertions only for actions they are authorised to perform. They do not edit another organisation's event.
 
-使用 EPCIS 作为 canonical event model，记录：
+### 4.2 Evidence providers
+
+- IoT Platform or Device Operator publishes signed sensor summaries, alerts and raw-data references.
+- Laboratory publishes a report reference, issuer identity, result metadata and integrity hash.
+- Certification Body publishes certificate metadata and revocation status.
+
+Evidence providers attest to supplied evidence. The traceability platform does not perform the physical measurement, laboratory test or certification decision.
+
+### 4.3 Query actors
+
+- Consumer sees a public, minimised provenance projection.
+- Trading Partner sees events and evidence authorised by its business relationship.
+- Auditor or Regulator sees a more complete history, signatures, hashes, corrections and evidence when authorised.
+- Supply-chain Manager sees operational trace and exception visualisations for authorised data.
+
+### 4.4 Operation and governance actors
+
+- Platform Operator runs the shared SaaS application plane and some infrastructure.
+- Consortium Administrator manages membership, profiles and governance policies.
+- Independent Consortium Members operate ledger nodes or participate in governance.
+
+The Platform Operator must not exclusively control all participant private keys, ledger nodes and governance decisions.
+
+## 5. Canonical domain model
+
+The platform is event-centred. It does not treat one mutable `BatchStatus` record as the complete history.
+
+### 5.1 Traceable objects
+
+The first release supports:
+
+- lot or batch as the primary food-safety traceability unit;
+- pallet or logistic unit for aggregation and transport;
+- product class;
+- site or business location;
+- device reference;
+- evidence reference.
+
+Serialised retail items, reusable assets and arbitrary associations are extension points, not first-release modelling targets.
+
+### 5.2 Canonical event subset
+
+The stable event model is based on EPCIS concepts.
+
+The reference scenario uses:
+
+- `ObjectEvent` for commissioning, shipping, receiving, inspecting, sensor reporting and status declarations;
+- `AggregationEvent` for packing items or batches into a pallet and unpacking them;
+- `TransformationEvent` for one-to-many batch splitting, many-to-one commingling or processing, and many-to-many re-batching where input identities become output lineage;
+- `ErrorDeclaration` and a corrective event for correction.
+
+`AssociationEvent` is not required for the first detailed model.
+
+Every accepted event must contain or reference:
+
+- stable event ID;
+- profile ID and version;
+- event type;
+- event time and time-zone offset;
+- record time assigned by the repository;
+- publisher organisation and signing identity;
+- traceable object identifiers;
+- business step and resulting disposition where applicable;
+- read point or business location where applicable;
+- source, destination or business-transaction reference where applicable;
+- evidence references where applicable;
+- visibility-policy reference;
+- digital signature and payload hash.
+
+### 5.3 Core relationship primitives
+
+The provenance model is a directed graph rather than a linear batch history. It uses three stable relationship primitives:
+
+| Relationship | Meaning | Identity effect |
+|---|---|---|
+| `HANDOVER` | An organisation dispatches a traceable object or quantity and another organisation independently receives it | Object identity is unchanged; custody, location or responsibility may change |
+| `CONTAINS` | A pallet or logistic unit contains child batches or objects | Child identities are preserved and the relationship is reversible through disaggregation |
+| `DERIVED_FROM` | One or more input batches are split, mixed, processed or re-batched into one or more outputs | New output identities are created and must retain lineage to every contributing input |
+
+An arbitrary number of `HANDOVER` edges must be supported. The system must not encode a fixed `Farmer → Distributor → Retailer` route or create separate workflows for each pair of participant roles.
+
+Aggregation is not batch merging. Placing Batch A and Batch B on Pallet P creates `CONTAINS` relationships; it does not create a new mixed Batch C. A true merge, split or processing step creates `DERIVED_FROM` relationships through a `TransformationEvent`.
+
+Lineage validation must enforce these invariants:
+
+- every output batch created by a split, merge or transformation references all contributing inputs;
+- quantities include a unit and are comparable only after an explicit conversion rule;
+- split outputs cannot silently exceed the available input quantity;
+- expected processing loss, waste or yield difference is recorded rather than hidden;
+- one child object cannot belong to two active parent logistic units at the same time;
+- disaggregation ends a `CONTAINS` relationship but does not delete its history;
+- custody transfer does not by itself change batch identity or composition;
+- corrections append new lineage assertions and do not rewrite previously committed edges.
+
+### 5.4 Product profiles
+
+The EPCIS-style core remains stable. A versioned product profile defines:
+
+- required and optional fields;
+- permitted event types and business steps;
+- units and value constraints;
+- required evidence;
+- validation and compatibility rules;
+- deprecation and migration rules.
+
+The first complete profile is `Fresh Produce Cold Chain v1`.
+
+Adding another product line, such as dairy, must not require a new event service, database or ledger contract. It should require a new approved profile and, if necessary, presentation changes in the UI.
+
+### 5.5 Derived state
+
+The following are projections derived from accepted events rather than mutable historical truth:
+
+- current or last known disposition;
+- current or last known custodian;
+- current or last known location;
+- pallet contents;
+- provenance completeness;
+- handover state;
+- upstream and downstream lineage;
+- affected or recalled status;
+- consumer-safe provenance.
+
+Projection errors can be rebuilt from the accepted event history.
+
+## 6. Core behavioural constraints
+
+### 6.1 Event submission
+
+An event submission follows this logical sequence:
 
 ```text
-What / When / Where / Why / How
+Receive command
+→ normalise to canonical event
+→ validate profile and schema
+→ authenticate publisher
+→ verify signature and authorisation
+→ validate referenced objects and business rules
+→ enforce idempotency
+→ persist encrypted payload and outbox record
+→ build ledger commitment
+→ submit to consortium ledger
+→ mark event committed or pending retry
+→ publish projection message
 ```
 
-第一版计划支持：
+Validation failure must not create a committed ledger record. A ledger timeout must not cause duplicate events when the client retries.
 
-- ObjectEvent；
-- AggregationEvent；
-- TransformationEvent；
-- 可选 AssociationEvent。
+### 6.2 Inter-organisation handover
 
-事件处理包括：
+A handover is not one mutable transfer row.
 
-1. 接收平台 UI、API、file import 或 integration adapter 的事件；
-2. 验证 schema/profile；
-3. 验证 organisation/user/device identity；
-4. 验证签名和提交权限；
-5. 验证对象和引用是否存在；
-6. 验证状态转换及关系是否允许；
-7. 执行 idempotency、duplicate 和 ordering 检查；
-8. 根据 endorsement policy 收集所需签名；
-9. 向共享 ledger 提交不可覆盖记录；
-10. 更新链下 trace graph/read model。
+```text
+Sender Shipping Event
+        ↓
+Pending Handover
+        ↓
+Receiver Receiving Event
+        ↓
+Accepted / Partially Accepted / Rejected / Disputed
+```
 
-### 3.5 Event Correction and Dispute Representation
+The sender and receiver publish separate signed assertions. The platform correlates them but does not overwrite either assertion or claim which party is factually correct when they conflict.
 
-不可篡改不等于禁止纠错。系统支持：
+Ownership, custody and physical location are separate concepts.
 
-- EPCIS ErrorDeclaration；
-- corrective event；
-- correction reason；
-- original/corrective event linkage；
-- authorised reviewer；
-- complete revision and audit history；
-- disputed/unconfirmed state。
+The same handover protocol is repeatable across any number of logistics providers, distributors, processors and retailers. Each hop has its own sender assertion, receiver assertion and derived state.
 
-错误事件不能被物理删除或覆盖：
+### 6.3 Aggregation, splitting and transformation
+
+Aggregation and disaggregation manage reversible logistics containment:
+
+```text
+Batch A1 ─┐
+Batch B1 ─┼→ Pallet P
+Batch C1 ─┘
+```
+
+The batches keep their identities. The pallet can be handed over multiple times without converting its children into a new batch.
+
+Transformation manages lineage when identities or quantities change:
+
+```text
+One-to-many split
+Batch A → Batch A1 + Batch A2
+
+Many-to-one merge or processing
+Batch A2 + Batch D → Processed Batch C
+
+Many-to-many re-batching
+Inputs A + B → Outputs C + D + recorded loss
+```
+
+The `QuantityAndLineageValidator` checks identifiers, units, available input quantities, output quantities, declared loss or yield, profile rules and duplicate use of the same input. It records lineage even when a processing discrepancy requires later review.
+
+### 6.4 Correction
+
+Committed events cannot be physically edited or deleted through the application.
+
+Correction uses:
 
 ```text
 Original Event
-      ↓
-Error Declaration
-      ↓
-Corrective Event
+→ Error Declaration
+→ Corrective Event
 ```
 
-系统需要同时展示原始断言、错误声明和当前有效解释。
+Queries must preserve the original assertion and correction history while clearly identifying the currently effective interpretation.
 
-### 3.6 Inter-organisation Handover
+### 6.5 IoT evidence
 
-交接是构建在 EPCIS event 和 traceable object 之上的核心服务。
+Raw high-frequency telemetry remains in an external IoT platform or specialised time-series store.
 
-交接至少管理：
+The Traceability Network stores only the evidence required for provenance and food-safety analysis:
 
-- sender and receiver；
-- source and destination site；
-- objects/quantities；
-- dispatch and receipt events；
-- custody；
-- ownership reference；
-- physical movement；
-- acceptance/rejection；
-- partial acceptance；
-- quantity or condition discrepancy；
-- sender/receiver signatures。
+- device identity and organisation;
+- associated batch, pallet, shipment or time window;
+- measurement type and unit;
+- bounded summary or threshold exception;
+- observation start and end time;
+- raw-data URI and hash;
+- device or platform signature;
+- processing-method version where a summary was calculated.
 
-推荐采用双阶段模型：
+An unavailable external raw-data URI does not invalidate the existence of the recorded assertion, but the query result must show that the supporting evidence is unavailable.
+
+### 6.6 Controlled disclosure
+
+The first release uses three explicit projections:
+
+| Projection | Permitted content |
+|---|---|
+| Consumer | origin region, public stages, public certificates, temperature compliance summary, affected or recalled status |
+| Participant | authorised handover, quantity, logistics and evidence details involving the organisation or an approved relationship |
+| Auditor | authorised full event payload, publisher, signature, hash, evidence and correction history |
+
+Prices, contracts, exact inventory, personal information and unrelated commercial fields are not exposed by default.
+
+## 7. Data boundary
+
+### 7.1 Consortium ledger
+
+The permissioned consortium ledger stores a minimal verifiable commitment, not the complete operational payload.
+
+The initial ledger record contains:
+
+- network and event ID;
+- event type;
+- profile ID and version;
+- publisher organisation ID;
+- event time and ledger record time;
+- traceable object identifiers required for shared interpretation;
+- relationship type and related object identifiers required to verify handover, containment and derivation commitments;
+- business step and disposition when approved for sharing;
+- payload hash;
+- publisher signature or signature reference;
+- visibility-policy reference;
+- original-event and corrective-event linkage;
+- ledger transaction receipt and sequence.
+
+Exact quantities, personal data, commercial terms, full certificates, raw telemetry and unrestricted precise locations are not placed on the shared ledger by default.
+
+### 7.2 Platform off-chain storage
+
+The SaaS application plane stores:
+
+- encrypted canonical EPCIS payloads;
+- organisation, site, user, device and public-key metadata;
+- product profiles and validation rules;
+- evidence metadata and protected document references;
+- idempotency records and transactional outbox entries;
+- provenance graph and query indexes;
+- derived current-state and handover projections;
+- consumer-safe projections;
+- optional AI risk assessments with model version and generation time.
+
+### 7.3 External authoritative stores
+
+External systems retain:
+
+- complete ERP, WMS, TMS, MES, farm and POS records;
+- raw IoT time-series and device maintenance records;
+- laboratory source records;
+- certificate issuance workflows and source documents;
+- regulatory records and decisions;
+- documents or media not required in the traceability platform.
+
+The platform stores only the shared event or evidence required by the traceability use case. It does not become the authoritative system for unrelated enterprise operations.
+
+## 8. Trust and governance boundary
+
+### 8.1 Trust assumptions
+
+- Organisations may make mistakes or publish conflicting assertions.
+- The platform operator is trusted to operate the SaaS plane but is not trusted as the sole controller of shared history.
+- A valid signature proves who submitted an assertion; it does not prove the physical-world assertion is true.
+- A ledger commitment proves that accepted content has not been silently changed after commitment; it does not guarantee sensor calibration, laboratory competence or regulatory legality.
+- Consumers receive minimised derived information and do not receive unrestricted ledger access.
+
+### 8.2 Key ownership
+
+- Each organisation controls its signing keys or delegates signing under an explicit policy.
+- Platform-managed keys, where needed for small organisations, must be isolated per organisation and protected by a managed KMS or HSM.
+- The platform does not use one shared application key to impersonate every participant.
+- Revoked or suspended identities cannot submit new accepted events, but their historical signatures remain verifiable.
+
+### 8.3 Consortium operation
+
+The logical deployment assumes independent participation from at least:
+
+- Platform Operator;
+- Producer or Farmer Cooperative;
+- Logistics or Distributor representative;
+- Retail representative;
+- Independent Auditor or industry body.
+
+The exact ledger product, quorum and endorsement syntax remain technology decisions, but the architecture must prevent the Platform Operator from unilaterally rewriting committed history or changing governance policy.
+
+Public-blockchain anchoring is not part of the first-release baseline. It may be evaluated as an alternative defence against collusion by the complete consortium.
+
+## 9. Cloud and deployment constraints
+
+Cloud adoption applies to the SaaS application plane, not to the ownership of every consortium node.
+
+The target deployment uses:
+
+- CDN or managed static hosting for browser applications;
+- API gateway and web application firewall;
+- stateless, horizontally scalable application services;
+- managed relational metadata and event storage;
+- managed message broker;
+- object storage for protected evidence where appropriate;
+- independently scalable trace read store;
+- KMS or HSM-backed secret and signing-key protection;
+- multi-availability-zone deployment, health checks, backup and restore;
+- centralised logs, metrics, traces and security audit events;
+- infrastructure as code.
+
+Consortium ledger nodes must be distributed across independent organisations or administrative accounts. Hosting all nodes and administrative credentials in one platform-controlled account violates the trust model even if the infrastructure is technically distributed.
+
+The first deployment can operate in one primary cloud region with multiple availability zones. Multi-region growth is supported through stateless services, explicit region and tenant identifiers, partitionable event and read stores, asynchronous processing and deployable regional read capacity. Global active-active writes are not a first-release requirement.
+
+## 10. Multiple products and regions
+
+### 10.1 Multiple product lines
+
+Support for multiple product lines means:
+
+- no core service is named or implemented for one crop;
+- event processing uses the stable canonical event model;
+- product-specific constraints reside in versioned profiles;
+- a new profile can be registered without replacing the event store or ledger interface;
+- the UI may render profile-specific forms from metadata or isolated presentation modules;
+- old events remain interpretable using the profile version recorded at submission.
+
+The architecture evaluation must include the change scenario: add a dairy profile without modifying the core event-submission workflow.
+
+### 10.2 Multiple regions
+
+Support for multiple regions means:
+
+- organisations, sites, events and profiles carry explicit region or jurisdiction context;
+- time zones are preserved rather than normalised away at capture;
+- services can scale horizontally;
+- data stores can be partitioned by stable identifiers without changing the domain model;
+- regional compliance profiles can extend validation without forking the platform;
+- data residency and cross-region replication remain explicit deployment decisions.
+
+It does not mean the first release implements every jurisdiction or operates an active-active global ledger.
+
+## 11. Rural and failure-mode constraints
+
+### 11.1 Offline event capture
+
+The Participant PWA supports offline event drafting and a durable local submission queue.
+
+Each offline event has:
+
+- client-generated stable event ID;
+- event time and local time-zone offset;
+- publisher identity and signature when secure local signing is available;
+- local state: `Draft`, `Pending Sync`, `Submitted`, `Committed` or `Rejected`;
+- retry metadata.
+
+An offline record is not presented as ledger-confirmed until the server validates and commits it.
+
+### 11.2 Idempotency and retry
+
+- Repeating a submission with the same event ID and identical payload returns the existing result.
+- Reusing an event ID with a different payload is rejected and audited.
+- Ledger or broker outages place a validated submission into an explicit pending state rather than silently losing it.
+- Projection processing is replayable and must tolerate duplicate messages.
+
+### 11.3 Conflicting and incomplete data
+
+- A missing receiving event leaves a handover pending.
+- Mismatched quantity or object identifiers produce partial, rejected or disputed state.
+- Invalid signatures and unauthorised publishers are rejected before ledger commitment.
+- Missing optional evidence lowers provenance completeness but does not fabricate a fact.
+- Corrections append new records and do not erase the original event.
+
+## 12. Working quality targets
+
+The following are project assumptions for architecture modelling and peer review. They must be labelled as proposed targets rather than facts supplied by the case study.
+
+| Quality | Working target |
+|---|---|
+| Trace query performance | Return a normal consumer batch trace within 2 seconds at the 95th percentile using the read model, without traversing the ledger |
+| Impact-query performance | Traverse up to 10,000 authorised handover, containment and derivation edges and return the affected-object set within 5 seconds at the 95th percentile |
+| Submission responsiveness | Validate and acknowledge an online event submission within 3 seconds at the 95th percentile, excluding delayed final ledger confirmation |
+| Ledger completion | Under normal network conditions, expose committed or explicit pending status within 30 seconds at the 95th percentile |
+| Reliability | Client and server retries do not create duplicate accepted events |
+| Rural accessibility | Users can create signed or attributable drafts without connectivity and synchronise after connectivity returns |
+| Scalability | A tenfold increase in event ingestion or public queries can be handled by horizontal scaling and partitioning without changing the domain model |
+| Availability | Public trace queries target 99.9 percent monthly availability; temporary ledger unavailability does not disable read-only queries of already committed data |
+| Integrity | Any change to a committed payload is detectable by comparing its hash and signature with the ledger commitment |
+| Privacy | Consumer responses exclude non-public commercial and personal fields by construction through a separate projection |
+| Modifiability | A new product profile can be introduced without changing the core event-submission service or ledger port |
+| Auditability | An authorised auditor can retrieve the original event, corrections, publisher identity, signature status and evidence references |
+
+These numbers are intentionally testable. They can be revised after team review, but vague phrases such as `real time`, `large volume` and `acceptable response time` must not replace them.
+
+## 13. Optional AI and ML extension
+
+AI and ML are not part of traceability truth or ledger consensus.
+
+If the team pursues the optional AI and IoT marks, the bounded use case is:
+
+> Produce an advisory spoilage-risk or cold-chain anomaly score from authorised trace events and IoT summaries.
+
+The optional Risk Analysis Service:
+
+- reads from an authorised analytical projection rather than the write path;
+- runs asynchronously and cannot block event submission or trace queries;
+- records model ID, model version, input window and generation time;
+- returns an advisory score and explanation or contributing factors;
+- sends high-risk results for human review;
+- does not declare legal non-compliance or rewrite source events;
+- can be disabled without affecting core traceability.
+
+Training-platform design, generic feature stores, generative AI, autonomous regulatory decisions and AI-generated ledger facts are outside the first-release scope.
+
+## 14. Explicit exclusions
+
+The following are outside the system boundary:
+
+- complete farm operations, planting, feeding, fertiliser and treatment management;
+- procurement, sales negotiation, pricing, payment, settlement and accounting;
+- detailed inventory, picking, packing operations and warehouse optimisation;
+- vehicle dispatch and route optimisation;
+- laboratory testing and certification decisions;
+- IoT firmware, connectivity and fleet maintenance;
+- raw high-frequency telemetry retention as a general IoT platform;
+- full regulatory case management, enforcement and legal-liability determination;
+- automatic proof that a submitted claim is physically true;
+- global active-active deployment in the first release;
+- public-blockchain anchoring in the first release;
+- complete recall case-management workflow;
+- serialisation of every consumer item;
+- general-purpose BI, data warehouse or AI platform.
+
+The system may reference data produced by these activities without taking responsibility for performing them.
+
+## 15. End-to-end reference scenario
+
+The reference scenario used across requirements and diagrams is:
+
+1. A Farmer creates Batch A with 1,000 kg under `Fresh Produce Cold Chain v1`.
+2. The Farmer submits a signed commissioning event while online or queues it offline.
+3. A `TransformationEvent` splits Batch A into Batch A1 with 600 kg and Batch A2 with 400 kg while preserving `DERIVED_FROM` lineage.
+4. Batch A1 and an independently identified Batch B1 are aggregated into Pallet P using reversible `CONTAINS` relationships; they are not merged into a new batch.
+5. The Farmer submits a signed shipping event for Pallet P to Logistics Provider L1.
+6. An external IoT platform publishes signed temperature evidence for the shipment window.
+7. Logistics Provider L1 independently receives Pallet P, then submits a new shipping event to Distributor D1.
+8. Distributor D1 independently receives and disaggregates Pallet P.
+9. Distributor D1 splits Batch A1 into Batch A1-R1 and Batch A1-R2 and ships them to different retailers through separate handovers.
+10. Each Retailer independently submits a receiving event that accepts, partially accepts, rejects or disputes its handover.
+11. In a processing branch, Batch A2 and Batch D are transformed into Processed Batch C, preserving both input lineages and any declared processing loss.
+12. A Consumer scans an approved identifier and receives a public provenance projection for the purchased output batch.
+13. An Auditor verifies event signatures, ledger commitments, handover history, quantity lineage, evidence and correction history.
+14. An authorised participant corrects an erroneous event through an Error Declaration and corrective event.
+15. Batch A is marked affected, and the system traverses `DERIVED_FROM`, `CONTAINS` and `HANDOVER` edges to identify all downstream batches, pallets, organisations and retail destinations.
+16. If enabled, the Risk Analysis Service calculates an advisory cold-chain risk score without changing the recorded facts.
+
+This scenario is the source for quality scenarios, the C4 dynamic explanation and cross-view consistency checks.
+
+## 16. Week 9 modelling contract
+
+The following constraints govern the Application Architecture work required by `Tutorial PR.md`.
+
+### 16.1 Project context
+
+The project context must state:
+
+- the platform is a traceability layer rather than a full ERP;
+- organisations remain responsible for their internal operations and source systems;
+- the business objective is verifiable cross-organisation provenance and faster food-safety impact analysis;
+- the main risks are false source data, key compromise, conflicting handovers, privacy leakage, ledger governance, rural connectivity, interoperability and scale;
+- blockchain is a required integrity and multi-party governance mechanism, not proof that physical claims are true.
+
+### 16.2 Quality requirements
+
+Quality scenarios must be selected from the reference scenario and working targets. Each scenario must include:
+
+- source of stimulus;
+- stimulus;
+- operating environment;
+- affected artefact;
+- expected response;
+- measurable response target;
+- selected tactic;
+- alternative and rejection reason.
+
+The priority qualities are integrity and auditability, interoperability and modifiability, reliability under intermittent connectivity, query performance, scalability, availability, security and privacy.
+
+### 16.3 C4 System Context
+
+The Context diagram contains one central software system:
+
+`Agricultural Supply Chain Traceability Network`
+
+People:
+
+- Supply-chain Participant;
+- Consumer;
+- Auditor or Regulator;
+- Consortium Administrator.
+
+External systems:
+
+- Enterprise Operational Systems;
+- External IoT Platform;
+- Laboratory or Certification System;
+- optional Notification Provider;
+- optional AI or ML Endpoint only if implemented outside the platform.
+
+The permissioned consortium ledger is part of the overall Traceability Network even though its nodes are operated by multiple organisations. A future public blockchain is external.
+
+### 16.4 C4 Container view
+
+The initial logical containers are:
+
+- Participant PWA;
+- Consumer Portal;
+- Governance and Audit Portal;
+- API Gateway;
+- Identity and Profile Service;
+- Traceability Command Service;
+- Integration and IoT Gateway;
+- Query and Visualisation Service;
+- Projection Worker;
+- optional Risk Analysis Service;
+- Metadata Database;
+- Encrypted Event Store;
+- Trace Read Store;
+- Message Broker;
+- Consortium Ledger Network.
+
+These are deployable or data containers, not a one-to-one copy of business-domain headings. The diagram must label responsibility and interaction protocols rather than showing unlabeled arrows.
+
+### 16.5 Component views
+
+Only two containers require detailed Component diagrams:
+
+1. Traceability Command Service, covering normalisation, validation, identity and signature verification, idempotency, repeatable handover, aggregation, transformation, quantity and lineage validation, correction, commitment construction, ledger adapter, repository and outbox.
+2. Query and Visualisation Service, covering policy evaluation, graph traversal across `HANDOVER`, `CONTAINS` and `DERIVED_FROM`, integrity verification, upstream lineage, downstream impact analysis and projection building.
+
+The optional Risk Analysis Service does not require a detailed component diagram unless the team chooses AI and ML as a major peer-review focus.
+
+### 16.6 Code view
+
+The Code diagram expands one submission path only. It should show major interfaces and classes such as:
+
+- `TraceEvent` and selected event types;
+- `ObjectEvent`, `AggregationEvent` and `TransformationEvent`;
+- `TraceableObjectRef`, `QuantityElement` and `LineageEdge`;
+- `Handover` and its derived state;
+- `TraceEventSubmissionService`;
+- `EventValidationPipeline`;
+- `EventValidator` implementations;
+- `QuantityAndLineageValidator`;
+- `EventRepository` port;
+- `LedgerPort`;
+- `OutboxPort`;
+- `SubmissionReceipt`.
+
+It must not become a diagram of every database entity or framework class.
+
+### 16.7 Architectural rationale
+
+The rationale must preserve this causal chain:
 
 ```text
-Sender: Dispatch declared
-             ↓ pending
-Receiver: Receipt accepted / partially accepted / rejected
+Independent organisations and separate source systems
+→ standard canonical events and integration adapters
+→ generic repeatable handovers and graph-based split, merge and containment relationships
+→ signatures, authorisation and versioned profiles
+→ append-only event history and multi-organisation ledger commitments
+→ asynchronous projection and CQRS read model
+→ fast, authorised provenance and impact queries
+→ offline queue, retry and idempotency for rural reliability
 ```
 
-发送方与接收方各自提交事实。平台记录不一致，不擅自认定哪一方在现实世界中正确。
-
-`ownership`、`custody` 和 `physical location` 是不同概念，不应由一个 owner 字段代替。
-
-### 3.7 Evidence and External Data Integration
-
-统一管理外部证据引用：
-
-- IoT observation；
-- certificate；
-- laboratory report；
-- inspection result；
-- document/image；
-- external ERP/WMS/TMS event reference。
-
-IoT 平台通常在系统边界之外，但本系统内部负责：
-
-- device identity and ownership；
-- device certificate/revocation；
-- device-object/shipment association；
-- sensor metadata；
-- observation time window；
-- measurement summary；
-- threshold exception；
-- raw data URI/hash；
-- device/platform signature。
-
-完整高频时序数据默认留在外部 IoT platform 或链下 time-series storage：
-
-```text
-IoT Device
-    ↓
-External IoT Platform
-    ├── raw time-series
-    └── signed summary/hash
-              ↓
-Traceability Platform
-```
-
-### 3.8 Trace, Verification and Read Models
-
-提供：
-
-- object current state；
-- complete event history；
-- backward provenance；
-- forward destination/impact；
-- aggregation contents；
-- transformation inputs and outputs；
-- current/last known custodian and location；
-- provenance completeness indicators；
-- signature/hash/schema verification；
-- revoked/superseded/error-declared status。
-
-验证结果需要区分：
-
-```text
-Cryptographically valid
-Schema valid
-Authorised publisher
-Evidence available
-Superseded/revoked
-Incomplete provenance
-Unverified external claim
-```
-
-查询和可视化使用链下 read model/trace graph，不直接依赖遍历区块链。
-
-### 3.9 Access Control and Controlled Disclosure
-
-系统根据主体和用途产生不同的数据投影：
-
-```text
-Organisation-private view
-Trading-partner view
-Auditor/regulator view
-Consumer-public view
-```
-
-访问控制可能作用于：
-
-- object；
-- event；
-- field；
-- evidence/document；
-- organisation relationship；
-- role and purpose。
-
-消费者可以看到来源、主要流转阶段、公开认证和 safety/recall status，但不能自动看到价格、合同、精确库存、个人信息和商业敏感字段。
-
-### 3.10 Minimal Food-safety and Compliance Support
-
-系统不负责制定或执行全部食品安全法规，但提供最小合规支持：
-
-- 将 certificate/inspection/lab result 关联到 organisation、site 或 batch；
-- 记录 issuer、validity period、revocation status 和 hash；
-- 验证强制追踪字段或证据是否缺失；
-- 导出授权范围内的审计历史；
-- 标记 batch 为 hold/affected/recalled；
-- 执行 upstream/downstream impact query。
-
-第一版不需要实现完整 recall case-management workflow，但必须能计算潜在影响范围并暴露批次安全状态。
-
-## 4. 平台提供的派生能力：系统范围内
-
-这些能力依赖核心业务域，但不是账本的基础语义。
-
-### 4.1 Consumer Trace Portal
-
-- 扫描 QR/GS1 Digital Link；
-- 查询公共 product/batch provenance；
-- 展示公开证书和来源信息；
-- 展示 affected/recalled status；
-- 隐藏私有和商业敏感数据。
-
-### 4.2 Visualisation and Insights
-
-- supply-chain graph；
-- object provenance graph；
-- geographic flow；
-- IoT condition timeline；
-- incomplete trace/gap；
-- event and condition exceptions；
-- organisation-authorised operational insights。
-
-### 4.3 Compliance/Audit Export
-
-- 按 object、batch、organisation、site 和时间范围导出；
-- 包含事件、签名、证据引用和验证结果；
-- 遵守访问控制和数据最小化规则。
-
-### 4.4 Notifications
-
-可作为辅助能力通知：
-
-- handover pending/rejected；
-- missing required event/evidence；
-- IoT threshold exception；
-- certificate expiry/revocation；
-- batch affected/recalled。
-
-通知本身不是账本事实来源，关键状态仍以事件记录为准。
-
-## 5. 接入方式：系统范围内
-
-平台支持不同数字化成熟度的参与者：
-
-```text
-Small Farmer/SME     → PWA/mobile/web forms
-Legacy Organisation → CSV/file import
-Large Enterprise    → EPCIS/REST integration API
-IoT Provider        → IoT/evidence ingestion API
-Consumer            → Public trace portal
-Auditor             → Authorised query/export interface
-```
-
-### 5.1 Rural/Offline Support
-
-农村访问能力至少包括：
-
-- offline event drafting/queue；
-- delayed submission；
-- low-bandwidth mode；
-- retry and idempotency；
-- eventTime/recordTime separation；
-- conflict and duplicate handling；
-- local secure key storage where feasible。
-
-离线事件在提交并得到 ledger confirmation 前只能视为 pending local record。
-
-## 6. 外部系统：系统边界之外
-
-以下系统继续由参与企业或专业服务商负责，本平台只通过接口接收所需事件或证据。
-
-### 6.1 Enterprise Operational Systems
-
-- ERP；
-- Warehouse Management System（WMS）；
-- Transport Management System（TMS）；
-- Manufacturing Execution System（MES）；
-- Farm Management System；
-- retailer inventory/POS system。
-
-### 6.2 IoT Infrastructure
-
-- sensor firmware；
-- device provisioning platform；
-- connectivity/network provider；
-- raw telemetry ingestion；
-- high-frequency time-series database；
-- device maintenance and calibration operations。
-
-本平台管理 IoT evidence 与追踪对象的可信关联，但不负责完整 IoT fleet management。
-
-### 6.3 Laboratory and Certification Systems
-
-- 实际样本采集和检测；
-- laboratory information management；
-- 证书审核和签发；
-- 认证机构的法律判断；
-- inspection scheduling and field operations。
-
-本平台验证签发者身份、保存证据引用和完整性证明，但不自动保证现实检测过程正确。
-
-### 6.4 Regulatory Systems
-
-- 法律和法规制定；
-- 正式行政审批；
-- 执法决定；
-- 政府处罚；
-- 政府拥有的监管数据库。
-
-监管机构可以成为授权查询者或独立节点运营者，但本平台不取代监管机构。
-
-### 6.5 Public Blockchain
-
-如果联盟账本采用周期性公共链锚定，公共区块链属于外部证明系统。本平台向其提交 Merkle root/commitment，不提交敏感业务明文。
-
-## 7. 明确排除的业务
-
-当前不在系统范围内：
-
-- 完整农业生产和种植计划；
-- 施肥、饲养、用药等完整 farm operations management；
-- 采购、销售和合同谈判；
-- 商品定价；
-- 支付、结算和财务会计；
-- 完整库存和仓库作业；
-- 车辆调度和路线优化；
-- 物流承运业务执行；
-- 实验室检测本身；
-- 证书审核和签发决定；
-- IoT 固件和 fleet management；
-- 食品质量的自动最终判定；
-- 法律责任认定；
-- 监管执法；
-- 保证企业最初输入的数据在现实世界中必然真实。
-
-系统可以验证：
-
-```text
-谁在什么时间提交了什么断言
-提交者当时是否被授权
-断言提交后是否被修改
-证据是否与已记录 hash 一致
-```
-
-系统不能仅凭区块链证明：
-
-```text
-断言描述的现实世界事实必然真实
-```
-
-## 8. 初步数据边界
-
-### 8.1 共享联盟账本
-
-初步考虑保存：
-
-- event ID/version/type；
-- traceable identifiers；
-- publisher organisation；
-- event and recorded time；
-- object relationship references；
-- business status necessary for shared interpretation；
-- payload/evidence hash；
-- signatures；
-- visibility/access policy reference；
-- error/corrective event linkage。
-
-### 8.2 链下平台存储
-
-初步考虑保存：
-
-- 完整 EPCIS JSON/JSON-LD；
-- organisation-authorised business details；
-- search index；
-- trace graph/read model；
-- analytics model；
-- encrypted document/evidence metadata；
-- consumer-safe projection。
-
-### 8.3 外部数据存储
-
-初步考虑继续由外部系统保存：
-
-- raw IoT time-series；
-- ERP/WMS/TMS 原始记录；
-- laboratory source records；
-- 大型 PDF、图片和视频；
-- 不需要跨组织共享的企业私有数据。
-
-具体链上/链下字段仍属于后续架构决策，当前边界只确定责任归属。
-
-## 9. 初步部署和信任边界
-
-当前倾向：
-
-```text
-SaaS Application Plane
-Web / PWA / API / Query / Read Models
-              │ signed EPCIS events
-              ▼
-Multi-organisation Consortium Ledger
-Producer / Logistics / Retail / Independent Body / Platform Operator
-              │ optional periodic commitment
-              ▼
-External Public Blockchain
-```
-
-关键约束：
-
-- SaaS 可以托管用户体验和共享计算；
-- 企业私钥不由 SaaS 运营商统一持有；
-- 重要联盟成员独立运行 ledger nodes；
-- 网络规则变更需要多组织批准；
-- handover 等关键事件需要相关组织 endorsement；
-- 小企业不需要运行节点，但需要拥有可验证的组织或用户身份；
-- 可选使用公共链 commitment 防止整个联盟事后无痕重建历史。
-
-## 10. 最小端到端业务场景
-
-一个场景应能验证目前全部核心边界：
-
-```text
-1. Farmer 注册 Batch A
-2. Batch A 按 Fresh Produce Profile 验证并提交 commissioning event
-3. Batch A 或其包装单元被聚合到 Pallet P
-4. Farmer 声明向 Distributor 发货
-5. IoT Device D 与运输对象/阶段关联并提供温度证据
-6. Distributor 接收并确认或报告差异
-7. Pallet P 被拆分，部分对象发送给 Retailer
-8. Retailer 接收
-9. Consumer 查询允许公开的 provenance
-10. Auditor 验证签名、hash、证据和 provenance completeness
-11. 错误事件通过 ErrorDeclaration 和 corrective event 纠正
-12. 如果 Batch A 被标记 affected，系统执行 downstream impact query
-```
-
-## 11. 尚未最终决定的问题
-
-- 首个产品 profile 是否聚焦 cold-chain fresh produce；
-- 是否强制使用真实 GS1 GTIN/GLN/SSCC，还是同时支持平台 URI；
-- AssociationEvent 是否进入第一版；
-- 联盟账本具体采用 Hyperledger Fabric、其他 permissioned ledger 或公共链方案；
-- 哪些组织必须运行节点；
-- ordering/endorsement quorum；
-- 哪些 EPCIS 核心字段进入 ledger 明文，哪些仅保存 hash；
-- 是否实施公共链周期性 anchoring；
-- 交接是否强制 sender+receiver 双方 endorsement；
-- consumer serialisation 是第一版能力还是仅支持 batch QR；
-- compliance profile 选择哪些具体地区和法规；
-- 完整 recall workflow 是否属于后续版本。
-
-## 12. 关联文档
+Patterns and tactics must be justified by this chain rather than listed independently.
+
+## 17. Decisions fixed and decisions still open
+
+### 17.1 Fixed architecture decisions
+
+- The product is a traceability platform or layer, not a full ERP.
+- Fresh produce cold chain is the detailed reference profile.
+- Multiple products are supported through versioned profiles over a stable event model.
+- EPCIS concepts provide the canonical event language.
+- The write model is append-only; current state is derived.
+- Shipping and receiving are separate signed assertions.
+- The handover protocol supports an arbitrary number of logistics, distribution, processing and retail hops without role-pair-specific workflows.
+- Provenance is a directed graph using `HANDOVER`, `CONTAINS` and `DERIVED_FROM` relationships rather than a linear batch history.
+- Batch splitting, true merging or processing transformation, and pallet aggregation or disaggregation are core domain semantics.
+- Aggregation preserves child identities; transformation creates new outputs with explicit input lineage and quantities.
+- Complete event payloads are stored encrypted off-chain.
+- Minimal commitments and approved shared facts are recorded on a permissioned consortium ledger.
+- Enterprise operational systems and raw IoT telemetry remain external.
+- Query and visualisation use an off-chain read model rather than ledger traversal.
+- The application plane uses cloud-managed, horizontally scalable infrastructure.
+- Ledger governance is multi-organisation.
+- AI or ML, if included, is advisory, asynchronous and non-authoritative.
+
+### 17.2 Open implementation decisions that do not block Week 9 modelling
+
+- specific ledger technology and endorsement syntax;
+- specific cloud provider;
+- database and message-broker products;
+- exact consortium quorum and onboarding procedure;
+- final numeric workload assumptions after team review;
+- selected regulatory jurisdiction and retention period;
+- whether the AI risk extension is pursued for bonus marks;
+- whether file import and notifications are included in the first release.
+
+These choices must not change the system positioning, canonical event flow or trust boundaries.
+
+## 18. Related documents
 
 - [Case background](./Agricultural%20Supply%20Chain%20Tracker.md)
+- [Assignment specification](./spec.md)
+- [Week 9 and Week 10 peer review requirements](./Tutorial%20PR.md)
 - [Industry platform research](./industry-platform-research.md)
 - [GS1 EPCIS model notes](./epcis-model-notes.md)
 
