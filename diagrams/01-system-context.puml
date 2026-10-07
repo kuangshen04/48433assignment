@@ -1,0 +1,40 @@
+@startuml Agricultural_Supply_Chain_Traceability_Context
+!include <C4/C4_Context>
+
+title C4 Level 1 System Context - Agricultural Supply Chain Traceability Network
+
+LAYOUT_TOP_DOWN()
+skinparam linetype ortho
+skinparam nodesep 55
+skinparam ranksep 65
+
+Person(participant, "Supply-chain Participant", "Farmer, processor, logistics provider, distributor or retailer. Publishes signed assertions and queries authorised provenance.")
+Person(consumer, "Consumer", "Scans an approved product identifier and views a public provenance projection.")
+Person(auditor, "Auditor or Regulator", "Verifies authorised event history, signatures, evidence, corrections and recall impact.")
+Person(admin, "Consortium Administrator", "Manages membership, product profiles and governance policies.")
+
+System(traceNetwork, "Agricultural Supply Chain Traceability Network", "Cloud traceability applications plus a multi-organisation permissioned ledger. Records verifiable event commitments and serves authorised provenance without replacing enterprise systems.")
+
+System_Ext(enterpriseSystems, "Enterprise Operational Systems", "ERP, WMS, TMS, MES, farm-management and POS systems retain internal operational records and publish selected traceability events.")
+System_Ext(iotPlatform, "External IoT Platform", "Retains raw telemetry and supplies signed sensor summaries, exceptions and evidence references.")
+System_Ext(labSystems, "Laboratory and Certification Systems", "Perform tests or certification and supply signed evidence metadata, document references and revocation status.")
+
+Lay_R(participant, consumer)
+Lay_R(consumer, auditor)
+Lay_R(auditor, admin)
+Lay_D(consumer, traceNetwork)
+Lay_D(traceNetwork, iotPlatform)
+Lay_R(enterpriseSystems, iotPlatform)
+Lay_R(iotPlatform, labSystems)
+
+Rel_D(participant, traceNetwork, "Submits events and queries trace")
+Rel_D(consumer, traceNetwork, "Views public trace")
+Rel_D(auditor, traceNetwork, "Verifies authorised history")
+Rel_D(admin, traceNetwork, "Manages governance")
+
+Rel_U(enterpriseSystems, traceNetwork, "Publishes signed EPCIS events")
+Rel_U(iotPlatform, traceNetwork, "Publishes signed sensor evidence")
+Rel_U(labSystems, traceNetwork, "Publishes compliance evidence")
+
+SHOW_LEGEND()
+@enduml

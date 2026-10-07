@@ -1,0 +1,83 @@
+@startuml Traceability_Command_Service_Components
+!include <C4/C4_Component>
+
+title C4 Level 3 Component - Traceability Command Service
+
+LAYOUT_TOP_DOWN()
+skinparam linetype ortho
+skinparam nodesep 45
+skinparam ranksep 60
+
+Container_Ext(apiGateway, "API Gateway", "Routes authenticated submission commands.")
+Container_Ext(integrationGateway, "Integration and IoT Gateway", "Supplies normalised enterprise, IoT and evidence submissions.")
+Container_Ext(identityProfile, "Identity and Profile Service", "Organisation, key, membership, profile and schema authority.")
+ContainerDb_Ext(eventStore, "Encrypted Event Store", "Complete event payloads, submission state, idempotency and outbox records.")
+Container_Ext(ledger, "Consortium Ledger Network", "Multi-organisation ledger for commitments and shared lineage references.")
+Container_Ext(messageBroker, "Message Broker", "Committed-event and projection-status messages.")
+
+Container_Boundary(commandBoundary, "Traceability Command Service") {
+  Component(captureApi, "Capture API", "Application endpoint", "Accepts participant and integration submissions and returns a stable SubmissionReceipt.")
+  Component(normaliser, "EPCIS Normaliser", "Domain component", "Converts supported inputs into the canonical event representation without losing publisher intent.")
+  Component(profileValidator, "Profile and Schema Validator", "Validation component", "Checks EPCIS structure, profile version, required fields, units and allowed business steps.")
+  Component(identityVerifier, "Identity and Signature Verifier", "Security component", "Verifies organisation membership, delegated authority, key status and digital signature.")
+  Component(referenceValidator, "Reference Validator", "Validation component", "Checks referenced objects, sites, evidence and prior events without treating derived state as mutable truth.")
+  Component(idempotency, "Idempotency Controller", "Reliability component", "Returns the existing receipt for the same event ID and hash; rejects reuse with a different payload.")
+
+  Component(handover, "Handover Coordinator", "Domain component", "Correlates repeatable shipping and receiving assertions and derives pending, accepted, partial, rejected or disputed state.")
+  Component(lineage, "Aggregation and Transformation Manager", "Domain component", "Creates CONTAINS and DERIVED_FROM relationships for pallets, splits, merges, processing and re-batching.")
+  Component(quantityValidator, "Quantity and Lineage Validator", "Domain component", "Validates units, available inputs, output quantities, loss or yield, active containment and complete input lineage.")
+  Component(correction, "Correction Manager", "Domain component", "Validates ErrorDeclarations and corrective-event links without deleting original history.")
+
+  Component(stateCoordinator, "Submission State Coordinator", "Application component", "Controls Received → Validated → PayloadStored → PendingLedger → Committed → Projected and recovery states.")
+  Component(eventRepository, "Event Repository", "Persistence adapter", "Atomically stores encrypted payload, event state, idempotency result and outbox record.")
+  Component(commitmentBuilder, "Commitment Builder", "Domain service", "Builds the minimal ledger envelope and deterministic payload hash.")
+  Component(ledgerAdapter, "Ledger Adapter", "Outbound adapter", "Submits commitments, maps ledger receipts and retries without creating duplicate events.")
+  Component(outbox, "Transactional Outbox Publisher", "Messaging adapter", "Publishes EventCommitted after ledger confirmation and replays safely after broker failure.")
+}
+
+Lay_R(apiGateway, integrationGateway)
+Lay_D(apiGateway, captureApi)
+Lay_D(captureApi, normaliser)
+Lay_D(normaliser, profileValidator)
+Lay_D(profileValidator, identityVerifier)
+Lay_D(identityVerifier, referenceValidator)
+Lay_D(referenceValidator, idempotency)
+Lay_R(handover, quantityValidator)
+Lay_R(quantityValidator, correction)
+Lay_D(quantityValidator, stateCoordinator)
+Lay_R(commitmentBuilder, eventRepository)
+Lay_R(eventRepository, outbox)
+Lay_D(commitmentBuilder, ledgerAdapter)
+
+Rel(apiGateway, captureApi, "Submits participant command", "Internal REST/JSON")
+Rel(integrationGateway, captureApi, "Submits canonical integration command", "Internal REST/JSON")
+Rel(captureApi, normaliser, "Normalises input")
+Rel(normaliser, profileValidator, "Validates canonical structure and profile")
+Rel(profileValidator, identityVerifier, "Continues security validation")
+Rel(identityVerifier, identityProfile, "Reads membership, keys and profile authority", "Internal API")
+Rel(identityVerifier, referenceValidator, "Continues reference validation")
+Rel(referenceValidator, idempotency, "Checks stable event identity")
+
+Rel(idempotency, handover, "Routes shipping or receiving event")
+Rel(idempotency, lineage, "Routes aggregation or transformation event")
+Rel(idempotency, correction, "Routes correction event")
+Rel(lineage, quantityValidator, "Validates containment, inputs, outputs and quantities")
+
+Rel(handover, stateCoordinator, "Returns validated handover assertion")
+Rel(quantityValidator, stateCoordinator, "Returns validated lineage assertion")
+Rel(correction, stateCoordinator, "Returns validated corrective assertion")
+Rel(idempotency, stateCoordinator, "Routes other validated ObjectEvents")
+
+Rel(stateCoordinator, eventRepository, "Stores payload and marks PayloadStored or recovery state")
+Rel(eventRepository, eventStore, "Reads and writes event, state, idempotency and outbox records", "Database protocol")
+Rel(stateCoordinator, commitmentBuilder, "Requests commitment after durable payload storage")
+Rel(commitmentBuilder, ledgerAdapter, "Submits deterministic envelope")
+Rel(ledgerAdapter, ledger, "Commits event envelope and obtains receipt", "Ledger SDK/API")
+Rel(ledgerAdapter, stateCoordinator, "Returns committed receipt or retryable failure")
+Rel(stateCoordinator, outbox, "Releases EventCommitted after state becomes Committed")
+Rel(outbox, eventStore, "Claims durable outbox records", "Database protocol")
+Rel(outbox, messageBroker, "Publishes EventCommitted", "Async event")
+Rel(messageBroker, stateCoordinator, "Returns ProjectionCompleted for Projected state", "Async event")
+
+SHOW_LEGEND()
+@enduml

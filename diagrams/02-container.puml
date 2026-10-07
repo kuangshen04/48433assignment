@@ -1,0 +1,92 @@
+@startuml Agricultural_Supply_Chain_Traceability_Containers
+!include <C4/C4_Container>
+
+title C4 Level 2 Container - Agricultural Supply Chain Traceability Network
+
+LAYOUT_TOP_DOWN()
+skinparam linetype ortho
+skinparam nodesep 55
+skinparam ranksep 65
+
+Person(participant, "Supply-chain Participant", "Uses a PWA or an existing enterprise system.")
+Person(consumer, "Consumer", "Views public provenance.")
+Person(auditor, "Auditor or Regulator", "Verifies authorised history and evidence.")
+Person(admin, "Consortium Administrator", "Manages membership, profiles and governance.")
+
+System_Ext(enterpriseSystems, "Enterprise Operational Systems", "ERP, WMS, TMS, MES, farm-management and POS systems.")
+System_Ext(iotPlatform, "External IoT Platform", "Raw telemetry, device operations and signed sensor evidence.")
+System_Ext(labSystems, "Laboratory and Certification Systems", "Test and certificate evidence sources.")
+
+System_Boundary(traceNetwork, "Agricultural Supply Chain Traceability Network") {
+  Container(participantPwa, "Participant PWA", "Offline-capable browser PWA", "Captures events, scans objects, queues offline submissions, confirms handovers and displays authorised traces.")
+  Container(consumerPortal, "Consumer Portal", "Public web application", "Serves a minimised batch provenance, public evidence and affected or recalled status.")
+  Container(auditPortal, "Governance and Audit Portal", "Restricted web application", "Manages membership and profiles; supports integrity verification, investigation and audit export.")
+
+  Container(apiGateway, "API Gateway", "Managed API gateway and WAF", "Terminates TLS, authenticates callers, rate-limits, versions and routes external requests.")
+  Container(identityProfile, "Identity and Profile Service", "Application service", "Manages organisations, users, sites, devices, public keys, memberships and versioned product profiles.")
+  Container(commandService, "Traceability Command Service", "Application service", "Normalises and validates events; coordinates handovers, aggregation, transformation, correction, idempotency and ledger commitment.")
+  Container(integrationGateway, "Integration and IoT Gateway", "Application service", "Maps ERP, EPCIS, IoT and evidence inputs into canonical signed submission commands.")
+  Container(queryService, "Query and Visualisation Service", "Application service", "Evaluates disclosure policy; traverses provenance; verifies integrity; builds participant, consumer and auditor views.")
+  Container(projectionWorker, "Projection Worker", "Background worker", "Consumes committed events and builds replayable handover, lineage, impact and consumer read models.")
+  Container(riskService, "Risk Analysis Service [Optional]", "Asynchronous ML service", "Produces advisory cold-chain anomaly or spoilage-risk assessments without changing source facts.")
+
+  ContainerDb(metadataDb, "Metadata Database", "Managed relational database", "Stores identities, memberships, sites, devices, profiles, policies and service configuration.")
+  ContainerDb(eventStore, "Encrypted Event Store", "Managed durable event database", "Stores complete canonical event payloads, submission states, idempotency records and transactional outbox data.")
+  ContainerDb(readStore, "Trace Read Store", "Graph, search and projection store", "Stores provenance edges, derived state, trace indexes, authorised projections and impact-query data.")
+  Container(messageBroker, "Message Broker", "Managed event broker", "Carries committed-event, projection-completed and advisory-risk messages with retry and replay support.")
+  Container(ledger, "Consortium Ledger Network", "Multi-organisation permissioned ledger", "Stores event commitments, approved shared facts, signatures, lineage references and correction links under independent governance.")
+}
+
+Lay_R(participantPwa, consumerPortal)
+Lay_R(consumerPortal, auditPortal)
+Lay_D(consumerPortal, apiGateway)
+Lay_R(identityProfile, integrationGateway)
+Lay_R(integrationGateway, commandService)
+Lay_R(commandService, queryService)
+Lay_R(queryService, riskService)
+Lay_D(identityProfile, metadataDb)
+Lay_D(commandService, eventStore)
+Lay_R(metadataDb, ledger)
+Lay_R(ledger, eventStore)
+Lay_R(eventStore, messageBroker)
+Lay_D(messageBroker, projectionWorker)
+Lay_D(projectionWorker, readStore)
+
+Rel(participant, participantPwa, "Captures events and queries traces", "Browser/HTTPS")
+Rel(consumer, consumerPortal, "Scans and views public provenance", "Browser/HTTPS")
+Rel(auditor, auditPortal, "Verifies events and exports evidence", "Browser/HTTPS")
+Rel(admin, auditPortal, "Manages organisations, profiles and policies", "Browser/HTTPS")
+
+Rel(participantPwa, apiGateway, "Submits events; queries trace", "HTTPS/JSON")
+Rel(consumerPortal, apiGateway, "Requests public projection", "HTTPS/JSON")
+Rel(auditPortal, apiGateway, "Admin and audit requests", "HTTPS/JSON")
+Rel(enterpriseSystems, apiGateway, "Publishes events; receives receipts", "EPCIS/REST")
+Rel(iotPlatform, apiGateway, "Publishes sensor evidence", "HTTPS/JSON")
+Rel(labSystems, apiGateway, "Publishes compliance evidence", "HTTPS/JSON")
+
+Rel(apiGateway, identityProfile, "Identity and profile requests", "OIDC/mTLS + REST")
+Rel(apiGateway, commandService, "Participant submission commands", "REST/JSON")
+Rel(apiGateway, integrationGateway, "Enterprise, IoT and evidence inputs", "REST/EPCIS")
+Rel(apiGateway, queryService, "Trace, verification and export queries", "REST/JSON")
+
+Rel(integrationGateway, commandService, "Canonical submission commands", "Internal API")
+Rel(commandService, identityProfile, "Checks publisher, key and profile", "Internal API")
+Rel(identityProfile, metadataDb, "Reads and writes registry and profile metadata", "SQL")
+Rel(commandService, eventStore, "Stores payload, state, idempotency and outbox atomically", "Database protocol")
+Rel(commandService, ledger, "Commits minimal envelope; receives receipt", "Ledger SDK/API")
+Rel(commandService, messageBroker, "Publishes EventCommitted via outbox", "Async event")
+
+Rel(messageBroker, projectionWorker, "Delivers committed events and replay requests", "Async event")
+Rel(projectionWorker, readStore, "Builds trace and audience projections", "Database protocol")
+Rel(projectionWorker, messageBroker, "Publishes ProjectionCompleted", "Async event")
+
+Rel(queryService, identityProfile, "Gets caller and disclosure context", "Internal API")
+Rel(queryService, readStore, "Traverses authorised provenance and projections", "Query protocol")
+Rel(queryService, eventStore, "Reads authorised complete payload", "Database protocol")
+Rel(queryService, ledger, "Verifies hashes, signatures and receipts", "Ledger query API")
+
+Rel(riskService, readStore, "Reads analytical projection", "Query protocol")
+Rel(riskService, messageBroker, "Publishes advisory RiskAssessmentGenerated", "Async event")
+
+SHOW_LEGEND()
+@enduml
