@@ -4,11 +4,11 @@
 
 ### Project Context
 
-Clearly describe project context including the project objectives, stakeholders, risks andconstraints.
+Clearly describe project context including the project objectives, stakeholders, risks and constraints.
 
 ### Requirement Analysis
 
-Clearly describe system qualities requirements of stakeholders and elaborates on theirneeds through usage scenarios. Provide justification and rational of choices, alternativesthat were considered and reasons why those were rejected.
+Clearly describe system qualities requirements of stakeholders and elaborates on their needs through usage scenarios. Provide justification and rational of choices, alternatives that were considered and reasons why those were rejected.
 
 ### C4 Application Architecture diagrams
 
@@ -16,13 +16,13 @@ Provide a set of views that describe and progressively develop the applicationar
 
 ### Application Architectural Rationale
 
-Clearly explain how your design adopts quality tactics and architectural patterns forachieving the system qualities requirements.
+Clearly explain how your design adopts quality tactics and architectural patterns for achieving the system qualities requirements.
 
 ## Week 10 Peer Review 2 – Data Architecture
 
 ### Data Management Requirement
 
-Clearly describe data management requirements and elaborates on their needs throughusage scenarios. Provide justification and rational of choices, alternatives that wereconsidered and reasons why those were rejected.
+Clearly describe data management requirements and elaborates on their needs through usage scenarios. Provide justification and rational of choices, alternatives that were considered and reasons why those were rejected.
 
 ### C4 Data Architecture diagrams
 
