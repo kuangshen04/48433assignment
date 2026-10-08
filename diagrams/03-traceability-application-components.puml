@@ -9,11 +9,10 @@ skinparam nodesep 45
 skinparam ranksep 55
 
 Container_Ext(apiGateway, "API Gateway", "Routes authenticated participant, integration, query and governance requests.")
-ContainerDb_Ext(metadataDb, "Metadata Database", "Organisation, identity, profile and policy metadata.")
-ContainerDb_Ext(eventStore, "Encrypted Event Store", "Canonical payloads, submission state, idempotency and outbox records.")
-ContainerDb_Ext(readStore, "Trace Read Store", "Provenance graph, derived state and audience projections.")
+ContainerDb_Ext(traceDb, "Traceability PostgreSQL Database", "Registry, event, operations and rebuildable projection schemas in one managed PostgreSQL database.")
 Container_Ext(ledger, "Consortium Ledger Network", "Shared event commitments, signatures and lineage references.")
 Container_Ext(messageBroker, "Message Broker", "Committed-event and application messages.")
+System_Ext(artifactStore, "Participant-controlled Artifact Stores", "External sensitive documents, private extensions and raw evidence addressed by opaque references.")
 
 Container_Boundary(traceAppBoundary, "Traceability Application") {
   Boundary(interfaceBoundary, "Interface Modules") {
@@ -46,14 +45,14 @@ Container_Boundary(traceAppBoundary, "Traceability Application") {
     Component(readModelPort, "Read Model Port", "Port interface", "Provenance graph and audience projection query abstraction.")
     Component(ledgerPort, "Ledger Port", "Port interface", "Commitment submission and verification abstraction.")
     Component(eventPublisherPort, "Event Publisher Port", "Port interface", "Durable application-event publication abstraction.")
+    Component(artifactReferencePort, "Artifact Reference Port", "Port interface", "External artifact registration, authorised resolution and commitment-verification abstraction.")
   }
 
   Boundary(adapterBoundary, "Infrastructure Adapters") {
-    Component(metadataAdapter, "Metadata Adapter", "Outbound adapter", "Implements identity and profile metadata persistence.")
-    Component(eventStoreAdapter, "Event Store Adapter", "Outbound adapter", "Implements encrypted event, state, idempotency and outbox persistence.")
-    Component(readStoreAdapter, "Trace Read Store Adapter", "Outbound adapter", "Implements graph traversal and projection access.")
+    Component(postgresAdapter, "PostgreSQL Adapter", "Outbound adapter", "Implements logically separate identity, event-repository and read-model ports using one PostgreSQL database.")
     Component(ledgerAdapter, "Consortium Ledger Adapter", "Outbound adapter", "Implements deterministic commitment, receipt mapping, verification and retry.")
     Component(outboxAdapter, "Transactional Outbox Publisher", "Outbound adapter", "Implements reliable EventCommitted publication after ledger confirmation.")
+    Component(artifactAdapter, "Artifact Provider Adapter", "Outbound adapter", "Implements provider-neutral artifact references, authorised access and nonce-based commitment verification.")
   }
 }
 
@@ -80,11 +79,11 @@ Lay_R(identityMetadataPort, ledgerPort)
 Lay_R(ledgerPort, eventRepositoryPort)
 Lay_R(eventRepositoryPort, eventPublisherPort)
 Lay_R(eventPublisherPort, readModelPort)
+Lay_R(readModelPort, artifactReferencePort)
 
-Lay_R(metadataAdapter, ledgerAdapter)
-Lay_R(ledgerAdapter, eventStoreAdapter)
-Lay_R(eventStoreAdapter, outboxAdapter)
-Lay_R(outboxAdapter, readStoreAdapter)
+Lay_R(postgresAdapter, ledgerAdapter)
+Lay_R(ledgerAdapter, outboxAdapter)
+Lay_R(outboxAdapter, artifactAdapter)
 
 Rel(apiGateway, participantApi, "Invokes")
 Rel(apiGateway, integrationApi, "Invokes")
@@ -123,24 +122,26 @@ Rel(eventCommit, identityMetadataPort, "Depends on")
 Rel(eventCommit, eventRepositoryPort, "Depends on")
 Rel(eventCommit, ledgerPort, "Depends on")
 Rel(eventCommit, eventPublisherPort, "Depends on")
+Rel(eventCommit, artifactReferencePort, "Depends on")
 Rel(traceQuery, identityMetadataPort, "Depends on")
 Rel(traceQuery, eventRepositoryPort, "Depends on")
 Rel(traceQuery, readModelPort, "Depends on")
 Rel(traceQuery, ledgerPort, "Depends on")
+Rel(traceQuery, artifactReferencePort, "Depends on")
 Rel(governance, identityMetadataPort, "Depends on")
 
-Rel_U(metadataAdapter, identityMetadataPort, "Implements")
-Rel_U(eventStoreAdapter, eventRepositoryPort, "Implements")
-Rel_U(readStoreAdapter, readModelPort, "Implements")
+Rel_U(postgresAdapter, identityMetadataPort, "Implements")
+Rel_U(postgresAdapter, eventRepositoryPort, "Implements")
+Rel_U(postgresAdapter, readModelPort, "Implements")
 Rel_U(ledgerAdapter, ledgerPort, "Implements")
 Rel_U(outboxAdapter, eventPublisherPort, "Implements")
+Rel_U(artifactAdapter, artifactReferencePort, "Implements")
 
-Rel_D(metadataAdapter, metadataDb, "Reads and writes", "SQL")
-Rel_D(eventStoreAdapter, eventStore, "Reads and writes", "Database protocol")
-Rel_D(readStoreAdapter, readStore, "Queries", "Graph/search protocol")
+Rel_D(postgresAdapter, traceDb, "Reads and writes logical schemas", "SQL")
 Rel_D(ledgerAdapter, ledger, "Commits and verifies", "Ledger SDK/API")
-Rel_D(outboxAdapter, eventStore, "Claims durable outbox records", "Database protocol")
+Rel_D(outboxAdapter, traceDb, "Claims durable outbox records", "SQL")
 Rel_D(outboxAdapter, messageBroker, "Publishes EventCommitted", "Async event")
+Rel_D(artifactAdapter, artifactStore, "Resolves authorised content and verifies commitment", "Provider API")
 
 SHOW_LEGEND()
 @enduml

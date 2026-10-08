@@ -18,6 +18,7 @@ System(traceNetwork, "Agricultural Supply Chain Traceability Network", "Cloud tr
 System_Ext(enterpriseSystems, "Enterprise Operational Systems", "ERP, WMS, TMS, MES, farm-management and POS systems retain internal operational records and publish selected traceability events.")
 System_Ext(iotPlatform, "External IoT Platform", "Retains raw telemetry and supplies signed sensor summaries, exceptions and evidence references.")
 System_Ext(labSystems, "Laboratory and Certification Systems", "Perform tests or certification and supply signed evidence metadata, document references and revocation status.")
+System_Ext(artifactStore, "Participant-controlled Artifact Stores", "Organisation-selected storage for sensitive documents, commercial attachments and private extension payloads.")
 
 Lay_R(participant, consumer)
 Lay_R(consumer, auditor)
@@ -26,6 +27,7 @@ Lay_D(consumer, traceNetwork)
 Lay_D(traceNetwork, iotPlatform)
 Lay_R(enterpriseSystems, iotPlatform)
 Lay_R(iotPlatform, labSystems)
+Lay_R(labSystems, artifactStore)
 
 Rel_D(participant, traceNetwork, "Submits events and queries trace")
 Rel_D(consumer, traceNetwork, "Views public trace")
@@ -35,6 +37,7 @@ Rel_D(admin, traceNetwork, "Manages governance")
 Rel_U(enterpriseSystems, traceNetwork, "Publishes signed EPCIS events")
 Rel_U(iotPlatform, traceNetwork, "Publishes signed sensor evidence")
 Rel_U(labSystems, traceNetwork, "Publishes compliance evidence")
+Rel_U(artifactStore, traceNetwork, "Provides referenced artifacts when authorised")
 
 SHOW_LEGEND()
 @enduml

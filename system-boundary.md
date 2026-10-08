@@ -87,10 +87,11 @@ The project requirements are represented at different depths:
 | Signed event capture and validation | IoT evidence API | IoT firmware, fleet management and raw telemetry platform |
 | Dispatch and receipt correlation | Laboratory or certificate evidence API | Laboratory testing and certificate issuance |
 | Append-only correction and dispute representation | Consumer QR or Digital Link query | Government approval, enforcement and regulatory databases |
-| Encrypted event payload store | Auditor query and export interface | Payment, accounting and contract management |
+| Minimal canonical event facts in the application database | Auditor query and export interface | Payment, accounting and contract management |
 | Consortium ledger commitments | Optional file import after the core API is stable | Detailed inventory, warehouse operations and route optimisation |
 | Provenance read model and impact query | Optional ML inference endpoint | Public blockchain, if future anchoring is adopted |
-| Consumer, participant and auditor projections | Notification provider if later adopted | Email, SMS and push infrastructure |
+| Consumer, participant and auditor projections | External artifact reference and verification API | Participant-controlled storage for sensitive documents and private extensions |
+| Artifact references and content commitments | Notification provider if later adopted | Email, SMS and push infrastructure |
 
 ## 4. Stakeholders and actors
 
@@ -358,7 +359,7 @@ The first release uses three explicit projections:
 |---|---|
 | Consumer | origin region, public stages, public certificates, temperature compliance summary, affected or recalled status |
 | Participant | authorised handover, quantity, logistics and evidence details involving the organisation or an approved relationship |
-| Auditor | authorised full event payload, publisher, signature, hash, evidence and correction history |
+| Auditor | authorised canonical event facts, publisher, signature, hash, correction history and authorised external-artifact references |
 
 Prices, contracts, exact inventory, personal information and unrelated commercial fields are not exposed by default.
 
@@ -386,19 +387,38 @@ The initial ledger record contains:
 
 Exact quantities, personal data, commercial terms, full certificates, raw telemetry and unrestricted precise locations are not placed on the shared ledger by default.
 
-### 7.2 Platform off-chain storage
+### 7.2 Single PostgreSQL application database
 
-The SaaS application plane stores:
+The first release uses one PostgreSQL application database rather than separate metadata, event and graph databases.
 
-- encrypted canonical EPCIS payloads;
-- organisation, site, user, device and public-key metadata;
-- product profiles and validation rules;
-- evidence metadata and protected document references;
-- idempotency records and transactional outbox entries;
-- provenance graph and query indexes;
-- derived current-state and handover projections;
-- consumer-safe projections;
-- optional AI risk assessments with model version and generation time.
+Logical responsibilities remain separated through schemas, tables, roles and application ports:
+
+```text
+registry
+  organisation / identity / key / site / device / profile / policy
+
+events
+  submission / canonical event / event object / correction
+  artifact reference / ledger receipt / transactional outbox
+
+projection
+  trace edge / handover / current state / audience projection
+  provenance completeness / optional risk assessment
+
+operations
+  projection checkpoint / retry record / audit log
+```
+
+PostgreSQL recursive CTEs and indexed adjacency-list tables implement `HANDOVER`, `CONTAINS` and `DERIVED_FROM` traversal in the first release. A separate graph database is rejected initially because it adds replication, consistency, operations and developer burden before the proposed workload demonstrates a need for it.
+
+The write model and query projections remain logically different even though they share one database:
+
+- accepted canonical events are append-only authoritative history;
+- projection tables are eventually consistent, disposable and rebuildable;
+- the Transactional Outbox is committed with the write model;
+- ledger confirmation remains an external state transition and cannot join the PostgreSQL transaction.
+
+Separate logical ports such as `IdentityMetadataPort`, `EventRepositoryPort` and `ReadModelPort` are preserved. One PostgreSQL adapter may implement all three ports without coupling domain modules to PostgreSQL.
 
 ### 7.3 External authoritative stores
 
@@ -409,9 +429,58 @@ External systems retain:
 - laboratory source records;
 - certificate issuance workflows and source documents;
 - regulatory records and decisions;
-- documents or media not required in the traceability platform.
+- sensitive documents, commercial attachments and organisation-private extension payloads;
+- documents or media not required for the minimum traceability graph.
 
 The platform stores only the shared event or evidence required by the traceability use case. It does not become the authoritative system for unrelated enterprise operations.
+
+### 7.4 Core facts and external artifacts
+
+The platform must retain the minimum facts required to perform its claimed behaviour:
+
+- event, publisher, profile and time identifiers;
+- traceable object identifiers;
+- `HANDOVER`, `CONTAINS` and `DERIVED_FROM` relationships;
+- shipping and receiving correlation;
+- correction linkage;
+- quantities and units required to validate split, merge or transformation rules;
+- signature, submission status, payload commitment and ledger receipt;
+- disclosure classification.
+
+These facts remain in PostgreSQL. Completely externalising them would prevent the platform from validating lineage, computing recall impact or explaining a committed event.
+
+Large or sensitive artifacts are external by default, including certificates, laboratory files, raw IoT data, images, videos, contracts, invoices, commercial attachments and organisation-private extension payloads.
+
+For each external artifact PostgreSQL stores only:
+
+- stable artifact ID and owner organisation;
+- artifact type and provider type;
+- opaque provider locator without embedded credentials;
+- content commitment and commitment scheme;
+- canonicalisation and hash algorithm versions;
+- content type and optional size;
+- provider signature;
+- access-policy reference;
+- availability and revocation status;
+- retention-policy reference.
+
+The application accesses external content through an `ArtifactReferencePort`. Provider-specific adapters may target enterprise document systems, S3-compatible storage, SharePoint, laboratory APIs, IoT platforms or another organisation-selected service.
+
+A commitment proves only that later-presented content matches the earlier commitment. It does not prove that the claim is true or that the external artifact remains available. Query results must report integrity, availability, issuer status and business-verification status separately.
+
+Low-entropy sensitive fields must not use an unsalted raw hash. The baseline commitment scheme is:
+
+```text
+SHA-256(randomNonce || canonicalisedArtifact)
+```
+
+The artifact owner retains the nonce with the artifact and reveals it only when verification is authorised. The commitment record stores the canonicalisation version, hash algorithm and commitment-scheme identifier.
+
+### 7.5 Retention without an invented jurisdiction
+
+The case study does not provide a jurisdiction-specific retention period. The architecture therefore uses versioned retention policies rather than claiming an unsupported legal number.
+
+Event and artifact-reference records include `retentionPolicyId`, `retainUntil` and `legalHold`. Product or regional profiles select the policy. External artifact owners remain responsible for source-content retention; the platform records `Available`, `Unavailable`, `Expired` or `Revoked` status. Minimal ledger commitments contain no deletable sensitive payload. Projection data may be deleted and rebuilt subject to the source-event policy.
 
 ## 8. Trust and governance boundary
 
@@ -453,10 +522,10 @@ The target deployment uses:
 - CDN or managed static hosting for browser applications;
 - API gateway and web application firewall;
 - stateless, horizontally scalable application services;
-- managed relational metadata and event storage;
+- one managed PostgreSQL application database with logically separated registry, event, projection and operations schemas;
 - managed message broker;
-- object storage for protected evidence where appropriate;
-- independently scalable trace read store;
+- provider adapters for participant-controlled external artifact storage;
+- PostgreSQL read replicas or projection-table partitioning when read load requires them;
 - KMS or HSM-backed secret and signing-key protection;
 - multi-availability-zone deployment, health checks, backup and restore;
 - centralised logs, metrics, traces and security audit events;
@@ -464,7 +533,7 @@ The target deployment uses:
 
 Consortium ledger nodes must be distributed across independent organisations or administrative accounts. Hosting all nodes and administrative credentials in one platform-controlled account violates the trust model even if the infrastructure is technically distributed.
 
-The first deployment can operate in one primary cloud region with multiple availability zones. Multi-region growth is supported through stateless services, explicit region and tenant identifiers, partitionable event and read stores, asynchronous processing and deployable regional read capacity. Global active-active writes are not a first-release requirement.
+The first deployment can operate in one primary cloud region with multiple availability zones. Multi-region growth is supported through stateless services, explicit region and tenant identifiers, partitionable event and projection schemas, asynchronous processing and regional PostgreSQL read replicas where required. Global active-active writes are not a first-release requirement.
 
 ## 10. Multiple products and regions
 
@@ -657,6 +726,7 @@ External systems:
 - Enterprise Operational Systems;
 - External IoT Platform;
 - Laboratory or Certification System;
+- Participant-controlled Artifact Store;
 - optional Notification Provider;
 - optional AI or ML Endpoint only if implemented outside the platform.
 
@@ -673,9 +743,7 @@ The initial logical containers are:
 - Traceability Application, implemented initially as a modular backend containing commit, query, governance, integration, identity, profile and policy modules;
 - Projection Worker;
 - optional Risk Analysis Service;
-- Metadata Database;
-- Encrypted Event Store;
-- Trace Read Store;
+- Traceability PostgreSQL Database, containing logically separated registry, event, projection and operations schemas;
 - Message Broker;
 - Consortium Ledger Network.
 
@@ -693,7 +761,8 @@ The Component diagram groups:
 - application modules: event commit, trace query and governance;
 - domain modules: event core, handover, lineage, evidence, correction, product profile, access policy and provenance;
 - ports: identity and metadata, event repository, read model, ledger and event publisher;
-- infrastructure adapters implementing those ports.
+- infrastructure adapters implementing those ports, including one PostgreSQL adapter that may implement multiple logically distinct persistence ports;
+- an artifact-reference port and provider adapters for participant-controlled external content.
 
 Dependencies must point inward toward stable abstractions. Domain modules may depend on the Event Core, but the Event Core must not depend back on application, infrastructure or presentation modules. Concrete validators remain Code-level strategies inside the Event Commit module rather than separate C4 components.
 
@@ -749,10 +818,16 @@ Patterns and tactics must be justified by this chain rather than listed independ
 - Provenance is a directed graph using `HANDOVER`, `CONTAINS` and `DERIVED_FROM` relationships rather than a linear batch history.
 - Batch splitting, true merging or processing transformation, and pallet aggregation or disaggregation are core domain semantics.
 - Aggregation preserves child identities; transformation creates new outputs with explicit input lineage and quantities.
-- Complete event payloads are stored encrypted off-chain.
+- The platform stores minimum canonical traceability facts in PostgreSQL; sensitive documents and organisation-private extensions remain in participant-controlled external stores by default.
 - Minimal commitments and approved shared facts are recorded on a permissioned consortium ledger.
 - Enterprise operational systems and raw IoT telemetry remain external.
-- Query and visualisation use an off-chain read model rather than ledger traversal.
+- One PostgreSQL application database stores registry metadata, canonical events, outbox records and rebuildable read projections in logically separated schemas.
+- PostgreSQL adjacency-list tables and recursive CTEs implement initial provenance and impact traversal; a separate graph database is deferred until a prototype shows the working targets cannot be met.
+- Query and visualisation use PostgreSQL read projections rather than ledger traversal.
+- Logical persistence ports remain separate even when one PostgreSQL adapter implements them.
+- External artifacts are represented by opaque provider references, signed metadata and nonce-based content commitments; platform credentials or permanent signed URLs are not stored in the reference.
+- Quantities and units required for lineage validation remain platform core facts and are not completely externalised.
+- Retention is selected through versioned product or regional policies because the case supplies no jurisdiction-specific numeric period.
 - The application plane uses cloud-managed, horizontally scalable infrastructure.
 - The initial backend is a modular Traceability Application rather than separately deployed command, query, identity and integration services.
 - CQRS is a logical separation of commit and query modules, models and ports; it is not initially a microservice boundary.
@@ -764,7 +839,7 @@ Patterns and tactics must be justified by this chain rather than listed independ
 
 - specific ledger technology and endorsement syntax;
 - specific cloud provider;
-- database and message-broker products;
+- message-broker product;
 - exact consortium quorum and onboarding procedure;
 - final numeric workload assumptions after team review;
 - selected regulatory jurisdiction and retention period;
