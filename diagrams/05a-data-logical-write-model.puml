@@ -1,0 +1,77 @@
+@startuml Traceability_Logical_Write_Model
+
+title Week 10 Logical Write Model - Registry and Authoritative Events
+
+hide methods
+hide stereotypes
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 55
+
+package "registry schema" {
+  entity organisation
+  entity site
+  entity identity
+  entity signing_key
+  entity membership
+  entity device
+  entity product_profile
+  entity profile_version
+  entity visibility_policy
+  entity retention_policy
+}
+
+package "events schema - authoritative" {
+  entity event_submission
+  entity trace_event
+  entity traceable_object
+  entity event_object
+  entity event_correction
+  entity external_artifact
+  entity event_artifact
+  entity ledger_commitment
+  entity outbox_message
+}
+
+organisation ||--o{ site
+organisation ||--o{ identity
+identity ||--o{ signing_key
+identity ||--o{ membership
+organisation ||--o{ membership
+organisation ||--o{ device
+product_profile ||--|{ profile_version
+
+event_submission ||--o| trace_event
+organisation ||--o{ trace_event : publishes
+identity ||--o{ trace_event : signs
+signing_key ||--o{ trace_event : verifies
+profile_version ||--o{ trace_event : constrains
+visibility_policy ||--o{ trace_event : discloses
+retention_policy ||--o{ trace_event : retains
+
+trace_event ||--|{ event_object
+traceable_object ||--o{ event_object
+trace_event ||--o{ event_artifact
+external_artifact ||--o{ event_artifact
+organisation ||--o{ external_artifact : owns
+visibility_policy ||--o{ external_artifact
+retention_policy ||--o{ external_artifact
+trace_event ||--o| ledger_commitment
+trace_event ||--o{ event_correction : original
+trace_event ||--o| event_correction : declaration
+trace_event ||--o| event_correction : corrective
+trace_event ..> outbox_message : publishes after commit
+
+note right of trace_event
+  Append-only canonical history.
+  Stable envelope fields are relational;
+  extensible profile content uses JSONB.
+end note
+
+note right of external_artifact
+  Reference and commitment only.
+  Sensitive source content remains external.
+end note
+
+@enduml
