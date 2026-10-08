@@ -252,6 +252,26 @@ Receive command
 
 Validation failure must not create a committed ledger record. A ledger timeout must not cause duplicate events when the client retries.
 
+The accepted submission lifecycle is:
+
+```text
+Received
+→ Validated
+→ PayloadStored
+→ PendingLedger
+→ Committed
+→ Projected
+```
+
+Terminal or recovery states are:
+
+- `Rejected`: validation, authentication, authorisation or signature verification failed;
+- `LedgerRetry`: the payload is durable but ledger confirmation has not completed;
+- `ProjectionRetry`: the event is committed but one or more read-model projections require replay;
+- `Superseded`: the original event remains in history but an authorised correction provides the currently effective interpretation.
+
+Only `Committed` and `Projected` events may be presented as confirmed shared history. A projection failure does not reverse a ledger commitment, and a ledger retry must reuse the original event ID and payload hash.
+
 ### 6.2 Inter-organisation handover
 
 A handover is not one mutable transfer row.
@@ -650,10 +670,7 @@ The initial logical containers are:
 - Consumer Portal;
 - Governance and Audit Portal;
 - API Gateway;
-- Identity and Profile Service;
-- Traceability Command Service;
-- Integration and IoT Gateway;
-- Query and Visualisation Service;
+- Traceability Application, implemented initially as a modular backend containing commit, query, governance, integration, identity, profile and policy modules;
 - Projection Worker;
 - optional Risk Analysis Service;
 - Metadata Database;
@@ -662,16 +679,25 @@ The initial logical containers are:
 - Message Broker;
 - Consortium Ledger Network.
 
-These are deployable or data containers, not a one-to-one copy of business-domain headings. The diagram must label responsibility and interaction protocols rather than showing unlabeled arrows.
+These are deployable or data containers, not a one-to-one copy of business-domain headings. Logical CQRS is preserved inside the Traceability Application through separate commit and query modules and different write and read models; it does not require separate command and query deployments in the first release. The diagram must label responsibility and interaction protocols rather than showing unlabeled arrows.
 
 ### 16.5 Component views
 
-Only two containers require detailed Component diagrams:
+One Component diagram expands the `Traceability Application` as a module dependency graph rather than a request-flow diagram.
 
-1. Traceability Command Service, covering normalisation, validation, identity and signature verification, idempotency, repeatable handover, aggregation, transformation, quantity and lineage validation, correction, commitment construction, ledger adapter, repository and outbox.
-2. Query and Visualisation Service, covering policy evaluation, graph traversal across `HANDOVER`, `CONTAINS` and `DERIVED_FROM`, integrity verification, upstream lineage, downstream impact analysis and projection building.
+The logical module model is deployment independent. Local calls and RPC calls may realise the same logical dependency, but the Container and Deployment views must still identify remote boundaries because they introduce timeout, partial-failure, versioning, consistency and security consequences.
 
-The optional Risk Analysis Service does not require a detailed component diagram unless the team chooses AI and ML as a major peer-review focus.
+The Component diagram groups:
+
+- interface modules: participant API, enterprise and IoT integration API, trace query API and governance API;
+- application modules: event commit, trace query and governance;
+- domain modules: event core, handover, lineage, evidence, correction, product profile, access policy and provenance;
+- ports: identity and metadata, event repository, read model, ledger and event publisher;
+- infrastructure adapters implementing those ports.
+
+Dependencies must point inward toward stable abstractions. Domain modules may depend on the Event Core, but the Event Core must not depend back on application, infrastructure or presentation modules. Concrete validators remain Code-level strategies inside the Event Commit module rather than separate C4 components.
+
+The Projection Worker and optional Risk Analysis Service do not require Component diagrams for Week 9 unless the team chooses projection internals or AI and ML as a major peer-review focus.
 
 ### 16.6 Code view
 
@@ -728,6 +754,9 @@ Patterns and tactics must be justified by this chain rather than listed independ
 - Enterprise operational systems and raw IoT telemetry remain external.
 - Query and visualisation use an off-chain read model rather than ledger traversal.
 - The application plane uses cloud-managed, horizontally scalable infrastructure.
+- The initial backend is a modular Traceability Application rather than separately deployed command, query, identity and integration services.
+- CQRS is a logical separation of commit and query modules, models and ports; it is not initially a microservice boundary.
+- Logical module boundaries are designed independently of deployment and can later be remapped to separate containers without changing domain semantics.
 - Ledger governance is multi-organisation.
 - AI or ML, if included, is advisory, asynchronous and non-authoritative.
 
