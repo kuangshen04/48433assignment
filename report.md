@@ -52,9 +52,9 @@ The proposed Agricultural Supply Chain Traceability Network provides participant
 |---|---|---|---|
 | BO-1 | Trace agricultural products from source to consumer across multiple organisations | Event-centred provenance using handover, containment and derivation relationships | End-to-end reference scenario and impact query |
 | BO-2 | Improve record integrity and auditability | Signatures, append-only events and consortium-ledger commitments | Hash/signature verification and correction history |
-| BO-3 | Reduce the scope and time of food-safety investigation | Rebuildable PostgreSQL trace projections and downstream impact analysis | Proposed 10,000-edge, five-second p95 target |
+| BO-3 | Reduce the scope and time of food-safety investigation | Rebuildable PostgreSQL trace projections and downstream impact analysis | Reference recall scenario returns every authorised descendant across handover, containment and derivation relationships |
 | BO-4 | Support small rural participants and established enterprises | Offline-capable PWA plus versioned EPCIS/REST integration | Offline submission scenario and idempotency |
-| BO-5 | Support multiple product lines and regions without redesigning the core | Stable event model plus versioned product and regional profiles | Dairy-profile change scenario |
+| BO-5 | Support multiple product lines and regions without redesigning the core | Stable event model, versioned product profiles and explicit regional deployment and policy context | Dairy-profile change scenario and region-aware deployment review |
 | BO-6 | Protect private and commercially sensitive information | Audience projections and participant-controlled artifact stores | Disclosure-policy and artifact-reference tests |
 
 ## 1.3 Stakeholders and Architectural Interests
@@ -66,7 +66,7 @@ The proposed Agricultural Supply Chain Traceability Network provides participant
 | Logistics provider | Record custody changes and IoT evidence | Drives repeatable handover and evidence integration |
 | Distributor or wholesaler | Split, aggregate, receive and redistribute quantities | Drives multi-hop relationships and partial-receipt handling |
 | Retailer | Verify received products and expose approved consumer identifiers | Drives receiving assertions and consumer projection |
-| Consumer | View understandable public provenance and safety status | Drives low-latency, allowlisted public view |
+| Consumer | View understandable public provenance and safety status | Drives a minimised, allowlisted projection derived from committed assertions |
 | Auditor or regulator | Inspect authorised history, commitments, evidence and corrections | Drives audit export, key history and trace completeness |
 | Evidence provider | Reference IoT, laboratory or certification artifacts | Drives provider-neutral artifact references and commitments |
 | Platform operator | Operate a secure and scalable SaaS application | Drives cloud operations, observability and separation of duties |
@@ -128,21 +128,24 @@ The following responsibilities are plausible in a broad agricultural supply-chai
 
 ## 2.2 System Quality Requirements
 
-| ID | Quality | Requirement and proposed measure | Stakeholder need |
-|---|---|---|---|
-| QA-1 | Integrity | A change to committed event content must be detectable through signature and ledger commitment verification | All participants, auditor |
-| QA-2 | Auditability | Authorised auditors can retrieve publisher, signature, original event, corrections, evidence status and receipt | Auditor/regulator |
-| QA-3 | Reliability | Client or server retries do not create duplicate accepted events | Rural participants and enterprise integrators |
-| QA-4 | Rural accessibility | Participants can create attributable drafts offline and synchronise after reconnection | Farmer/producer |
-| QA-5 | Query performance | Normal consumer trace returns within two seconds at p95 using projections | Consumer |
-| QA-6 | Impact performance | Up to 10,000 authorised lineage edges are traversed within five seconds at p95 | Food-safety investigator |
-| QA-7 | Availability | Public trace query targets 99.9% monthly availability and remains available during temporary ledger outage for committed data | Consumer and retailer |
-| QA-8 | Scalability | Tenfold ingestion or query growth can be handled through horizontal application scaling and PostgreSQL tuning without changing the domain model | Platform operator |
-| QA-9 | Privacy | Consumer response is constructed from an allowlisted projection and excludes restricted fields | Participants and consumer |
-| QA-10 | Modifiability | A new product profile does not require changing the Event Core or ledger port | Consortium administrator and development team |
-| QA-11 | Interoperability | Canonical events use versioned EPCIS concepts and controlled vocabulary | Enterprise participants |
+Trustworthiness is the primary architectural driver. In this report, a trustworthy record does not mean that the platform proves a physical-world claim to be true. It means that the platform can show who asserted what, whether the assertion was authorised and altered, which other assertions support or contradict it, and how its business effect was later corrected.
 
-<!-- State clearly that numeric measures are project assumptions because the case study supplies no workload. -->
+| ID | Quality | Testable requirement | Stakeholder need |
+|---|---|---|---|
+| QA-1 | Attribution | Every accepted event identifies the publishing organisation, signing identity, key version and verification result | Participants, auditor |
+| QA-2 | Authorisation | An event signed by an inactive, revoked or unauthorised identity is rejected before ledger commitment and the decision is audited | Participants, consortium administrator |
+| QA-3 | Content integrity | Any change to the canonical content of a committed event causes signature or ledger-commitment verification to fail | All participants, auditor |
+| QA-4 | Correctability and auditability | A correction preserves the original event and links an Error Declaration and corrective event; an auditor can retrieve the complete chain | Auditor/regulator |
+| QA-5 | Conflict transparency | Mismatching shipping and receiving assertions are both retained and produce an explicit pending, partial, rejected or disputed handover state | Trading partners, auditor |
+| QA-6 | Lineage validity | Cyclic lineage, missing transformation inputs, incompatible units or unexplained excess output are rejected | Processor, distributor, food-safety investigator |
+| QA-7 | Evidence verifiability | Replaced artifact content fails commitment verification; missing content is reported as unavailable rather than verified | Evidence provider, auditor |
+| QA-8 | Reliable intermittent operation | Identical retries produce one accepted event and one receipt; an event ID reused with different content is rejected and audited | Rural participants, enterprise integrators |
+| QA-9 | Confidentiality and privacy | Consumer responses contain only allowlisted fields; restricted artifacts require an authorised resolver request | Participants, consumer |
+| QA-10 | Modifiability | A new product profile does not require changes to the Event Core, event repository or ledger port | Consortium administrator, development team |
+| QA-11 | Interoperability | Accepted events record a versioned canonical profile and controlled vocabulary so that their meaning remains interpretable | Enterprise participants, auditor |
+| QA-12 | Governance independence | The Platform Operator cannot unilaterally rewrite a committed shared record or change consortium policy | Consortium members |
+
+Query latency, traffic scaling and service availability remain supporting operational concerns. The architecture uses rebuildable PostgreSQL projections and ordinary cloud scaling mechanisms, but the case study supplies no workload or service-level agreement from which defensible numeric targets can be derived. They are therefore not treated as primary architecture drivers.
 
 ## 2.3 Quality Attribute Scenarios and Alternatives
 
@@ -150,15 +153,19 @@ The following responsibilities are plausible in a broad agricultural supply-chai
 
 | Scenario | Source and stimulus | Environment and artifact | Response and measure | Tactic/pattern | Alternative rejected |
 |---|---|---|---|---|---|
-| Offline duplicate submission | PWA retries the same event after reconnection | Intermittent network; submission API | Return the existing receipt; create one accepted event | Stable event ID, payload commitment, idempotency | Manual resubmission can lose or duplicate events |
-| Consumer traffic spike | Public queries rise tenfold | Normal operation; query module and projection | Maintain two-second p95 through stateless replicas, cache/read tuning | Logical CQRS and projection | Ledger traversal couples query latency to consensus |
-| Ledger outage | Ledger is temporarily unavailable after payload storage | Partial infrastructure failure | Keep explicit `LedgerRetry`; never claim commitment; safely retry | State machine and durable work record | Best-effort dual write risks lost or duplicate commitment |
-| Product-profile addition | Consortium introduces a dairy profile | Planned evolution; profile and validation modules | Add a versioned profile without changing Event Core or ledger adapter | Metadata-driven profile and OCP | Product-specific services create duplication and forks |
-| Projection failure | Worker crashes during lineage update | Broker redelivery; projection tables | Replay idempotently and recover identical trace | Checkpoint, outbox and replay | Updating mutable state in the write path couples availability |
+| Committed-content tampering | Operator or attacker changes a stored canonical payload | Event already has a signature and ledger receipt | Re-verification fails because the canonical commitment no longer matches | Digital signature, canonical hashing and independent ledger commitment | Database permissions alone leave the platform operator as sole source of trust |
+| Invalid signing authority | Suspended, revoked or out-of-scope identity submits an event | Normal submission; identity and policy history available | Reject before ledger commitment and retain the decision in the security audit | Per-organisation keys, effective-dated revocation and policy evaluation | Authentication without business authorisation permits valid users to make invalid claims |
+| Conflicting handover | Receiver reports a different object or quantity from the sender | Both organisations have valid signing authority | Preserve both events and derive an explicit partial, rejected or disputed state | Independent assertions and correlation projection | A shared mutable transfer record lets one party overwrite the other |
+| Invalid transformation | Publisher creates a cycle or output exceeding comparable inputs without an approved yield rule | Split, merge or processing event | Reject deterministically and identify the violated profile rule | Explicit lineage edges, UOM rules and quantity validation | Free-form event payloads cannot protect recall completeness |
+| Correction after commitment | Authorised participant discovers an error in a committed event | Original event is immutable | Append Error Declaration and corrective event; retain and return the complete correction chain | Append-only history and supersession relationship | In-place update destroys evidence of what was previously asserted |
+| External artifact replacement or loss | Provider returns changed content or no content | Artifact was previously referenced by commitment | Report integrity failure or unavailable status separately; never report verified | Nonce-based commitment and explicit availability state | Copying all sensitive artifacts into the platform expands custody and disclosure risk |
+| Ledger outage | Ledger is unavailable after payload storage | Partial infrastructure failure | Keep explicit `LedgerRetry`; never claim commitment; safely retry | State machine and durable work record | Best-effort dual write can lose the relationship between database event and ledger receipt |
+| Offline duplicate submission | PWA retries the same event after reconnection | Intermittent network; submission API | Return the existing receipt for identical content; reject and audit different content under the same ID | Stable event ID, payload commitment and idempotency | Blind resubmission can create duplicate or ambiguous history |
+| Product-profile addition | Consortium introduces a dairy profile | Planned evolution; profile and validation modules | Add a versioned profile without changing Event Core or ledger adapter | Metadata-driven profile and stable ports | Product-specific services duplicate trust logic and fragment the history |
 
 ## 2.4 Data Management Requirements
 
-Canonical events are authoritative history. Ledger commitments provide independent verification. PostgreSQL projections provide efficient query models. Raw operational and sensitive artifact content remains external when it is not required for core lineage validation.
+Canonical events are the authoritative platform record of accepted assertions, not proof that those assertions are physically true. Ledger commitments provide independent tamper evidence. PostgreSQL projections provide query models derived from that history. Raw operational and sensitive artifact content remains external when it is not required for core lineage validation.
 
 The data dictionary is maintained in [data-model/data-dictionary.md](data-model/data-dictionary.md).
 
@@ -188,14 +195,14 @@ Summarise the following in the submitted report:
 
 ## 2.6 Cloud Adoption Requirements
 
-The SaaS application plane must reduce infrastructure burden for small organisations, scale public queries independently from participant activity, support managed backup and recovery, and preserve independent consortium governance. Cloud adoption does not mean that one platform account controls every ledger node or participant key.
+The SaaS application plane must reduce infrastructure burden for small organisations, protect keys and secrets, support managed backup and recovery, and preserve independent consortium governance. Query and submission workloads may be scaled independently when required, but throughput is not the principal reason for the architecture. Cloud adoption does not mean that one platform account controls every ledger node or participant key.
 
 ## 2.7 Cloud Scenarios and XaaS Choices
 
 | Capability | XaaS choice | Rationale | Alternative rejected |
 |---|---|---|---|
-| Browser applications | Managed static hosting/CDN | Global distribution and low operational burden | Self-managed web servers add patching and scaling work |
-| Application execution | PaaS/container service | Stateless horizontal scaling and health management | Fixed VMs increase operations burden |
+| Browser applications | Managed static hosting/CDN | Managed delivery, TLS and low operational burden | Self-managed web servers add patching work without strengthening traceability assurance |
+| Application execution | PaaS/container service | Health management, workload isolation and replaceable stateless instances | Fixed VMs increase operations burden and configuration drift |
 | PostgreSQL | Managed DBaaS | Multi-AZ, backup, PITR and monitoring | Self-hosted PostgreSQL increases recovery risk |
 | Messaging | Managed broker | Durable retry and replay | In-process queue loses messages on failure |
 | Keys and secrets | Managed KMS/HSM | Isolation, rotation and audit | Application-configured private keys risk exposure |
@@ -222,7 +229,11 @@ The SaaS application plane must reduce infrastructure burden for small organisat
 | Availability | Ledger is unavailable during consumer query | Serve previously committed projection; mark new submissions pending | New shared events are delayed |
 | Integrity/availability | External artifact is replaced or deleted | Nonce-based commitment and distinct availability status | Commitment cannot guarantee continued availability |
 
-## 2.10 AI ML and IoT Requirements Optional Bonus
+## 2.10 Core IoT Integration Requirements
+
+IoT integration is a core case-study requirement. External IoT systems remain responsible for device operation, calibration, real-time collection and raw telemetry storage. The traceability platform accepts signed summaries, alerts, observation windows, device and shipment references, and content commitments. It must preserve the evidence provider and distinguish content integrity, current availability and business verification; it must not infer that a cryptographically intact sensor record is physically accurate.
+
+## 2.11 Optional AI ML Requirements
 
 The optional Risk Analysis Service consumes authorised trace and IoT-summary projections and produces an advisory cold-chain anomaly or spoilage-risk score. It is asynchronous, records model version and input window, does not block event submission, and cannot declare legal non-compliance or rewrite source events.
 
@@ -311,9 +322,12 @@ The Code view should include only major elements:
 
 | Quality driver | Architectural elements | How the design responds |
 |---|---|---|
-| Integrity/auditability | Signatures, append-only events, ledger port, correction module | Detects modification and preserves original and corrective assertions |
-| Reliability | Idempotency, submission state machine, transactional outbox | Makes partial failure explicit and retry safe |
-| Performance | Logical CQRS and projections | Avoids consensus traversal during ordinary query |
+| Attribution/authorisation | Identity history, organisation keys, policy module and signed events | Establishes who made an assertion and whether the identity was permitted to make it |
+| Integrity/correctability | Canonical commitments, append-only events, ledger port and correction module | Detects modification and preserves original and corrective assertions |
+| Conflict and lineage validity | Handover, Lineage, Profile and Event Core modules | Retains independent claims and rejects structurally invalid provenance relationships |
+| Evidence verifiability | Evidence module and artifact-reference port | Separates content integrity, current availability, issuer status and business verification |
+| Governance independence | Ledger port and independently administered consortium nodes | Prevents the Platform Operator from being the sole authority over shared commitments |
+| Intermittent-operation reliability | Idempotency, submission state machine and transactional outbox | Makes partial failure explicit and retry safe without fabricating committed status |
 | Modifiability | Event Core, versioned profiles and ports/adapters | Adds product rules and infrastructure implementations without changing stable domain semantics |
 | Privacy | Access Policy and external artifact modules | Separates authorisation from disclosure and minimises platform custody |
 
@@ -323,7 +337,7 @@ Discuss only tactics actually present:
 
 - detect and recover from faults through retry, checkpoint and replay;
 - prevent faults through validation and idempotency;
-- manage resources through stateless scaling and projections;
+- maintain semantic coherence through independent assertions, deterministic validation and explicit conflict states;
 - resist attacks through authentication, signatures, minimisation and audit;
 - improve modifiability through information hiding, stable interfaces and deferred binding through profiles.
 
@@ -448,9 +462,9 @@ Entry points include public consumer API, participant API, enterprise integratio
 
 Connect each Section 2 security requirement and CIA scenario to the trust boundaries, controls and residual risks. Do not claim that blockchain guarantees truth, privacy or legal compliance.
 
-## 4.5 AI ML and IoT Architecture Optional Bonus
+## 4.5 IoT and Optional AI ML Architecture
 
-Explain the IoT evidence boundary and optional Risk Analysis Service. Include model version, input window, advisory output, human review, monitoring and failure isolation. Compare this bounded integration with a rejected general-purpose AI/data-lake platform.
+Explain the core IoT evidence boundary and the optional Risk Analysis Service separately. For IoT, show provider identity, observation window, signed summary, external raw-data reference, content commitment and distinct integrity/availability states. For optional AI/ML, include model version, input window, advisory output, human review, monitoring and failure isolation. Compare the bounded AI integration with a rejected general-purpose AI/data-lake platform.
 
 # 5 Architecture Evaluation and Alternatives
 
@@ -460,7 +474,7 @@ Explain the IoT evidence boundary and optional Risk Analysis Service. Include mo
 |---|---|---|---|
 | BO-1 End-to-end trace | Event Core, handover and lineage modules | Execute reference scenario across split, pallet and multiple handovers | [Evaluate] |
 | BO-2 Integrity/auditability | Signature, event store and ledger commitment | Modify payload and verify mismatch; inspect correction chain | [Evaluate] |
-| BO-3 Food-safety impact | PostgreSQL trace projections | Benchmark 10,000-edge downstream query | [Evaluate] |
+| BO-3 Food-safety impact | PostgreSQL trace projections | Seed an affected source batch and verify that every authorised descendant across handover, containment and derivation edges is returned | [Evaluate] |
 | BO-4 Mixed participant maturity | PWA and enterprise API | Demonstrate offline retry and EPCIS integration | [Evaluate] |
 | BO-5 Product/region extension | Profile module | Add dairy profile without Event Core change | [Evaluate] |
 | BO-6 Privacy | Policy and audience projections | Verify restricted fields absent from consumer response | [Evaluate] |
@@ -474,15 +488,17 @@ Explain the IoT evidence boundary and optional Risk Analysis Service. Include mo
 | Scenario | Utility/quality | Business importance | Technical risk | Sensitivity/trade-off | Resolution |
 |---|---|---:|---:|---|---|
 | Ledger unavailable during submission | Reliability/integrity | High | High | Confirmation latency versus shared integrity | Durable pending state and retry |
-| 10,000-edge recall query | Performance/scalability | High | Medium | One PostgreSQL versus specialised graph store | Prototype recursive CTE; extract only if target missed |
-| Consumer/public projection | Privacy/performance | High | High | Data richness versus minimisation | Separate allowlisted projection |
+| Revoked or compromised signing key | Attribution/authorisation | High | High | Offline operation versus timely revocation enforcement | Effective-dated key history, server-side authorisation and auditable rejection |
+| Conflicting handover assertions | Conflict transparency/auditability | High | High | Operational convenience versus preserving independent claims | Retain both assertions and derive an explicit disputed state |
+| Invalid split, merge or transformation | Lineage validity | High | High | Flexible product rules versus deterministic validation | Versioned UOM, yield and acyclicity rules |
+| Consumer/public projection | Privacy/auditability | High | High | Trace detail versus data minimisation | Separate allowlisted projection derived from committed assertions |
 | New product profile | Modifiability/interoperability | High | Medium | Flexibility versus governance complexity | Versioned profiles and compatibility rules |
-| External artifact unavailable | Availability/auditability | Medium | Medium | Reduced custody versus evidence availability | Preserve commitment and expose availability status |
-| Consortium governance collusion | Integrity/governance | High | High | Permissioned performance versus decentralisation | Independent nodes; assess future public anchoring |
+| External artifact unavailable or replaced | Evidence verifiability | Medium | Medium | Reduced custody versus evidence control | Preserve commitment and expose integrity and availability separately |
+| Consortium governance collusion | Integrity/governance | High | High | Simpler operation versus independent control | Independent nodes; assess future public anchoring |
 
 Identify:
 
-- sensitivity points, such as PostgreSQL traversal depth and policy complexity;
+- sensitivity points, such as revocation timing, canonicalisation rules and policy complexity;
 - trade-off points, such as privacy versus trace detail;
 - risks, such as consortium collusion and false source data;
 - non-risks supported by prototype or established mechanism.

@@ -413,7 +413,7 @@ PostgreSQL recursive CTEs and indexed adjacency-list tables implement `HANDOVER`
 
 The write model and query projections remain logically different even though they share one database:
 
-- accepted canonical events are append-only authoritative history;
+- accepted canonical events are the append-only authoritative platform history of assertions, not proof that the assertions are physically true;
 - projection tables are eventually consistent, disposable and rebuildable;
 - the Transactional Outbox is committed with the write model;
 - ledger confirmation remains an external state transition and cannot join the PostgreSQL transaction.
@@ -484,7 +484,22 @@ Event and artifact-reference records include `retentionPolicyId`, `retainUntil` 
 
 ## 8. Trust and governance boundary
 
-### 8.1 Trust assumptions
+### 8.1 Assurance claims and trust assumptions
+
+Trustworthiness is the primary architectural driver. The platform does not collapse trust into a single `verified` flag. It records and exposes distinct assurance properties:
+
+| Assurance property | What the platform can establish | What remains outside the claim |
+|---|---|---|
+| Attribution | The organisation, signing identity and key version associated with an assertion | Whether the identified person or organisation told the truth |
+| Authorisation | Whether that identity was permitted to publish the event type for the relevant organisation, object and effective time | Whether an authorised action was prudent or lawful in every jurisdiction |
+| Content integrity | Whether canonical event or artifact content still matches its signature and recorded commitment | Whether cryptographically intact content accurately describes the physical world |
+| Historical continuity | The original assertion, its record time, ledger receipt and every appended correction or supersession | A universal physical-event order where events were reported late or offline |
+| Corroboration and conflict | Whether independent shipping, receiving or evidence assertions agree, disagree or remain incomplete | Automatic resolution of a commercial or regulatory dispute |
+| Lineage validity | Whether recorded containment and derivation relationships satisfy identity, unit, quantity and acyclicity rules | Unrecorded loss, substitution or fraud outside observed events |
+| Evidence status | Whether referenced content is available, matches its commitment and has a recognised issuer status | Continued external availability, sensor calibration or laboratory competence |
+| Governance independence | Whether shared commitments and policy changes require control beyond the Platform Operator | Protection against collusion by the required consortium quorum |
+
+These properties are reported separately. For example, an event can be authentic and unmodified while remaining contradicted, incomplete or unsupported by available evidence.
 
 - Organisations may make mistakes or publish conflicting assertions.
 - The platform operator is trusted to operate the SaaS plane but is not trusted as the sole controller of shared history.
@@ -594,32 +609,32 @@ An offline record is not presented as ledger-confirmed until the server validate
 - Missing optional evidence lowers provenance completeness but does not fabricate a fact.
 - Corrections append new records and do not erase the original event.
 
-## 12. Working quality targets
+## 12. Quality priorities and testable assurance targets
 
-The following are project assumptions for architecture modelling and peer review. They must be labelled as proposed targets rather than facts supplied by the case study.
+The primary targets test the credibility of the recorded history rather than an invented workload:
 
-| Quality | Working target |
+| Quality | Testable target |
 |---|---|
-| Trace query performance | Return a normal consumer batch trace within 2 seconds at the 95th percentile using the read model, without traversing the ledger |
-| Impact-query performance | Traverse up to 10,000 authorised handover, containment and derivation edges and return the affected-object set within 5 seconds at the 95th percentile |
-| Submission responsiveness | Validate and acknowledge an online event submission within 3 seconds at the 95th percentile, excluding delayed final ledger confirmation |
-| Ledger completion | Under normal network conditions, expose committed or explicit pending status within 30 seconds at the 95th percentile |
-| Reliability | Client and server retries do not create duplicate accepted events |
-| Rural accessibility | Users can create signed or attributable drafts without connectivity and synchronise after connectivity returns |
-| Scalability | A tenfold increase in event ingestion or public queries can be handled by horizontal scaling and partitioning without changing the domain model |
-| Availability | Public trace queries target 99.9 percent monthly availability; temporary ledger unavailability does not disable read-only queries of already committed data |
-| Integrity | Any change to a committed payload is detectable by comparing its hash and signature with the ledger commitment |
+| Attribution | Every accepted event records its publisher organisation, signing identity, key version and verification result |
+| Authorisation | An inactive, revoked or out-of-scope identity is rejected before ledger commitment and the decision is audited |
+| Content integrity | Any change to canonical committed content causes signature or ledger-commitment verification to fail |
+| Correctability and auditability | A correction preserves the original event and links an Error Declaration and corrective event retrievable as one history |
+| Conflict transparency | Mismatching independent shipping and receiving assertions are both retained and produce an explicit pending, partial, rejected or disputed state |
+| Lineage validity | Cyclic lineage, missing transformation inputs, incompatible units and unexplained excess output are rejected deterministically |
+| Evidence verifiability | Replaced external content fails commitment verification; missing content is reported as unavailable rather than verified |
+| Idempotency | The same event ID and commitment return the existing receipt; the same ID with different content is rejected and audited |
+| Governance independence | The Platform Operator alone cannot rewrite a committed shared record or change consortium policy |
 | Privacy | Consumer responses exclude non-public commercial and personal fields by construction through a separate projection |
-| Modifiability | A new product profile can be introduced without changing the core event-submission service or ledger port |
-| Auditability | An authorised auditor can retrieve the original event, corrections, publisher identity, signature status and evidence references |
+| Rural accessibility | Users can create attributable drafts without connectivity and synchronise after connectivity returns without fabricating committed status |
+| Modifiability | A new product profile can be introduced without changing the Event Core, event repository or ledger port |
 
-These numbers are intentionally testable. They can be revised after team review, but vague phrases such as `real time`, `large volume` and `acceptable response time` must not replace them.
+Query latency, throughput and service availability remain supporting operational concerns. Rebuildable PostgreSQL projections avoid ledger traversal on ordinary reads, and managed cloud infrastructure permits conventional caching, replication and horizontal scaling when measurements justify them. The case study supplies no workload or service-level agreement, so the baseline does not invent percentile latency, edge-count, tenfold-growth or monthly-availability targets. These values belong in later capacity planning based on measured demand.
 
 ## 13. Optional AI and ML extension
 
 AI and ML are not part of traceability truth or ledger consensus.
 
-If the team pursues the optional AI and IoT marks, the bounded use case is:
+IoT evidence integration is part of the core system boundary described in Section 6.5. If the team pursues the optional AI/ML bonus, the bounded use case is:
 
 > Produce an advisory spoilage-risk or cold-chain anomaly score from authorised trace events and IoT summaries.
 
@@ -690,12 +705,12 @@ The project context must state:
 - the platform is a traceability layer rather than a full ERP;
 - organisations remain responsible for their internal operations and source systems;
 - the business objective is verifiable cross-organisation provenance and faster food-safety impact analysis;
-- the main risks are false source data, key compromise, conflicting handovers, privacy leakage, ledger governance, rural connectivity, interoperability and scale;
+- the main risks are false source data, key compromise, conflicting handovers, invalid or incomplete lineage, evidence loss or replacement, privacy leakage, ledger governance, rural connectivity and interoperability;
 - blockchain is a required integrity and multi-party governance mechanism, not proof that physical claims are true.
 
 ### 16.2 Quality requirements
 
-Quality scenarios must be selected from the reference scenario and working targets. Each scenario must include:
+Quality scenarios must be selected from the reference scenario and assurance targets. Each scenario must include:
 
 - source of stimulus;
 - stimulus;
@@ -706,7 +721,7 @@ Quality scenarios must be selected from the reference scenario and working targe
 - selected tactic;
 - alternative and rejection reason.
 
-The priority qualities are integrity and auditability, interoperability and modifiability, reliability under intermittent connectivity, query performance, scalability, availability, security and privacy.
+The priority qualities are attribution, authorisation, content integrity, correctability and auditability, conflict transparency, lineage validity, evidence verifiability, governance independence, security and privacy. Interoperability, modifiability and reliability under intermittent connectivity support those qualities. Query performance, throughput and generic cloud scaling are secondary operational concerns rather than the main architecture drivers.
 
 ### 16.3 C4 System Context
 
@@ -822,7 +837,7 @@ Patterns and tactics must be justified by this chain rather than listed independ
 - Minimal commitments and approved shared facts are recorded on a permissioned consortium ledger.
 - Enterprise operational systems and raw IoT telemetry remain external.
 - One PostgreSQL application database stores registry metadata, canonical events, outbox records and rebuildable read projections in logically separated schemas.
-- PostgreSQL adjacency-list tables and recursive CTEs implement initial provenance and impact traversal; a separate graph database is deferred until a prototype shows the working targets cannot be met.
+- PostgreSQL adjacency-list tables and recursive CTEs implement initial provenance and impact traversal; a separate graph database is deferred until measured workload or query-complexity evidence shows it is required.
 - Query and visualisation use PostgreSQL read projections rather than ledger traversal.
 - Logical persistence ports remain separate even when one PostgreSQL adapter implements them.
 - External artifacts are represented by opaque provider references, signed metadata and nonce-based content commitments; platform credentials or permanent signed URLs are not stored in the reference.
