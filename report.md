@@ -96,15 +96,18 @@ The platform stores and validates minimum traceability facts. It does not replac
 
 <!-- Source: system-boundary.md. Condense rather than copying the whole working document. -->
 
-## 1.6 Considered but Excluded Stakeholders and Capabilities
+## 1.6 Considered Boundary Alternatives and Exclusions
 
-| Considered item | Exclusion rationale |
-|---|---|
-| Banks and payment processors | Payment and settlement do not contribute to provenance integrity in the selected scope |
-| Warehouse-operations staff as a separate system role | Detailed picking and inventory operations remain in WMS; only traceability events cross the boundary |
-| Vehicle-routing services | Route optimisation is not required to establish product lineage or custody history |
-| General business-intelligence users | The first release provides trace and exception visualisation, not a general-purpose BI platform |
-| Public-blockchain users | Public anchoring is a future alternative, not part of the initial network |
+The following responsibilities are plausible in a broad agricultural supply-chain platform, but are excluded because they do not contribute directly to the selected responsibility: connecting cross-organisation assertions into a verifiable traceability history.
+
+| Considered responsibility | Why it is excluded | Boundary consequence |
+|---|---|---|
+| Full ERP and operational workflow management | Production planning, procurement, accounting, detailed inventory, warehouse execution and transport planning are already owned by participant systems and would make the product boundary too broad | ERP, farm-management, WMS, TMS, MES and POS remain external; they publish only the traceability events required by the platform |
+| Central storage of all participant data | Most operational fields are unnecessary for provenance, while raw telemetry, certificates and commercial documents may be large, sensitive or governed by the source organisation | The platform retains minimum canonical facts; non-essential or sensitive artifacts remain in participant-controlled stores and are represented by references, metadata and content commitments |
+| Storing complete events and documents on the blockchain | Replicating private or high-volume content across consortium nodes increases disclosure, storage and governance costs without improving lineage queries | PostgreSQL stores authorised canonical events and projections; the ledger stores only minimal event commitments and receipts |
+| Determining whether a physical-world claim is true | A valid signature and matching hash prove attribution and integrity, not that a shipment, temperature reading or certificate is factually correct | Source organisations and evidence providers remain accountable for assertions; the platform records provenance, conflicts, evidence status and corrections |
+| Acting as the food-safety authority | Compliance evidence and recall status must be visible, but regulatory interpretation and enforcement depend on jurisdiction and authorised institutions | The platform supports audit and impact analysis but does not issue certificates, approve products or make enforcement decisions |
+| Direct operational roles for every participant employee | Warehouse pickers, drivers, planners and finance staff may contribute indirectly, but modelling their complete workflows would reproduce participant systems | The architecture models organisations and authorised signing identities; detailed employee workflows remain within external operational systems |
 
 # 2 Requirements Analysis
 
