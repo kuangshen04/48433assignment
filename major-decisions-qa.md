@@ -240,13 +240,86 @@ ProtectedResource
 
 如果某字段既不能让联盟成员看到，又是重建最小 trace 必不可少的内容，则当前简化模型不成立；必须修改共享假设或重新引入加密/private collection。
 
+---
+
+## B4. 系统对节点和参与方串谋提供什么保证？
+
+**决定：** 系统以有限的 L2 作为目标，不承诺完整 L3。L2 保护的是 ledger integrity、identity attribution 和 governance safety，不是串谋方业务声明的物理真实性。
+
+### 两类串谋必须分开
+
+**Validator collusion** 是账本节点尝试确认替代历史、审查交易或修改网络规则。其影响与恶意 validator 的比例、共识协议和治理 threshold 有关；BFT 可以在明确容错阈值内阻止少数恶意节点破坏 safety。
+
+**Business-party collusion** 是合法参与方共同签署一套虚假但彼此一致的供应链声明。即使所有 validators 都诚实，只要签名、schema 和业务规则有效，账本也无法判断物理事实是假的。BFT 只能证明这些组织确实作出了这些声明。
+
+### L2 的具体保证
+
+假设平台运营者与一个参与方串谋，并且受损的独立 validator domains 没有超过系统配置的 Byzantine fault threshold，则它们不能：
+
+- 修改或删除已经取得 BFT finality 的 canonical trace events；
+- 让一条替代 ledger history 被诚实节点接受为相同的最终历史；
+- 冒充自行保管密钥、且未参与串谋的组织；
+- 满足明确要求该组织签名的 shipping、receiving、certificate 或其他 business endorsement；
+- 单方面修改 membership、identity mapping、network profile、signature requirement 或 governance quorum；
+- 垄断已确认 shared trace 的恢复，因为诚实节点仍保存并能导出完整副本。
+
+L2 不保证：
+
+- 串谋方对自己控制阶段所作的声明真实；
+- 现实中发生但从未提交的事件会被系统发现；
+- 中央 API 不会在交易到达共识前审查或丢弃提交，除非另有独立入口或可审计 receipt；
+- participant-hosted evidence 始终可用；
+- platform-hosted `PRIVATE` 数据在密码学上对恶意平台不可见；
+- 超过 BFT 或 governance threshold 的联盟成员串谋时系统仍保持正确。
+
+因此 L2 最简洁的表述是：
+
+> 串谋方可以对自己控制的业务阶段共同说谎，但不能改掉别人已经最终确认的声明，也不能替未串谋且自行持钥的组织说话。
+
+### 超过 BFT threshold 后会发生什么
+
+BFT safety 只在恶意独立验证域不超过 `f` 时成立。经典关系通常写为：
+
+```text
+n >= 3f + 1
+```
+
+例如，要正式容忍两个 Byzantine validator domains，通常需要至少七个真正独立的验证域。这里的“独立”指不同组织、管理员、云账号和密钥；同一平台多开几个节点不能增加容错域数量。
+
+超过 `f` 后，安全保证失效，但攻击者并不会立即获得所有权限：
+
+- 刚超过 `f` 时，恶意节点可能通过 equivocation 和网络分区诱导不同诚实节点形成 conflicting finality；
+- 达到 commit quorum 后，它们可以不依赖诚实节点确认替代历史或审查交易；
+- 达到 governance threshold 后，它们可以修改成员、profile、identity mapping 和验证规则；
+- 即使所有 validators 串谋，只要没有某个外部组织的私钥，它们仍不能生成该组织的原始数字签名，但可以尝试修改规则或 key registry，让新客户端接受替代身份。
+
+因此 consensus threshold、governance threshold 和 business-signature requirement 是三个不同门槛，不能都简化为“多数节点同意”。
+
+### 为什么不承诺完整 L3
+
+如果 L3 表示“即使达到联盟共识或治理 quorum 的成员串谋，系统仍能阻止它们改写账本并继续运行”，那么封闭 permissioned consortium 内部无法同时保证这一点和系统 liveness。协议无法从一组合法 quorum signatures 判断签名者是在诚实投票还是串谋。
+
+提高到 unanimity 只会把问题变成任何一个节点都能永久阻止网络运行。所有共识系统最终都依赖某个诚实 threshold，不能在任意数量合法成员串谋时仍同时保持正确和可用。
+
+外部 checkpoint 可以实现的是有限 L3 detection：
+
+- 将 consortium block hash 周期性提交给公共链、独立监管见证或外部 timestamp service；
+- 由参与方和审计者独立保存 block headers、receipts 和 event signatures；
+- 使联盟多数对已经 checkpoint 的历史进行事后重建时留下可验证分叉。
+
+它不能阻止联盟停止服务、审查新交易或从现在开始共同提交虚假事件，也不能证明现实数据真实。因此 external anchoring 只作为可选的反无痕重写措施，不作为主数据存储或物理真实性保证。
+
+**需要承受的代价：** 真正的 L2 validator guarantee 可能要求较多独立验证域、BFT 运维和更高治理成本；如果实际联盟无法提供这些控制域，就必须把保证降低为“抵抗单一平台运营者”，而不能仍然宣称容忍平台与一个 validator 共同作恶。
+
+**为什么可以接受：** 明确保证边界比用模糊的“区块链防串谋”更有价值。系统优先解决单方或少数节点篡改、身份冒充和历史垄断，同时承认多数治理串谋和物理事实共谋需要外部审计、法律责任与证据机制，而不是继续堆叠无法兑现的技术承诺。
+
 # 第三层：仍需讨论的决定
 
 以下项目保留当前倾向和 trade-off，但尚未提升为架构基线。
 
 ## C1. 谁运行 permissioned-ledger nodes，采用什么 quorum？
 
-**当前倾向：** 平台运营者之外，由少数利益和管理控制域相互独立的代表组织运行节点；不要求每个参与方运行节点。
+**当前倾向：** 平台运营者之外，由利益和管理控制域相互独立的代表组织运行节点；不要求每个参与方运行节点。若坚持 B4 中“容忍平台与一个 validator domain 同时 Byzantine”的完整 L2 目标，则所选 BFT 协议和独立验证域数量必须正式支持 `f=2`，经典模型通常意味着至少七个独立验证域。
 
 **为什么尚未定案：** 背景没有给出真实行业联盟、节点预算、运营能力或治理章程。节点太少存在串谋和支配风险，太多则增加成本、升级协调和故障概率。
 
@@ -254,7 +327,7 @@ ProtectedResource
 
 **需要接受的代价：** 任何平台外可恢复和不可单方改写的保证，都要求某些外部主体承担存储、验证和治理成本。架构不能消除该成本，只能明确由谁承担。
 
-**待回答：** 是否明确假设存在行业联盟或独立行业机构；节点由生产者组织、物流/分销组织、零售组织、审计机构还是专业托管方运行；系统只抵抗单方篡改，还是还要抵抗部分节点串谋；公共链 anchoring 是否仅作为反串谋加强措施。
+**待回答：** 是否存在足够多且真正独立、愿意承担成本的行业组织；节点由生产者组织、物流/分销组织、零售组织、审计机构还是专业托管方运行；若无法提供支持 `f=2` 的独立控制域，是降低 L2 声明还是引入外部验证域；公共链 anchoring 是否仅作为多数串谋后的检测措施。
 
 ---
 
