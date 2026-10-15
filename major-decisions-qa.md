@@ -1,412 +1,399 @@
 # 当前重大架构决策 Q&A
 
-> 更新时间：2026-10-15  
-> 用途：把目前已经形成的架构主线整理成可用于报告、评审和答辩的问答。本文只记录会改变系统边界、信任模型、数据架构或部署方式的重大决定，不展开表结构、字段和云产品等实现细节。  
-> 主要依据：`major-architecture-tradeoffs.md`、`system-boundary.md`、`week10-data-architecture.md`，以及“评审架构边界并梳理思路 (2)”和“讨论架构设计 (2)”中的讨论。
+> 更新时间：2026-10-16
+>
+> 用途：记录会改变系统边界、信任模型、数据责任或部署方式的重大决定，并保留每项决定背后的 trade-off。
+>
+> 依据：case brief、EPCIS 背景、行业平台调研，以及后续架构讨论。背景没有直接给出的内容会明确标记为补充假设。
+>
+> 阅读方式：第一层是背景直接支持的决定；第二层是已经接受的额外假设；第三层是仍待讨论的选择。
 
-# 第一层：背景充分支持、没有明显争议的决定
+每项已确认决定统一回答五件事：
 
-这一层只保留能够从 case brief、EPCIS 背景和行业平台调研直接得到支持的结论。它们不依赖联盟治理、节点部署、密钥托管、存储拓扑或吞吐量等额外假设。
+1. 边界或前提是什么；
+2. 为什么这样定；
+3. 否决了什么方案，以及该方案会发生什么；
+4. 当前决定要承受什么代价；
+5. 为什么该代价可以接受。
 
-## A1. 这是完整农业 ERP 吗？
+# 第一层：背景充分支持的决定
 
-**答：** 不是。系统的核心是跨组织追溯，而不是取代参与方的 ERP、WMS、TMS、MES、农场管理、POS、实验室或认证系统。
+## A1. 系统是完整农业 ERP 吗？
 
-平台应处理跨企业共享的追溯事件、证据关联、查询和消费者展示；生产计划、完整库存、仓储作业、运输调度、支付、会计、实际检测和监管审批继续由外部系统负责。
+**决定：** 不是。系统是跨组织农业供应链追溯层。ERP、WMS、TMS、MES、农场管理、POS、实验室、认证和监管系统仍在边界之外。
+
+**边界条件/假设：** 项目的核心问题是把不同组织分别产生的声明连接成端到端 trace，而不是统一各企业的内部运营流程。
+
+**为什么这样定：** 跨组织身份、事件语义、谱系、纠错、证据和可信历史是本项目有区分度的能力。生产计划、仓库拣货、运输调度、会计和支付并不会因为进入同一个平台而自动提高追溯可信度。
+
+**否决的方案：完整农业 ERP。** 如果选择该方案，平台需要同时实现农场生产、库存、仓储、运输、零售、合同和财务流程；不同类型企业还会要求完全不同的功能。系统边界会失控，且企业需要替换现有软件才能加入网络。
+
+**承受的代价：** 平台依赖参与方系统或 PWA 提供事件，不能保证企业内部记录完整，也不能替代参与方的业务和法律责任。
+
+**为什么可以接受：** 平台承诺的是跨组织声明可追踪、可归因和可审计，而不是接管每家企业的运营真相。这个责任边界更诚实，也与行业平台的实际接入方式一致。
 
 ---
 
 ## A2. 所有企业必须使用同一套业务软件吗？
 
-**答：** 不需要。所有参与方共享的是追溯数据语言和交互协议，而不是同一套 ERP。
+**决定：** 不需要。没有成熟系统的小型组织使用 Web/PWA；已有系统的企业通过 EPCIS/API 或适配器提交相同的 canonical events。
 
-没有成熟系统的小型组织可以通过 Web/PWA 录入；已有系统的企业可以通过 API、EPCIS 或适配器发布追溯事件。这种双轨接入方式同时符合农村可访问性和企业系统集成需求。
+**边界条件/假设：** 参与方数字化水平差异很大，农村用户不能被要求运维完整服务器，而大型企业也不会为了追溯平台放弃现有 ERP/WMS/TMS。
 
-这里确认的是“界面接入 + 系统集成并存”，不预先决定企业是否还要部署 Participant Gateway、保管组织私钥或运行账本节点。
+**为什么这样定：** 共享的应当是数据语言、身份规则和追溯网络，不是同一个操作软件。
+
+**否决的方案一：强制使用统一业务套件。** 这会造成迁移阻力、供应商锁定和业务功能膨胀。
+
+**否决的方案二：要求每家公司自行部署完整平台。** 这会把升级、备份、证书、安全补丁和可用性责任转嫁给小型参与方，并产生大量独立故障点。
+
+**承受的代价：** 平台需要维护 PWA 和企业集成两条摄取路径，并处理映射、版本兼容、幂等和不同质量的数据。
+
+**为什么可以接受：** 双轨接入直接服务 rural accessibility 和 enterprise interoperability；这部分复杂度位于系统真正的集成边界，无法通过强迫所有参与者采用同一技术栈合理消除。
 
 ---
 
 ## A3. 为什么采用 EPCIS？
 
-**答：** EPCIS 适合作为跨企业交换追溯事件的 canonical model，因为它能够统一表达对象、批次、托盘、时间、地点、业务步骤、状态、聚合、加工和传感器信息。
+**决定：** 使用 GS1 EPCIS 概念作为跨组织 canonical event model，并通过联盟批准的 profile 约束本项目实际接受的字段和事件类型。
 
-EPCIS 是事件数据和接口标准，不是完整供应链系统，也不替我们决定数据库、区块链、身份、访问控制、签名、双方 endorsement 或治理方式。
+**边界条件/假设：** 系统需要表达批次、物流单元、时间、地点、业务步骤、聚合、加工、传感器摘要和纠错，但 EPCIS 不负责身份、权限、区块链和联盟治理。
+
+**为什么这样定：** EPCIS 为不同企业提供共同的 what/when/where/why/how 语义，避免每家企业用不同 JSON 和业务词汇描述同一个供应链动作。
+
+**否决的方案：完全自定义事件模型。** 初期看起来更简单，但会把跨企业映射、标识、聚合、Transformation 和纠错语义全部变成项目自定义规则，降低互操作性并增加长期维护成本。
+
+**承受的代价：** EPCIS 本身较复杂，字段多且可扩展；仍需设计 profile、身份、授权、可见性、签名、争议和账本 envelope。
+
+**为什么可以接受：** 标准复杂度换来了稳定语义和企业系统集成基础。通过限制网络 profile，而不是实现 EPCIS 的所有能力，可以控制第一版范围。
 
 ---
 
-## A4. 区块链是否能够证明现实世界的数据真实？
+## A4. 区块链能证明物理事实真实吗？
 
-**答：** 不能。区块链最多证明某个主体提交过某项内容，以及该内容在确认后有没有被修改；它不能直接观察货物、温度、实验过程或证书签发过程。
+**决定：** 不能。系统只承诺声明的 attribution、authorisation、content integrity、correction history 和 lineage consistency，不声称区块链能证明现实世界事实必然真实。
 
-因此系统可以承诺 attribution、integrity 和 correction history，但不能把“签名有效”或“已经上链”等同于物理事实必然真实。真实性仍需设备治理、交叉确认、实验室或认证机构、现场审计和争议流程。
+**边界条件/假设：** 软件不能直接观察货物、温度、实验过程或证书签发过程；它只能处理参与方、设备或证据提供者提交的声明。
+
+**为什么这样定：** 正确签名的声明仍可能是错误、疏忽或欺诈。把密码学有效性描述为物理真实性会制造虚假安全感和错误法律期待。
+
+**否决的方案：把“已上链”宣传为“真实可信”。** 该方案会掩盖 oracle problem，使用户在事故发生时错误依赖平台，并把平台暴露在无法兑现的责任承诺下。
+
+**承受的代价：** 产品承诺听起来没有“区块链保证真相”强；调查仍需要 IoT、实验室、交叉确认、现场审计和参与方举证。
+
+**为什么可以接受：** 这是技术能力的真实边界。系统仍能显著降低事后改写、冒名声明和责任无法定位的风险，而不夸大其能力。
 
 ---
 
-## A5. 是否应该把完整事件、文件和 IoT 原始数据全部上链？
+## A5. 是否把完整事件、文件和 IoT 原始数据全部上链？
 
-**答：** 不应该。区块链适合保存证明共享记录来源、顺序和完整性所需的信息，不适合作为完整运营数据库、文件库或高频时序数据库。
+**决定：** 不把所有数据上链。账本保存联盟同意共享、足以恢复最小完整 trace 的 canonical EPCIS core；大型、敏感、高频或仅用于举证的内容留在链下。
 
-完整业务 payload、大型文件、个人信息、商业敏感数据和高频 telemetry 应主要链下保存。这里确认的是“不要全部上链”；具体由平台、参与方、IoT 平台还是受控归档服务保管，以及账本应保存多少最小事实，仍属于待讨论决定。
+**边界条件/假设：** 区块链用于共享历史和独立验证，不是通用文件库、时序数据库或运营查询引擎。
+
+**为什么这样定：** 原始 telemetry、PDF、照片、合同和私有业务详情具有不同的容量、隐私、保留和删除要求，不适合复制到所有 ledger nodes。
+
+**否决的方案：完整数据全部上链。** 该方案会放大商业泄露、数据驻留、删除、更正、节点存储、共识性能和 schema 升级成本，并让每个节点运营方持有不必要的数据。
+
+**承受的代价：** 系统必须维护链上 shared trace 与链下 protected resources 的引用和 commitment；调查时可能遇到外部证据不可用。
+
+**为什么可以接受：** 最小 trace 仍能在平台失效时恢复并定位潜在责任方；原始材料的举证责任可以保留在声明方，平台不必成为所有企业资料的中央保管人。
 
 ---
 
 ## A6. 已发布的追溯历史如何纠错？
 
-**答：** 不应静默覆盖原始记录。错误通过追加 Error Declaration、修正事件或等价的版本化声明表达，使审计者仍能看到原声明、纠错原因和后续解释。
+**决定：** 不静默覆盖或删除已确认事件。错误通过 Error Declaration、corrective event 或等价的追加版本表达。
 
-这一决定只要求跨组织历史可追溯，不代表整个应用的所有状态都必须采用 Event Sourcing。
+**边界条件/假设：** 跨组织审计需要保留“当时谁说了什么”和“后来如何纠正”，而不仅是当前展示结果。
+
+**为什么这样定：** 原地更新会破坏签名、hash、账本承诺和责任历史；删除冲突声明还可能让一方覆盖另一方的记录。
+
+**否决的方案：只保留一份可修改的当前 Batch 状态。** 该方案查询简单，但会消除原始声明、争议和修正轨迹，无法证明历史没有被重写。
+
+**承受的代价：** 查询必须理解 superseded、correction chain 和当前解释；错误记录仍占用存储，并可能增加用户理解成本。
+
+**为什么可以接受：** 追溯系统的首要价值就是保留历史责任。消费者可以只看当前批准解释，审计者则查看完整链条，兼顾易用性和审计性。
 
 ---
 
-## A7. 第一版是否需要直接采用大量微服务和多种数据库？
+## A7. 第一版是否直接采用大量微服务和多种数据库？
 
-**答：** 没有这个必要。模块化应用和关系数据库是更现实的起点；在没有团队规模、独立发布频率、故障隔离或实测负载证据时，不应为了形式上的“云原生”提前引入微服务和 polyglot persistence。
+**决定：** 不。第一版采用模块化应用和关系数据库作为主要运营基础，并通过 ports/adapters 保留未来拆分能力。
 
-这里确认的是简单且可演进的起点，不提前锁定必须永远只有一个全球 PostgreSQL，也不排除以后按实测需求提取服务或专用存储。
+**边界条件/假设：** 当前没有团队规模、独立发布频率、故障隔离或实测 workload 证明需要微服务和 polyglot persistence。
+
+**为什么这样定：** 模块边界能够先保护职责和依赖方向，而不立即承担分布式事务、网络故障、跨服务调试和多套备份的成本。
+
+**否决的方案：从第一版开始拆分 Identity、Commit、Query、Projection、Integration 等微服务并各用独立数据库。** 该方案看似可扩展，但会把尚未稳定的领域边界固化为网络和数据一致性边界。
+
+**承受的代价：** 模块共享部署和主要数据库故障域，不能独立扩缩容或发布。
+
+**为什么可以接受：** 当前更大的风险是领域和信任模型错误，而不是单个模块无法独立扩容。出现实测瓶颈或隔离需求后再提取服务，仍有清晰演进路径。
 
 ---
 
 ## A8. IoT 和 AI 在核心业务中分别是什么地位？
 
-**答：** IoT 接入是 case brief 明确要求的追溯证据来源；AI/ML 不是历史事实的权威来源。
+**决定：** IoT 是核心证据来源；AI/ML 如果采用，只能是可选、异步和 advisory 的风险分析能力。
 
-如果采用 AI 风险分析，它应当是可选、异步和 advisory 的能力，不能决定事件是否被接受、不能参与账本共识，也不能代替食品安全或监管判断。关闭 AI 不应破坏基本追溯能力。
+**边界条件/假设：** Case brief 明确要求 IoT 实时采集，但没有要求 AI 成为业务裁决者。历史事实和监管决定必须可解释、可追踪且不依赖模型可用性。
 
----
+**为什么这样定：** IoT 可以补充温度、时间和运输环境证据；AI 适合帮助发现异常，但模型结果不稳定，也不能成为事件接受、账本共识或法律事实的来源。
 
-# 第二层：已经明确接受的额外前提
+**否决的方案一：把全部高频 IoT 原始数据放入追溯账本。** 会造成容量、隐私和运维成本。
 
-这一层不是 case brief 直接给出的事实，而是为了形成一致架构而明确补充的业务和威胁模型假设。报告中必须把它们写成 assumptions，并说明由此产生的架构后果。
+**否决的方案二：让 AI 决定事件是否有效或企业是否违规。** 会产生不可解释拒绝、模型偏差和错误责任归属。
+
+**承受的代价：** 平台只能保证 sensor summary 和 commitment；原始数据可能需要向设备运营者索取。AI 无法自动取代人工调查。
+
+**为什么可以接受：** 追溯核心在没有 AI 时仍完整工作；高价值证据被保留，同时避免让可选加分功能污染可信历史。
+
+# 第二层：已经接受的额外前提
 
 ## B1. 参与方是否完全信任平台运营者？
 
-**答：** 不完全信任。平台运营者可能发生内部滥用、管理员账号泄露、基础设施入侵、错误恢复或受到单方商业压力，因此不能成为已承诺历史的唯一控制者和唯一验证者。
+**决定：** 不完全信任。平台运营者不能成为已确认历史的唯一控制者和唯一验证者。
 
-这个假设为区块链提供了实际问题背景：如果参与方完全信任平台运营者，并且运营者独占数据库、密钥、全部账本节点和治理权，那么区块链相对于普通 append-only database 或 WORM audit log 的额外价值很弱。
+**边界条件/假设：** 平台可能发生内部滥用、管理员账号泄露、基础设施入侵、错误恢复或受到商业压力。参与方不一定认为平台会主动作恶，但不能把所有历史保证建立在这种信任上。
 
-由此确定的架构约束是：
+**为什么这样定：** 如果平台独占数据库、参与方声明权、全部 ledger nodes 和治理密钥，区块链相对于普通 append-only database 或 WORM audit log 的额外价值很弱。
 
-- 平台运营者不能单方面、无痕地修改已经确认的历史；
-- 至少有平台控制域之外的主体能够验证 event commitment 和 ledger history；
-- 平台不能同时独占参与方声明权、全部验证节点和全部治理密钥；
-- 平台拒绝、延迟、遗漏或删除链下数据的行为需要能够被发现或审计；
-- 账本拓扑和治理规则必须对应真实独立的控制域，而不能只是在同一云账号中复制节点。
+**否决的方案一：完全信任平台。** 该方案最简单，但平台可以控制写入、查询和恢复结果，无法回答为什么需要 blockchain。
 
-这个前提目前**尚未单独决定**：
+**否决的方案二：平台和所有节点在密码学上都不能看到任何业务数据。** 该方案需要事件级加密、复杂密钥分发、private collections 和恢复 escrow，超出当前可实现范围。
 
-- 是否采用 permissioned consortium ledger 或公共链证明层；
-- 哪些组织运行节点；
-- 需要多少独立组织和怎样的 quorum；
-- 小型参与方是否自行持钥；
-- 如何处理多个联盟成员串谋；
-- 是否需要公共链 anchoring。
+**承受的代价：** 需要平台控制域之外的验证和复制能力，并引入联盟成员资格、节点治理、升级和潜在串谋问题。
 
-这些属于下一层需要继续讨论的机制选择。
+**为什么可以接受：** 这是让 blockchain 对应真实信任问题所需的最低额外复杂度。当前只要求防止平台单方面静默重写，不声称能够抵抗所有联盟成员共同串谋。
 
----
+**由此产生的约束：**
 
-## B2. 平台失效后，哪些追溯数据必须仍然可以恢复？
-
-**答：** 至少必须能够恢复完整的 canonical EPCIS trace，也就是平台已经接受并用于跨组织追溯的 EPCIS events、事件之间的关系以及纠错历史。
-
-可恢复范围包括 EPCIS event 中实际记录的内容，例如：
-
-- event ID、event type、event time、record time 和 time-zone offset；
-- 涉及的批次、对象、托盘或物流单元标识；
-- publisher organisation 和必要的身份或版本信息；
-- business step、disposition、read point 和 business location；
-- source、destination 和 business-transaction reference；
-- aggregation、disaggregation、transformation input/output 和 lineage；
-- EPCIS event 内保存的 sensor summary、异常或其他扩展字段；
-- Error Declaration、corrective event 和版本关系；
-- 外部证据的 reference、issuer metadata 和 content commitment。
-
-这份可恢复历史至少要能够帮助参与方或审计者判断：产品经历了哪些阶段、数据由谁发布、在哪个环节出现矛盾，以及下一步应向哪一方索取原始证据。Canonical EPCIS history 不能只存在于平台运营者独占的 PostgreSQL 中。
-
-以下材料默认不属于必须由共享追溯网络恢复的内容：
-
-- EPCIS event 通过 reference 指向的原始高频 IoT telemetry；
-- 完整实验室报告、证书文件、照片、合同和商业单据；
-- 企业 ERP、WMS、TMS 或农场系统的内部明细；
-- 未进入 canonical EPCIS event 的私有业务扩展。
-
-这些原始材料的保留和举证责任属于发布声明或引用证据的参与方。发生调查时，参与方需要提供材料，并由审计者将材料内容与 EPCIS 中保存的 commitment、issuer 和时间信息进行核对。材料缺失本身应被记录为 `Unavailable` 或举证失败，而不能由平台推定为真实。
-
-平台可以提供可选的加密 artifact storage、合规归档、保留策略和取证导出服务，但参与方不被强制把全部原始材料交给平台。使用托管服务只改变材料保管方式，不转移声明者的真实性和法律责任。
-
-这个决定目前**尚未单独决定** canonical EPCIS history 的复制机制。可选方式包括：
-
-- 由 permissioned ledger 直接保存可恢复的 canonical EPCIS facts；
-- ledger 保存 commitment，完整 canonical EPCIS event 进入独立控制、加密且不可变的共享归档；
-- 两者结合，账本保存核心索引和关系，归档保存完整 canonical payload。
-
-无论选择哪种方式，都必须同时满足平台外可恢复、按权限读取和 commitment 可验证三个结果。
+- 已确认历史必须在平台控制域之外可验证；
+- 账本节点不能只是同一云账号中的名义复制；
+- 平台不能同时独占全部节点和治理密钥；
+- 平台延迟、遗漏或删除已经接受的数据必须可以被审计；
+- 节点运营者、数量、quorum 和反串谋机制仍需继续决定。
 
 ---
 
-# 第三层：仍需讨论和重新论证的决定
+## B2. 平台失效后，哪些数据必须仍可恢复？
 
-以下内容是目前方案给出的回答，而不是已经没有争议的事实。讨论时应检查它们依赖的威胁模型、参与方能力、法规、规模和运维前提；讨论结论确定后，再将其中稳定的部分提升到第一层。
+**决定：** 必须恢复联盟 network profile 中的完整 canonical EPCIS shared trace，包括事件、对象关系和纠错历史。原始证据和企业内部资料不属于强制恢复范围。
 
-## 当前总体定位（待讨论）
+**边界条件/假设：** 平台失效后，参与方或审计者至少需要判断产品经历了哪些阶段、数据由谁发布、在哪一环出现矛盾，以及应向哪一方索取证据。
 
-本项目不是农业 ERP，也不是要求每家公司部署一整套系统的纯联邦协议；它是一个**由联盟治理、通过共享托管平台交付的跨组织追溯网络**。参与方对自己的源声明负责，平台保存建立谱系所需的规范事件并提供验证和查询，独立管理的联盟账本节点使任何单一方都不能静默改写已经承诺的历史。
+**为什么这样定：** 只有 opaque hash 时，平台消失后无法还原物流或谱系；只有平台 PostgreSQL 保存完整事件时，平台仍然是唯一数据可用性来源。
 
----
+**否决的方案一：账本只保存 hash，完整事件只在平台数据库。** 可以检测拿到的 payload 是否被改，但拿不到 payload 时无法恢复任何 trace。
 
-## 1. 我们到底在建设什么？
+**否决的方案二：共享网络强制保管所有原始 IoT、证书、照片、合同和内部记录。** 会把平台变成通用证据仓库并承担不必要的隐私、保留和法规责任。
 
-**答：** 一个跨组织的农业供应链追溯层，而不是完整 ERP。
+**承受的代价：** Shared ledger 保存的内容多于单纯 commitment，所有节点运营方都能看到联盟 trace core；参与方自管的证据仍可能 `Unavailable`、`Expired` 或无法举证。
 
-平台负责把不同组织分别产生的供应链声明连接成可归因、可验证、不可静默改写并且按权限披露的 provenance history。企业原有的 ERP、WMS、TMS、MES、农场管理、POS、实验室和认证系统仍在系统边界之外。
+**为什么可以接受：** Trace core 的体积远小于原始文件和 telemetry，却足以定位问题。原始材料由作出声明的一方负责保存和提供，平台可以提供可选托管，但不转移其真实性责任。
 
-平台原生提供组织与身份登记、规范事件提交与验证、账本承诺、谱系查询、影响分析、消费者视图和审计能力；它不负责生产计划、完整库存、路线调度、支付、会计、实验室实际检测或监管审批。
+**强制恢复范围：**
 
-**为什么：** 本项目真正困难且有区分度的问题，是在互不完全信任的组织之间建立可信的共享历史。重做所有企业内部业务只会扩大范围，并不会加强跨组织追溯。
+- event ID、type、time、publisher 和 profile version；
+- batch、object、pallet 或 logistic-unit identifiers；
+- business step、disposition、source/destination；
+- aggregation、disaggregation、transformation 和 correction relationships；
+- network profile 允许的 sensor/compliance summary；
+- protected-resource reference、owner、issuer metadata 和 content commitment。
 
-**代价：** 平台依赖参与方系统或 PWA 提供事件，无法保证企业内部记录完整，也不能取代企业的法律和业务责任。
-
----
-
-## 2. 所有参与企业是否必须使用同一套业务系统？
-
-**答：** 不需要。所有参与方共享的是追溯协议、身份规则、事件语义和验证网络，而不是同一个 ERP。
-
-- 没有成熟 IT 系统的小型组织通过平台 PWA 录入和查询事件；
-- 有现有系统的企业通过 EPCIS/REST API 发布需要跨组织共享的事件；
-- 成熟企业可以在自己的环境中完成 ERP 映射、本地校验、签名和敏感材料管理；
-- 只有承担联盟治理职责的部分独立组织需要运行账本节点，不要求每个农场运行节点。
-
-因此默认产品形态是共享托管服务，企业侧 gateway 是增强型接入选项，独立 ledger node 是治理角色，而不是所有参与方的部署义务。
-
-**为什么：** 强制每家公司运维完整服务会产生大量独立故障点，也不符合小农户和 rural accessibility 的背景；但保留企业本地签名和集成能力，可以避免平台成为所有声明的唯一控制者。
+**默认不强制恢复：** 原始高频 telemetry、完整实验室文件、证书文件、照片、合同、商业单据、内部 ERP/WMS/TMS 明细和私有扩展。
 
 ---
 
-## 3. 平台保存哪些数据，参与方自己保存哪些数据？
+## B3. EPCIS 数据和证据采用什么权限模型？
 
-**答：** 划分依据不是笼统的“敏感或不敏感”，而是数据是否属于建立跨组织追溯所必需的共享事实。
+**决定：** 使用固定的 `PUBLIC / CONSORTIUM / PRIVATE` 三层模型；不做字段级动态权限、不做每事件密钥分发，也不建立独立的 private EPCIS event store。
 
-平台保存：
+**边界条件/假设：** 参与方不信任平台控制历史完整性，但接受平台和联盟节点作为受合同、安全控制和审计约束的数据处理者。加入联盟意味着同意共享 network EPCIS profile 中的最小 trace facts。
 
-- 已接受的 canonical traceability events；
-- 组织、身份、地点、设备、公钥、profile 和访问策略；
-- 批次、交接、包含关系和派生关系所需的最小事实；
-- 外部证据的引用、元数据和内容 commitment；
-- 可重建的查询 projection 与运营状态。
+**为什么这样定：** 如果完整 EPCIS event 中每个字段都有不同受众，就需要事件级加密、DEK wrapping、审计 escrow、密钥恢复和复杂查询。固定分类可以用一张权限矩阵解释，并保持平台失效后的可恢复性。
 
-完整 canonical EPCIS history 还必须存在平台控制域之外的可恢复副本；具体由 permissioned ledger、独立加密归档或两者组合承担，仍待决定。
+**否决的方案一：完整 EPCIS 明文对消费者公开。** 会泄露交易关系、精确地点、数量、设备和商业节奏。
 
-参与方或外部提供方保存：
+**否决的方案二：每事件、每字段密码学隔离。** 会造成密钥和 policy 爆炸、难以查询、难以恢复，也无法简单撤销已经解密的数据。
 
-- 完整 ERP/WMS/TMS 等内部记录；
-- 原始高频 IoT telemetry；
-- 证书、实验室文件和大型附件；
-- 不属于跨组织追溯必需内容的商业敏感扩展。
+**否决的方案三：单独维护 private EPCIS layer。** 它与证书、IoT、合同等可选托管资料边界模糊，会产生两套权限和生命周期模型。
 
-参与方承担这些原始材料的保留和举证责任。平台可以提供可选的加密托管和合规归档服务，但不强制集中保存。
+**承受的代价：** 所有联盟节点运营方可以看到 shared trace core；不能进入 core 的精确数量、位置或原始证据无法用于全联盟自动验证。平台仍被信任执行日常保密和访问控制。
 
-**代价：** 外部材料可能过期、离线或丢失。平台可以验证以后拿到的内容是否与原 commitment 一致，并记录材料不可用或举证失败，但不能保证参与方保管的材料永远可访问。
+**为什么可以接受：** 当前目标是恢复路径、识别声明者和定位潜在责任方，而不是让所有成员验证每项商业细节。敏感详情仍可在直接交易方或调查范围内提供，复杂度与收益更匹配。
 
----
+### 固定数据层
 
-## 4. “可信”或“不可篡改”在本项目中具体是什么意思？
+| 分类 | 内容 | 谁可读取 | 保存方式 |
+|---|---|---|---|
+| `PUBLIC` | 产品、来源地区、主要阶段、公开认证摘要、温控摘要、recall status | Consumer 及其他用户 | 从 shared trace 生成 allowlisted projection |
+| `CONSORTIUM` | 联盟批准的 canonical EPCIS trace core | 已认证参与方、Auditor/Regulator、必要运维人员 | Permissioned ledger + application projection |
+| `PRIVATE` | 精确商业详情、完整 sensor data、文件、企业私有扩展 | Owner、直接交易方、明确授权的调查者 | Participant-hosted 或可选 platform-hosted `ProtectedResource` |
 
-**答：** 它意味着能够验证声明者、授权、内容完整性、修正历史、冲突和谱系规则，并能发现对已承诺历史的事后修改。
+### ProtectedResource 统一模型
 
-它**不意味着**区块链能够证明现实世界里的货物、温度、检测结果或证书内容必然真实。一个错误甚至恶意的源声明，只要由合法密钥正确签署，在密码学上仍可能是有效的。
+结构化 private detail 与 PDF、照片、证书和原始 telemetry 使用同一个逻辑资源模型：
 
-更准确的对外表述是：
+```text
+ProtectedResource
+- resourceId
+- eventId
+- ownerOrganisationId
+- resourceType
+- schemaOrMediaType
+- contentHash
+- storageMode: PLATFORM_HOSTED | PARTICIPANT_HOSTED
+- externalLocator
+- accessScope
+- retentionMetadata
+- availabilityStatus
+```
 
-> 系统使供应链声明可验证、可归因并且不可被单方静默改写；它不声称仅凭软件即可证明物理世界的真实性。
+底层可以分别使用 PostgreSQL JSONB、object storage 或外部 IoT store，但权限、引用、commitment 和 availability 状态由同一个 Protected Resource Service 管理。
 
-物理真实性仍依赖独立证据、交叉确认、设备治理、检查和争议处理。
+### 固定访问矩阵
 
----
+| 角色 | Public Projection | Shared Trace Core | ProtectedResource |
+|---|---:|---:|---:|
+| Consumer | 可读 | 不可读 | 不可读，除非另有公开摘要 |
+| Consortium Participant | 可读 | 可读 | 仅自有、直接交易相关或明确共享的资源 |
+| Auditor/Regulator | 可读 | 可读 | 在批准的 investigation scope 和期限内可读 |
+| Platform Operator | 托管 | 托管 | 仅为托管/运维技术访问，并记录审计日志 |
+| Ledger Node Operator | 不因运行节点获得消费者身份 | 保存并可验证 | 不保存，也不因运行节点获得访问权 |
 
-## 5. 为什么以事件为中心，而不是维护一个可修改的 Batch 状态？
+### 分类判据
 
-**答：** 已接受的追溯事件构成 append-only authoritative history；批次当前状态、当前保管方、托盘内容、交接状态和召回影响范围都是从事件派生的 projection。
+> 没有该数据，联盟是否仍能重建产品经过的组织、阶段和转换关系，并定位潜在责任方？
 
-**为什么：** 拆分、混合、加工、装托盘、多次交接和纠错共同形成一个图，而不是一条线性状态。只维护一行可变 Batch 记录会覆盖原始声明，无法展示矛盾，也无法重放和审计。
+- 如果不能：进入 `CONSORTIUM` canonical EPCIS profile；
+- 如果可以：建模为 participant-owned `ProtectedResource`；
+- 如果消费者需要：从 shared trace 生成 `PUBLIC` projection。
 
-**代价：** 查询不能只读取一个“最终真相”字段，需要 projection、图遍历、重放和 reconciliation。
+如果某字段既不能让联盟成员看到，又是重建最小 trace 必不可少的内容，则当前简化模型不成立；必须修改共享假设或重新引入加密/private collection。
 
----
+# 第三层：仍需讨论的决定
 
-## 6. 采用什么跨企业事件标准？
+以下项目保留当前倾向和 trade-off，但尚未提升为架构基线。
 
-**答：** 采用 GS1 EPCIS 2.0 概念作为 canonical event model，并在外层增加本项目的 ledger envelope 和联盟规则。
+## C1. 谁运行 permissioned-ledger nodes，采用什么 quorum？
 
-EPCIS 负责 what、when、where、why、how，以及 ObjectEvent、AggregationEvent、TransformationEvent 等事件语义。本项目额外负责：
+**当前倾向：** 平台运营者之外，由少数利益和管理控制域相互独立的代表组织运行节点；不要求每个参与方运行节点。
 
-- 组织、用户和设备身份；
-- 发布者签名与授权；
-- visibility policy；
-- profile 与 schema 治理；
-- 交接确认和争议；
-- 链上承诺与回执；
-- 离线同步和消费者投影。
+**为什么尚未定案：** 背景没有给出真实行业联盟、节点预算、运营能力或治理章程。节点太少存在串谋和支配风险，太多则增加成本、升级协调和故障概率。
 
-产品差异通过 versioned product profiles 表达。首个完整 profile 是 `Fresh Produce Cold Chain v1`，未来新增乳制品等产品线原则上不需要复制一套服务或数据库。
+**已否决：** 随意写成“3–5 个独立组织”却不解释其身份和激励；以及由平台在同一云账号代管所有所谓独立节点。这两种做法只是在图上去中心化。
 
----
+**需要接受的代价：** 任何平台外可恢复和不可单方改写的保证，都要求某些外部主体承担存储、验证和治理成本。架构不能消除该成本，只能明确由谁承担。
 
-## 7. 批次拆分、合并、装托盘和交接如何区分？
-
-**答：** 核心谱系只使用三类稳定关系：
-
-| 关系 | 含义 | 是否产生新身份 |
-|---|---|---|
-| `HANDOVER` | 发货方与收货方对同一对象的转移分别作出声明 | 否 |
-| `CONTAINS` | 批次或箱被装入托盘、容器 | 否，child identity 保留 |
-| `DERIVED_FROM` | 拆分、混合、加工或重新分批产生输出 | 是，输出必须保留完整输入谱系 |
-
-装托盘不是批次合并；保管权转移也不自动改变批次身份或组成。数量必须带单位，并遵守 profile 规定的换算、损耗和 yield 规则。
-
----
-
-## 8. 一次交接是一条双方共同修改的记录吗？
-
-**答：** 不是。shipping 和 receiving 是两个组织各自签名的独立声明，平台将它们关联后派生 `Pending`、`Accepted`、`Partial`、`Rejected` 或 `Disputed` 等状态。
-
-**为什么：** 发货方不能替收货方证明已经收到，收货方也不能覆盖发货方原先声明的数量。双方不一致时，系统应保留并暴露冲突，而不是悄悄选择一方作为真相。
-
-**代价：** 交接状态是 eventually consistent 的派生结果，业务上需要处理待确认和争议状态。
+**待回答：** 是否明确假设存在行业联盟或独立行业机构；节点由生产者组织、物流/分销组织、零售组织、审计机构还是专业托管方运行；系统只抵抗单方篡改，还是还要抵抗部分节点串谋；公共链 anchoring 是否仅作为反串谋加强措施。
 
 ---
 
-## 9. 错误事件如何修改或删除？
+## C2. 参与方如何签名和管理密钥？
 
-**答：** 已承诺事件不做原地更新或物理删除。纠错通过新的 Error Declaration 和 corrective event 追加表达，projection 可以把旧事件标为 superseded，但原始内容和完整纠错链仍保留供审计。
+**当前倾向：** 采用分级 assurance：成熟企业在自己的 Gateway/KMS 中签名；小型组织可以选择 tenant-isolated delegated signing，不要求每个农场自行运维组织级 PKI。
 
-**为什么：** 原地修改会破坏签名、hash 和账本承诺，也会消除“当时谁说了什么”的证据。
+**为什么尚未定案：** 每事件签名增强 attribution，但农村共享设备、手机丢失、员工变动、证书撤销和恢复会显著增加使用风险。
 
----
+**已否决：** 平台无条件掌握所有组织私钥，因为平台可冒充参与方；也不宜强制所有小型参与者自行保管不可恢复私钥，否则丢失和共享账号会让系统不可用。
 
-## 10. 区块链到底存什么，为什么不把所有数据都上链？
+**需要接受的代价：** 分级模式意味着不同参与者具有不同信任保证；托管签名必须明确标记为 delegated trust，不能与企业本地签名描述为同一保证等级。
 
-**当前已确定：** 大型文件、原始高频 telemetry、企业内部记录和查询 projection 不全部上链；但是完整 canonical EPCIS history 必须能够在平台控制域之外恢复。
-
-**仍待决定：** permissioned ledger 是直接保存完整 canonical EPCIS payload，还是只保存 commitment 并由独立加密归档保存 payload。这里不能再默认“PostgreSQL 保存唯一完整事件、账本只保存 opaque hash”，因为这种方案无法在平台失效后重建 trace。
-
-无论采用哪种物理划分，独立副本至少必须覆盖 EPCIS event 中用于重建对象、交接、聚合、加工、位置、状态、sensor summary 和纠错关系的内容。EPCIS 引用的原始文件仍可留在参与方或可选托管服务中。
-
-**权衡：** ledger 直接保存 payload 更容易解释可恢复性，但增加复制、访问控制和保留成本；独立加密归档加 commitment 更灵活，但引入第二个可用性和密钥治理边界。
+**待回答：** 哪些事件必须组织签名，哪些只需要经过强认证的提交；托管密钥如何恢复和撤销；device signature、organisation endorsement 和 ledger consensus 如何区分。
 
 ---
 
-## 11. 为什么还需要联盟账本？普通数据库不够吗？
+## C3. 是否采用完整 Event Sourcing 和异步 CQRS？
 
-**答：** PostgreSQL 足以承担应用事务和查询，但它由平台运营方管理，单独使用时无法改变“运营方可以改写全部历史”的信任关系。联盟账本由相互独立的组织管理节点，用来让单方事后改写已承诺历史变得可检测。
+**当前倾向：** 跨组织 trace events 保持 append-only；普通用户、权限、配置和运营状态使用常规事务模型。是否引入 broker 和异步 projection 由一致性和 workload 场景决定。
 
-平台运营方可以托管应用和部分基础设施，但不能同时独占：
+**为什么尚未定案：** EPCIS 是事件共享模型，不等于整个应用必须 Event Sourcing。异步 projection 能加速谱系和消费者查询，但会引入 stale read、replay、schema migration 和恢复复杂度。
 
-- 所有参与方私钥；
-- 所有 ledger/orderer 节点；
-- 成员资格和 profile 规则；
-- endorsement policy；
-- 所有审计和查询结果。
+**已否决：** 把所有应用状态都建模成事件；也否决普通查询直接遍历 blockchain，因为共识账本不适合作为低延迟、按受众裁剪的查询引擎。
 
-**治理原则：** SaaS 可以中心化运维体验，但可信历史必须由联盟共同治理。
+**需要接受的代价：** 如果先同步查询 PostgreSQL，未来高负载时可能需要重构；如果现在采用异步 projection，食品召回视图可能短暂落后，必须暴露 watermark 和 stale/unavailable 状态。
 
-**可选扩展：** 将联盟账本的周期性 Merkle root 锚定到公共链有额外独立性价值，但目前不是核心基线，也不应暴露业务明文。
+**待回答：** 哪些查询必须同步强一致，哪些允许 eventual consistency；是否只有 ledger dual-write 使用 outbox，还是所有 read models 都通过 broker 更新。
 
 ---
 
-## 12. 为什么只用一个 PostgreSQL，而不是事件库、图数据库和多个服务各一个库？
+## C4. Shipping 与 receiving 是否必须形成双边交接状态机？
 
-**答：** 第一版使用一个 managed PostgreSQL application database，以 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离。
+**当前倾向：** Shipping 和 receiving 保持两个组织的独立声明；平台关联后可以派生 Pending、Accepted、Partial、Rejected 或 Disputed，但是否强制双边确认由 product/transaction profile 决定。
 
-PostgreSQL 同时提供事务、关系约束、JSON、索引和 recursive CTE，足以支持事件写入、outbox、谱系遍历和可重建 projection。当前没有测量结果证明需要引入更多数据库和一致性边界。
+**为什么尚未定案：** 独立声明能防止一方覆盖另一方，但现实流程可能存在代理接收、分批收货、永不确认或多个目的地。将同一状态机强加给所有供应链可能导致大量永久 Pending 和绕过行为。
 
-**代价：** PostgreSQL 是共享运营依赖。将来只有在实际 workload 证明谱系查询复杂度或容量超出它的能力时，才引入专用图数据库或独立 read store。
+**已否决：** 一条由任意一方修改的 transfer row，因为无法保留双方不一致；也不应默认每一次物流都必须由双方共同签署同一交易。
 
----
+**需要接受的代价：** 独立事件带来 reconciliation 和争议处理；profile-specific 规则比一个全局流程更难测试。
 
-## 13. 后端采用微服务吗？
-
-**答：** 第一版不采用完整微服务架构，而是一个有明确模块和 ports/adapters 的 modular Traceability Application。
-
-身份与 registry、事件提交、policy、ledger adapter、projection 和 query 在逻辑上分离，但先共享部署和数据库。外部 ledger、artifact provider 和 message broker 仍保持真正的系统边界。
-
-**为什么：** 当前没有团队规模、独立发布频率或负载证据足以抵消分布式事务、网络故障和运维复杂度。
-
-**演进原则：** 先用模块边界保护可修改性；只有某个能力出现明确的独立扩缩容、隔离或发布需求时才提取服务。
+**待回答：** 哪些业务步骤需要 receiver confirmation；未确认事件是否仍进入 trace；争议状态对消费者和 recall 查询有什么影响。
 
 ---
 
-## 14. 写入和查询为什么要分开？查询是否直接遍历区块链？
+## C5. 第一版是否固定为一个 PostgreSQL？
 
-**答：** 写路径负责规范化、身份和签名验证、profile/business-rule 验证、幂等落库、账本提交及 outbox；查询路径读取 PostgreSQL 中异步构建、可丢弃并可重建的 projection。
+**当前倾向：** 一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；permissioned ledger 和 participant artifact stores 保持外部边界。
 
-普通 trace、consumer view 和 recall impact query 不直接遍历账本。需要完整性证明时，再用原始事件与 ledger receipt 交叉验证。
+**为什么尚未完全定案：** PostgreSQL 足以提供事务、约束、JSON 和递归遍历，但背景也要求多产品线和地区，未来可能出现数据驻留或跨区域写入限制。
 
-**为什么：** 共识基础设施适合证明承诺，不适合承担低延迟、按权限裁剪的业务查询。projection 还能为 consumer、participant 和 auditor 生成不同的 allowlisted view。
+**已否决：** 第一版同时引入事务数据库、event store、graph database 和独立 read store，因为没有 workload 证据支持这些一致性边界。
 
-**代价：** projection 是 eventually consistent 的；API 必须暴露 projection timestamp/sequence，在重建或落后时明确报告 stale/unavailable，而不是返回看似完整的错误结果。
+**需要接受的代价：** PostgreSQL 是共享运营依赖，存在共同故障域；复杂谱系或跨区域部署达到一定规模后可能需要分区或专用存储。
 
----
-
-## 15. 最优先的质量属性是什么？
-
-**答：** Trustworthiness 是首要架构驱动，包括 attribution、authorisation、tamper detection、visible conflict、correction history、lineage validity、evidence verification 和 governance independence。
-
-并发性能不是当前最难的问题，也没有足够业务数据支持虚构高 TPS 或极端 p95 指标。公共查询的容量可以在测量后通过 projection、cache 和 cloud scaling 处理。
-
-这不表示性能不重要，而是：
-
-> 先解决无法用普通扩容补救的跨组织信任问题，再根据实测 workload 做容量规划。
+**待回答：** 第一个部署区域、数据驻留假设、备份与恢复目标，以及何种实测阈值触发 graph/read store 或区域拆分。
 
 ---
 
-## 16. Rural accessibility、IoT 和 AI 如何处理？
+## C6. Product Profile 能承担多少产品线差异？
 
-**答：**
+**当前倾向：** 稳定 EPCIS core 加 versioned product profiles 是主要扩展机制，但不承诺所有新产品都只需配置、永远无需代码和数据模型变化。
 
-- Rural accessibility：PWA 支持离线 draft/durable queue，恢复网络后以稳定 event ID 幂等重试；本地草稿不是共享历史，只有完成服务端验证和账本承诺后才成为已确认事实。
-- IoT：属于核心 evidence integration。平台保存签名摘要、时间范围、设备身份、异常和原始数据引用，不吞入所有高频 telemetry。
-- AI/ML：是可选、异步、advisory 的风险分析能力，只读取授权 projection，输出带模型版本的派生结果。
+**为什么尚未定案：** Profile 可以约束字段、单位、证据和业务词汇，但不同产品还可能改变召回、加工、温控、生物安全、保留期和 UI 工作流。
 
-AI 不能决定事件是否被接受、不能参与 ledger consensus，也不能成为监管或历史真相。关闭 AI 不得影响事件提交、完整性验证或谱系查询。
+**已否决：** 为每个产品线复制一套服务和数据库；也否决“新增任何产品只需要一个 JSON schema”的过度承诺。
 
----
+**需要接受的代价：** Profile engine 和版本兼容本身增加复杂度；某些产品仍可能需要经过评审的代码扩展。
 
-## 17. 云部署中的权力边界是什么？
-
-**答：** 应区分三个平面：
-
-1. **Participant-controlled environment**：ERP/WMS/TMS、可选 gateway、本地签名密钥和 artifact store；
-2. **Shared SaaS application plane**：PWA/portal、API、modular application、PostgreSQL、broker/worker 和 query projections；
-3. **Consortium ledger plane**：由不同利益相关组织独立管理的 ledger nodes 和共同治理规则。
-
-小型组织可以使用托管 PWA；成熟组织可以在自己的环境中签名和集成；关键联盟成员而非每个参与者负责运行独立节点。
-
-云厂商和具体 managed service 尚未选定，因为当前重要的是 trust boundary、故障域、密钥和治理权的分离，而不是服务品牌。
+**待回答：** 哪些规则可配置，哪些必须由领域代码实现；profile 的批准、弃用和兼容流程由谁治理。
 
 ---
 
-## 目前仍开放、但不会推翻主线的问题
+## C7. Trustworthiness 与 scalability 如何排序？
 
-以下事项仍需在报告后续章节或实现阶段确定：
+**当前倾向：** Trustworthiness 决定核心信任边界，但 scalability 仍必须通过可测场景验证；不能用“不是主要问题”跳过 case brief 的多产品和多地区要求。
 
-- 具体的 permissioned-ledger 产品与最终 endorsement policy；
-- 最小 ledger envelope 的精确字段；
-- 云厂商、区域拓扑和具体 managed services；
-- 小型组织托管签名密钥时的 delegated-trust 流程；
-- Participant Gateway 是否进入第一版部署，还是仅作为企业集成扩展；
-- jurisdiction-specific retention 和 deletion/anonymisation 参数；
-- 根据真实 workload 确定 SLA、分区阈值、索引和缓存；
-- 是否加入公共链周期性 anchoring；
-- 可选 AI/ML 风险分析是否纳入最终交付。
+**为什么尚未定案：** 没有真实吞吐量和用户数量，虚构极端 TPS 没有意义；但完全没有容量和时延场景也无法证明云和查询设计合理。
 
-这些是实现和治理参数，不应重新打开以下已定主线：追溯层而非 ERP、事件历史、最小链上承诺、一个 PostgreSQL、外部 artifact ownership、modular application，以及 trustworthiness 优先。
+**已否决：** 用没有来源的高 TPS/p95 数字驱动微服务；也否决只讨论可信性、不说明 ingestion、consumer query 和 lineage traversal 能承受什么规模。
+
+**需要接受的代价：** 架构报告需要声明一组可复核的 workload assumptions，并承认它们不是客户提供的事实。
+
+**待回答：** 参与组织、每日事件、消费者查询峰值、最大 lineage edges、允许的 projection lag 和恢复目标采用什么假设。
 
 ---
 
-## 答辩时最简短的版本
+## C8. 云部署如何表达权力边界？
 
-如果评审只允许一分钟，可以回答：
+**当前倾向：** 区分 Participant Environment、Shared SaaS Application Plane 和 Consortium Ledger Plane；云厂商与具体 managed services 后定。
 
-> We are building a consortium-governed traceability network, not an agricultural ERP. Participants keep their operational systems and remain responsible for signed source assertions. The shared platform stores the canonical events needed for cross-organisation lineage, while sensitive raw evidence remains externally owned. Events are append-only in PostgreSQL, and only minimal commitments are replicated to independently administered consortium-ledger nodes. Query projections are rebuildable and audience-specific. This design makes history attributable and non-silently-rewriteable without claiming that blockchain proves physical truth.
+**为什么尚未定案：** 部署图必须反映真实独立控制域。把所有节点、密钥、数据库和治理组件部署在平台同一账号，会否定 B1 的不完全信任假设。
 
+**已否决：** 仅罗列云服务品牌而不说明谁控制账号、密钥和恢复；也否决要求每个小型参与方部署完整基础设施。
+
+**需要接受的代价：** 跨控制域部署增加网络、安全、监控、升级和故障协调成本。
+
+**待回答：** 哪些组件由平台托管，哪些由独立组织或专业托管方控制；Participant Gateway 是否进入第一版；ledger node 和备份是否跨云账号或区域。
+
+# 当前总体结论
+
+当前已经确定的最短表述是：
+
+> 本系统是跨组织农业供应链追溯层，而不是农业 ERP。参与方通过 PWA 或既有系统发布联盟 profile 约束的 EPCIS events。消费者只读取公开 projection；联盟成员共享足以重建路径和定位潜在责任方的 canonical EPCIS trace core；商业详情和原始证据作为 participant-owned ProtectedResources，由参与方保存或选择平台托管。系统不声称区块链证明物理事实真实，但要求平台运营者不能单方面静默重写或垄断已经确认的历史。
+
+仍然阻止方案最终定型的核心问题是：谁在平台控制域之外运行 ledger nodes、承担复制和治理成本，以及系统需要抵抗到什么程度的节点串谋。
+
+# 答辩时的一分钟版本
+
+> We are building a cross-organisation agricultural traceability layer rather than an ERP. Small participants may use the platform PWA, while mature organisations integrate through EPCIS or APIs. A permissioned shared record retains the consortium-approved EPCIS trace core needed to reconstruct lineage and identify the party from whom further evidence is required. Consumers receive an allowlisted public projection, while commercially sensitive details and source evidence remain participant-owned protected resources that may optionally be hosted by the platform. This deliberately trades fine-grained cryptographic isolation for a clear and feasible permission model. The ledger makes unilateral post-confirmation rewriting by the platform detectable, but it does not prove that source claims are physically true.
