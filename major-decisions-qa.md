@@ -74,7 +74,77 @@ EPCIS 是事件数据和接口标准，不是完整供应链系统，也不替�
 
 ---
 
-# 第二层：仍需讨论和重新论证的决定
+# 第二层：已经明确接受的额外前提
+
+这一层不是 case brief 直接给出的事实，而是为了形成一致架构而明确补充的业务和威胁模型假设。报告中必须把它们写成 assumptions，并说明由此产生的架构后果。
+
+## B1. 参与方是否完全信任平台运营者？
+
+**答：** 不完全信任。平台运营者可能发生内部滥用、管理员账号泄露、基础设施入侵、错误恢复或受到单方商业压力，因此不能成为已承诺历史的唯一控制者和唯一验证者。
+
+这个假设为区块链提供了实际问题背景：如果参与方完全信任平台运营者，并且运营者独占数据库、密钥、全部账本节点和治理权，那么区块链相对于普通 append-only database 或 WORM audit log 的额外价值很弱。
+
+由此确定的架构约束是：
+
+- 平台运营者不能单方面、无痕地修改已经确认的历史；
+- 至少有平台控制域之外的主体能够验证 event commitment 和 ledger history；
+- 平台不能同时独占参与方声明权、全部验证节点和全部治理密钥；
+- 平台拒绝、延迟、遗漏或删除链下数据的行为需要能够被发现或审计；
+- 账本拓扑和治理规则必须对应真实独立的控制域，而不能只是在同一云账号中复制节点。
+
+这个前提目前**尚未单独决定**：
+
+- 是否采用 permissioned consortium ledger 或公共链证明层；
+- 哪些组织运行节点；
+- 需要多少独立组织和怎样的 quorum；
+- 小型参与方是否自行持钥；
+- 如何处理多个联盟成员串谋；
+- 是否需要公共链 anchoring。
+
+这些属于下一层需要继续讨论的机制选择。
+
+---
+
+## B2. 平台失效后，哪些追溯数据必须仍然可以恢复？
+
+**答：** 至少必须能够恢复完整的 canonical EPCIS trace，也就是平台已经接受并用于跨组织追溯的 EPCIS events、事件之间的关系以及纠错历史。
+
+可恢复范围包括 EPCIS event 中实际记录的内容，例如：
+
+- event ID、event type、event time、record time 和 time-zone offset；
+- 涉及的批次、对象、托盘或物流单元标识；
+- publisher organisation 和必要的身份或版本信息；
+- business step、disposition、read point 和 business location；
+- source、destination 和 business-transaction reference；
+- aggregation、disaggregation、transformation input/output 和 lineage；
+- EPCIS event 内保存的 sensor summary、异常或其他扩展字段；
+- Error Declaration、corrective event 和版本关系；
+- 外部证据的 reference、issuer metadata 和 content commitment。
+
+这份可恢复历史至少要能够帮助参与方或审计者判断：产品经历了哪些阶段、数据由谁发布、在哪个环节出现矛盾，以及下一步应向哪一方索取原始证据。Canonical EPCIS history 不能只存在于平台运营者独占的 PostgreSQL 中。
+
+以下材料默认不属于必须由共享追溯网络恢复的内容：
+
+- EPCIS event 通过 reference 指向的原始高频 IoT telemetry；
+- 完整实验室报告、证书文件、照片、合同和商业单据；
+- 企业 ERP、WMS、TMS 或农场系统的内部明细；
+- 未进入 canonical EPCIS event 的私有业务扩展。
+
+这些原始材料的保留和举证责任属于发布声明或引用证据的参与方。发生调查时，参与方需要提供材料，并由审计者将材料内容与 EPCIS 中保存的 commitment、issuer 和时间信息进行核对。材料缺失本身应被记录为 `Unavailable` 或举证失败，而不能由平台推定为真实。
+
+平台可以提供可选的加密 artifact storage、合规归档、保留策略和取证导出服务，但参与方不被强制把全部原始材料交给平台。使用托管服务只改变材料保管方式，不转移声明者的真实性和法律责任。
+
+这个决定目前**尚未单独决定** canonical EPCIS history 的复制机制。可选方式包括：
+
+- 由 permissioned ledger 直接保存可恢复的 canonical EPCIS facts；
+- ledger 保存 commitment，完整 canonical EPCIS event 进入独立控制、加密且不可变的共享归档；
+- 两者结合，账本保存核心索引和关系，归档保存完整 canonical payload。
+
+无论选择哪种方式，都必须同时满足平台外可恢复、按权限读取和 commitment 可验证三个结果。
+
+---
+
+# 第三层：仍需讨论和重新论证的决定
 
 以下内容是目前方案给出的回答，而不是已经没有争议的事实。讨论时应检查它们依赖的威胁模型、参与方能力、法规、规模和运维前提；讨论结论确定后，再将其中稳定的部分提升到第一层。
 
@@ -125,6 +195,8 @@ EPCIS 是事件数据和接口标准，不是完整供应链系统，也不替�
 - 外部证据的引用、元数据和内容 commitment；
 - 可重建的查询 projection 与运营状态。
 
+完整 canonical EPCIS history 还必须存在平台控制域之外的可恢复副本；具体由 permissioned ledger、独立加密归档或两者组合承担，仍待决定。
+
 参与方或外部提供方保存：
 
 - 完整 ERP/WMS/TMS 等内部记录；
@@ -132,7 +204,9 @@ EPCIS 是事件数据和接口标准，不是完整供应链系统，也不替�
 - 证书、实验室文件和大型附件；
 - 不属于跨组织追溯必需内容的商业敏感扩展。
 
-**代价：** 外部材料可能过期、离线或丢失。平台可以验证以后拿到的内容是否与原 commitment 一致，但不能保证材料永远可访问。
+参与方承担这些原始材料的保留和举证责任。平台可以提供可选的加密托管和合规归档服务，但不强制集中保存。
+
+**代价：** 外部材料可能过期、离线或丢失。平台可以验证以后拿到的内容是否与原 commitment 一致，并记录材料不可用或举证失败，但不能保证参与方保管的材料永远可访问。
 
 ---
 
@@ -212,13 +286,13 @@ EPCIS 负责 what、when、where、why、how，以及 ObjectEvent、AggregationE
 
 ## 10. 区块链到底存什么，为什么不把所有数据都上链？
 
-**答：** canonical accepted event 保存在 PostgreSQL；permissioned consortium ledger 只保存最小 event commitment、发布者/版本等必要 envelope 信息和 transaction receipt。大型文件、原始 telemetry 和查询 projection 都不上链。
+**当前已确定：** 大型文件、原始高频 telemetry、企业内部记录和查询 projection 不全部上链；但是完整 canonical EPCIS history 必须能够在平台控制域之外恢复。
 
-这里“event 上链”应理解为“以 event 为承诺和验证单位”，不是把完整 event payload 复制到所有节点。
+**仍待决定：** permissioned ledger 是直接保存完整 canonical EPCIS payload，还是只保存 commitment 并由独立加密归档保存 payload。这里不能再默认“PostgreSQL 保存唯一完整事件、账本只保存 opaque hash”，因为这种方案无法在平台失效后重建 trace。
 
-**为什么：** 账本的职责是独立 tamper evidence 和共同治理，不是代替运营数据库。完整数据上链会放大隐私、保留、删除、查询、schema 升级和多组织治理成本。
+无论采用哪种物理划分，独立副本至少必须覆盖 EPCIS event 中用于重建对象、交接、聚合、加工、位置、状态、sensor summary 和纠错关系的内容。EPCIS 引用的原始文件仍可留在参与方或可选托管服务中。
 
-**代价：** 完整验证需要同时取得 PostgreSQL 中的事件与 ledger commitment；账本暂时不可用时，提交进入明确的 `PendingLedger` 状态，而不是假装已经最终确认。
+**权衡：** ledger 直接保存 payload 更容易解释可恢复性，但增加复制、访问控制和保留成本；独立加密归档加 commitment 更灵活，但引入第二个可用性和密钥治理边界。
 
 ---
 
