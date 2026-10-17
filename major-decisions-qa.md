@@ -467,7 +467,9 @@ Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 d
 
 ```text
 DRAFT
-→ RECEIVED
+├── online submit ────────────┐
+└── QUEUED_OFFLINE → SYNCING ───┤
+                              → RECEIVED
 → VALIDATED
 → PENDING_SIGNATURE
 → PENDING_ARCHIVE
@@ -491,6 +493,7 @@ ANCHOR_RETRY
 ### 各状态的含义
 
 - `DRAFT`：参与方本地意图，可以编辑或删除，不属于共享历史；
+- `QUEUED_OFFLINE/SYNCING`：事件仍位于 participant device/gateway 或正在传输，平台尚未接受，不得显示 acceptance receipt；
 - `RECEIVED/VALIDATED`：平台已经接收和验证，尚未形成外部证明；
 - `PENDING_SIGNATURE`：等待参与方或 signing provider 批准；
 - `PENDING_ARCHIVE`：等待 encrypted canonical payload 在独立归档中达到约定复制等级；
@@ -734,6 +737,68 @@ Domain validators in code
 
 **为什么可以接受：** 多数“新增字段、枚举、单位和证据要求”的产品差异可以低成本扩展，而会改变交接、转换或召回语义的差异仍通过显式代码接受审查。这个边界提供实际可扩展性，同时避免把项目变成通用规则平台。
 
+---
+
+## B12. 性能与网络延迟采用什么 workload model？
+
+**决定：** 性能设计围绕三种负载形态隔离，而不是假设所有接口都需要相同的高 TPS 架构：参与方写入总体低频但可能离线后突发同步；监管/内部查询低频但单次数据量大；消费者查询单次很小但并发和突发流量高。三者可以由同一个模块化应用产生数据，但不共享相同的在线查询路径和资源池。
+
+```text
+Participant write plane
+→ reliable ingestion, idempotency, offline queue, outbox
+
+Regulator/internal investigation plane
+→ bounded interactive query + asynchronous bulk export
+
+Public consumer plane
+→ versioned public projection + object/cache/CDN delivery
+```
+
+### Public consumer plane
+
+消费者请求不得直接遍历 canonical events、调用 Consortium KMS 或读取 archive/internal tables。只有 `CONFIRMED` events 进入 Public Projection Builder，生成按 trace/product ID 定位的 versioned public snapshots，并通过 object storage/cache/CDN、WAF 和 rate limiting 对互联网提供。
+
+Correction event 生成新的 projection version，再更新 current-version pointer 和 cache；不在缓存中无痕覆盖历史版本。消费者并发主要由 CDN/edge cache 和可水平扩容的 stateless API 承担，不要求因此拆分整个后台为微服务。
+
+### Regulator/internal investigation plane
+
+小型调查查询使用 cursor pagination、bounded traversal 和结果大小限制。跨大量 batches/events 的请求创建 audited asynchronous export job，在明确的 confirmed-event watermark 上生成一致快照，以 stream 方式写入受保护的临时 export object，再提供短期授权下载。
+
+大型导出使用独立 worker pool、并发配额、statement timeout 和资源限制，不能以长时间同步 HTTP query 占用 ingestion 或 public-query 资源。第一版可以读取同一 PostgreSQL；实际压力增加后，优先引入 read replica 或专用 export projection。
+
+### Rural/offline participant plane
+
+农村网络问题使用 offline-first submission 处理，而不是无限 HTTP retry。PWA 使用受保护的本地存储保存 draft、client-generated event ID、待提交 payload、必要 profile/vocabulary、dependency 和 sync status；成熟参与方可以由 local gateway 提供 durable queue。
+
+必须区分三种延迟：
+
+```text
+Edge sync lag
+= participant creates event → platform RECEIVED
+
+Platform processing lag
+= RECEIVED → independent archive acknowledgement / receipt
+
+Anchor lag
+= archived event → Merkle batch public-chain finality
+```
+
+农村连接主要影响 edge sync lag。`LOCAL_DRAFT`、`QUEUED_OFFLINE` 和 `SYNCING` 不属于平台已接受的共享历史，也不能生成 acceptance receipt。平台恢复连接后使用稳定 event ID、idempotency key 和 causal references 去重并处理依赖；participant `eventTime` 与平台 `receivedAt` 分开记录，不能信任设备时钟决定全局顺序。
+
+离线能力遵守 B5 的 custody boundary：enterprise self-custody gateway 可以离线签名后排队；需要 external/device approval 或 platform custody 的 PWA event 只能离线保存 draft，联网并重新认证后完成签名。离线缓存不应长期保存整个 consortium trace，尤其不能在共享设备上复制不必要的敏感数据。
+
+### Storage and scaling path
+
+第一版以一个 managed PostgreSQL 保存 operational state、event index、outbox 和 projections；完整 payload 同时受 independent archive 保护。扩展顺序是 query/index tuning、connection pooling、vertical scaling、consumer CDN/cache、read replicas，再根据实测的表大小、projection rebuild 时间和 lineage/export workload 决定 partitioning、broker 或专用 read store，而不是预先部署全部组件。
+
+当前 workload assumptions 是：正常写入频率较低但必须承受离线设备恢复后的 burst；内部交互读取低并发但 export 可能覆盖大量事件；消费者读取具有高并发和活动/召回导致的突发峰值；设备可能离线数小时至数天；平台 processing lag 预计为秒级到几十秒，public-chain confirmation 为分钟级并由最后选择的 anchor window 决定。这些是可验证的设计假设，不声称是客户提供的事实。
+
+Projection 必须发布 `data complete through` watermark 和 lag。Consumer UI 可以容忍短暂 eventual consistency；recall/food-safety 查询超过安全 lag threshold 时必须等待追平、回查 confirmed event index，或明确返回 `STALE/INCOMPLETE`，不能把缺失结果解释为没有风险。
+
+**需要接受的代价：** 系统需要维护离线同步协议、public projection publication、cache invalidation、export jobs、workload resource limits 和 projection-lag monitoring，即使第一版仍是模块化单体和单一 PostgreSQL。
+
+**为什么可以接受：** 复杂度针对背景中真实不同的访问模式，而不是虚构统一的极端 TPS。Public plane 隔离保护内部系统，异步 export 防止大查询拖垮写入，offline queue 则直接处理农村连接这一明确需求，同时保留基于实测指标逐步扩容的路径。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -874,21 +939,7 @@ Consortium Key Service
 
 ---
 
-## C3. Trustworthiness 与 scalability 如何排序？
-
-**当前倾向：** Trustworthiness 决定核心信任边界，但 scalability 仍必须通过可测场景验证；不能用“不是主要问题”跳过 case brief 的多产品和多地区要求。
-
-**为什么尚未定案：** 没有真实吞吐量和用户数量，虚构极端 TPS 没有意义；但完全没有容量和时延场景也无法证明云和查询设计合理。
-
-**已否决：** 用没有来源的高 TPS/p95 数字驱动微服务；也否决只讨论可信性、不说明 ingestion、consumer query 和 lineage traversal 能承受什么规模。
-
-**需要接受的代价：** 架构报告需要声明一组可复核的 workload assumptions，并承认它们不是客户提供的事实。
-
-**待回答：** 参与组织、每日事件、消费者查询峰值、最大 lineage edges、允许的 projection lag 和恢复目标采用什么假设。
-
----
-
-## C4. 独立控制域的恢复目标和具体运营安排是什么？
+## C3. 独立控制域的恢复目标和具体运营安排是什么？
 
 **已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
 
@@ -913,6 +964,8 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 应用不采用全量 Event Sourcing。不可变 trace core 保持 append-only；普通应用状态使用事务模型；archive、anchor 和针对性 projections 由 PostgreSQL transactional outbox 驱动。第一版不需要独立 broker 或多套读写数据库，projection lag 必须通过 watermark 暴露，安全查询不得把过期视图解释为完整结果。
 
 产品扩展采用不可变、版本化并由联盟治理的 Product Validation Profiles。Profile 只配置字段、枚举、单位、简单校验、证据要求和 consumer allowlist；交接、纠错、转换、授权、签名和召回等跨事件语义保留在领域代码中，不承诺用配置取代所有产品代码扩展。
+
+性能设计分为 participant ingestion、regulator/internal investigation 和 public consumer 三个 workload planes。低频写入通过离线队列、幂等和 outbox 保证可靠；大范围监管读取使用带 watermark 的异步 export；消费者只访问 versioned public projections，并由 cache/CDN 承担高并发。农村网络造成的 edge sync lag 与平台 processing lag、public-chain anchor lag 分开度量。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
