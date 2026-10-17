@@ -183,7 +183,7 @@ Analytics 故障时，trace ingestion/query、recall traversal 和人工调查�
 
 ## C4 最小覆盖范围（首版）
 
-按 [B21](/decisions/catalog#b21)，本子系统必须出现在 container / component / code 三层；但首版只覆盖到**边界自洽**所需的粒度，不追求内部完备。
+按 [B21](/decisions/catalog#b21)，本子系统必须出现在 container / component / code 三层；但首版只覆盖到**边界自洽**所需的粒度，不追求内部完备。 三张图见 [C4 视图 · Analytics](/architecture/c4-analytics)。
 
 ### Containers
 

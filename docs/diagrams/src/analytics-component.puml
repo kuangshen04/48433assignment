@@ -1,0 +1,29 @@
+@startuml analytics-component
+!include ../vendor/C4_Component.puml
+
+title Component view — Analytics Workspace (first-release scope)
+
+Container_Boundary(workspace, "Analytics Workspace") {
+  Component(intake, "Dataset Intake", "Inbound gate", "Validates schema and version, caller service identity, watermark, purpose and expiry")
+  Component(loader, "Rule Loader & Validator", "Registry client", "Loads RuleVersion, verifies regulator signature and applicability scope")
+  Component(runner, "Screening Runner", "Deterministic rules", "Executes rule versions over one immutable snapshot; no ML in the first release")
+  Component(pub, "Advisory Publisher", "Disclosure and signing", "Applies DisclosurePolicy, signs AdvisoryFinding, routes it to platform ingestion")
+}
+
+ContainerDb_Ext(registry, "Rule & Model Registry", "Regulator domain", "Rule bodies and signed RuleVersions")
+ContainerDb_Ext(fstore, "Finding & Advisory Store", "Regulator domain", "Findings and approved advisories")
+Container_Ext(app, "Traceability Application", "Platform domain", "Exports DatasetSnapshot")
+Container_Ext(workers, "Ingestion & Projection Workers", "Platform domain", "Advisory intake and manifest anchoring")
+
+Rel_Right(app, intake, "DatasetSnapshot")
+Rel_Down(intake, runner, "Accepted snapshot")
+Rel_Down(registry, loader, "RuleVersion")
+Rel_Right(loader, runner, "Validated rules")
+Rel_Down(runner, pub, "Findings eligible for disclosure")
+Rel_Left(runner, fstore, "Private findings")
+Rel_Left(pub, fstore, "Approved advisory record")
+ContainerDb_Ext(fstore, "Finding & Advisory Store", "Regulator domain", "Findings and approved advisories")
+Rel_Down(pub, workers, "Signed AdvisoryFinding")
+
+SHOW_LEGEND()
+@enduml

@@ -1,0 +1,86 @@
+@startuml analytics-code
+title Code view (major classes) — Regulatory Analytics
+
+hide empty members
+skinparam classAttributeIconSize 0
+
+package "Regulator control domain" {
+
+  class Rule {
+    ruleId
+    purpose
+    jurisdiction
+  }
+
+  class RuleVersion <<signed>> {
+    ruleVersion
+    effectiveFrom
+    supersedes
+    bodyDigest
+    regulatorSignature
+  }
+
+  class RuleVersionManifest <<signed>> {
+    ruleId / ruleVersion
+    issuerRegulatorId
+    scope
+    ruleBodyDigest
+    disclosuresAllowed
+    regulatorSignature
+  }
+
+  class DatasetSnapshot <<immutable>> {
+    schemaVersion
+    purpose
+    recipient
+    watermark
+    expiresAt
+    auditId
+  }
+
+  class ScreeningRun <<immutable>> {
+    runId
+    activeRuleSetVersion
+    dataWatermark
+    startedAt
+  }
+
+  class Finding <<regulator-private>> {
+    findingId
+    severity
+    dataWatermark
+    disclosureScope
+  }
+
+  class AdvisoryFinding <<signed>> {
+    findingId
+    ruleId / ruleVersion
+    affectedRefs
+    severity
+    expiresAt
+    disclosureScope
+    regulatorSignature
+    status
+  }
+
+  class DisclosurePolicy {
+    scope
+    audienceRules
+  }
+}
+
+Rule "1" o-- "*" RuleVersion : versions
+RuleVersion "1" --> "1" RuleVersionManifest : exports
+ScreeningRun "*" --> "1" DatasetSnapshot : evaluates
+ScreeningRun "*" --> "*" RuleVersion : applies
+ScreeningRun "1" --> "*" Finding : produces
+Finding "0..1" --> "1" AdvisoryFinding : disclosed as
+DisclosurePolicy "1" --> "*" AdvisoryFinding : constrains
+
+note bottom of RuleVersionManifest
+  The only artifact that leaves this domain.
+  The platform archives it and anchors its digest;
+  rule bodies never appear in CONSORTIUM data.
+end note
+
+@enduml

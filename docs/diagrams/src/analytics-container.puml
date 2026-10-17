@@ -1,0 +1,25 @@
+@startuml analytics-container
+!include ../vendor/C4_Container.puml
+
+title Container view — Regulatory Analytics (regulator control domain)
+
+Person(officer, "Regulator officer", "Reviews findings; signs formal statements in the platform portal")
+
+Container_Ext(app, "Traceability Application", "Platform control domain", "AnalyticsInputModule exports minimised snapshots")
+
+Container_Boundary(reg, "Regulator control domain (regulator's own cloud account)") {
+  Container(workspace, "Analytics Workspace", "Regulator-operated runtime", "Runs deterministic rules at a fixed watermark; produces findings and signed advisories")
+  ContainerDb(registry, "Rule & Model Registry", "Regulator-signed artifacts", "Rule bodies and signed RuleVersions; ModelVersions later")
+  ContainerDb(fstore, "Finding & Advisory Store", "Regulator-private", "Private findings and approved advisories, each with watermark and expiry")
+}
+
+Container_Ext(workers, "Ingestion & Projection Workers", "Platform control domain", "Advisory intake; archives and anchors the RuleVersionManifest")
+
+Rel_Down(app, workspace, "DatasetSnapshot", "Signed, purpose-bound")
+Rel_Down(officer, workspace, "Reviews findings")
+Rel_Down(workspace, registry, "Loads rule set")
+Rel_Left(workspace, fstore, "Writes findings, advisories")
+Rel_Right(workspace, workers, "Signed messages", "AdvisoryFinding, RuleVersionManifest")
+
+SHOW_LEGEND()
+@enduml
