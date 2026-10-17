@@ -107,11 +107,18 @@ derived handover status
 
 Versioned Product Validation Profile 可以配置：
 
+- 标识粒度（`class-lot` / `instance`）；
 - extension fields、类型、格式和枚举；
-- units、product vocabulary；
+- units（UN/CEFACT code）、product vocabulary；
 - required evidence-reference shape；
 - consumer projection allowlist；
 - 通用表单展示元数据。
+
+**三条硬约束：**
+
+1. **不得把 B3 的核心字段地板设为 optional 或重定义语义**（事件类型、时间、bizStep/disposition、source/destination、位置、对象标识、profile/canonicalisation 版本、签名、交接 `bizTransaction`）。
+2. **粒度与数量必须一致**：`class-lot` 必须有 `quantityList` + `uom`（B9 部分收货与 B21 mass balance 的前提）；`instance` 级可用标识计数，重量退化为证据引用。
+3. **发布前必须通过 conformance check**：缺核心字段、粒度与 quantityList 不一致、TransformationEvent 缺 input/output、allowlist 引用未定义字段，一律失败。
 
 Profile 不配置 yield tolerance、fraud heuristic、mass balance、跨事件合理性或自动合规结论。发布后的版本不可原地修改，事件签名固定绑定所用版本。
 

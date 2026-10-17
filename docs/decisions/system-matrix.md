@@ -33,6 +33,7 @@
 | PRIVATE hosting 不改变 ownership | Data Access | IoT、Evidence、Regulator access |
 | 平台从不持有 PRIVATE 明文（零知识托管除外，且无 escrow） | Data Access / B23 | Core、Analytics、Regulator access |
 | 组织是唯一身份与租户单元，每请求显式绑定 acting organisation | Identity/Governance | Core、KMS、Projections |
+| Profile 不得弱化核心字段地板；class-lot 级必须带数量与单位 | Profile/Core（B3 + B11） | IoT、Analytics、Recall |
 
 ## 两个反误读测试
 

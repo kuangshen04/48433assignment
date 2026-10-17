@@ -14,6 +14,7 @@
 | B7 补强 | 批次序列必须可验证（running hash chain 或 consistency proof），作为 B3 的技术前提 |
 | B23 新增 | PRIVATE 不上平台，只留加盐承诺；可选零知识托管；分享由所有者加密授予，不做事件级受众 |
 | B24 新增 | 组织是唯一身份、访问与租户单元；每请求显式绑定 acting organisation；组织层级 out of scope |
+| **T1 决策部分** | 数量归类：`quantityList` 进 `CONSORTIUM`，但**与粒度绑定**——`class-lot` 级必填（+ UN/CEFACT `uom`），`instance` 级可用标识计数、重量退化为证据引用。核心字段地板写入 B3；Profile 三条硬约束 + 扩展字段判据写入 B11 |
 | 文档迁移 | `major-decisions-qa.md` 移入本站为[完整决策日志](/decisions/log) |
 
 ---
@@ -24,7 +25,7 @@
 
 | 编号 | 事项 | 动作 | 影响 |
 |---|---|---|---|
-| T1 | **数量归类** | 按 B3 判据把 `quantityList` 定为 `CONSORTIUM`；商业数量（PO / 发票 / 合同量 / 价格）留在平台外；`PUBLIC` 投影默认不含精确数量 | 2.4 / 2.8；也是 B9 部分收货与 B21 mass balance 的前提 |
+| T1 | **Profile conformance check 与模板**（决策已于 2026-10-18 完成，剩下工程化） | 把 B11 的失败条件做成 profile 发布前的校验组件，并提供 profile 模板（粒度声明 + 核心字段 + allowlist + evidence requirements） | 3.5–3.7；也是「profile 不能弱化追溯」的可执行证据 |
 | T2 | **平台侧 Insights 数据层** | 定义 ELT（confirmed projection → 列式 warehouse / mart）+ dashboard / serving 容器；只读 `CONSORTIUM`，不碰 PRIVATE；与 Regulatory Analytics 的「判断」明确分离 | 4.6–4.9（5 分）+ brief 第 6 条 |
 | T3 | **Analytics 子系统的 C4 设计** | 落实 B21 的债：5–6 个 container、约 10 个 component、9 个类，命名 + 职责 + 接口；Core ↔ Analytics 作为信任边界 | 3.2–3.10；4.B 加分的基础 |
 | T4 | **运营数据的租户隔离** | registry / job / outbox / export 的 `organisationId` 谓词 + RLS 兜底；export 绑定 tenant 或 case scope；运维访问 break-glass | 2.7 / 4.18（B23 只解决了内容，没解决运维数据） |

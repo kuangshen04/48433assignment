@@ -13,6 +13,8 @@
 > 2026-10-18 修订（第二次）：B3 增加“验证与重建分开”的保证范围，并明确 KEK epoch 的历史访问语义；B2、B17、B18、B7 相应收窄。原因见日志 B3 的“保证范围”一节。
 >
 > 2026-10-18 修订（第三次）：新增 **B23**（PRIVATE 零知识模型与证据层分享）与 **B24**（组织作为身份与租户单元）；B3、B14、B15、B16、B18、B20 中与“平台可读私有证据”“用户管理”相关的表述已同步。
+>
+> 2026-10-18 修订（第四次）：B3 增加「核心字段地板」并把数量归类与标识粒度绑定；B11 增加 Profile 三条硬约束与 conformance check。
 
 ## 第一层：背景充分支持的决定
 
@@ -79,6 +81,8 @@
 
 **Epoch 与历史访问：** 新成员默认只获得当前及之后的 KEK epoch，不自动取得加入前的明文访问权；历史访问是显式治理授予。v1 的 scope = 全体 active 成员（扁平）；按 trace 收窄是治理参数，因为 `keyId/keyEpoch` 只是 envelope 元数据，变更不影响 canonicalisation、签名与 anchor 格式。
 
+**核心字段地板：** 事件类型、时间、`bizStep`/`disposition`、`source`/`destination`、位置、对象标识、profile/canonicalisation 版本、`captureRecordId`/`epcisEventId`、签名与交接 `bizTransaction` 一律必须在 canonical event 内，profile 不得把它们设为 optional。**数量与粒度绑定**：`class-lot` 级事件必须带 `quantityList` + UN/CEFACT `uom`（B9 部分收货、B21 mass balance 的前提）；`instance` 级（SSCC 整车/整托）可用标识计数，重量等退化为证据引用。
+
 <a id="b4"></a>
 ### B4 · 保证限制在可归责与确认后完整性
 
@@ -118,6 +122,8 @@
 ### B11 · 不可变版本化 Product Validation Profiles
 
 **Baseline.** Profile 配置字段、单位、vocabulary、evidence reference、consumer allowlist 和 UI metadata，不成为通用规则引擎或合规判断来源。
+
+**三条硬约束：** ① 不得把 B3 的核心字段地板降级为 optional 或重定义语义；② 必须声明标识粒度（`class-lot` / `instance`）且与数量规则一致；③ 发布前必须通过 conformance check（缺核心字段、粒度与 quantityList 不一致、Transformation 缺 input/output、allowlist 引用未定义字段等一律失败）。扩展字段按「监管筛查需要 → 进 event / 仅举证 → 证据引用 / 否则不收集」三问判定，见日志 B11。
 
 <a id="b12"></a>
 ### B12 · 三类 workload planes

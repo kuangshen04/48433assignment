@@ -15,6 +15,8 @@ outline: false
 > 2026-10-18 修订说明：B17 改为“记录断言 / 签署判定”两分，并补上 non-collapsing 表示性质；B21 明确 Regulatory Analytics 位于系统边界内但属监管方独立运行时域，因此需要承担 C4 分解责任。受影响的下游表述已在总体结论、一分钟版本、B11、B15、B18、C3 同步，并已落入[决策目录](/decisions/catalog)、[系统地图](/architecture/system-map)与相关系统页。
 >
 > 2026-10-18 第二次修订：新增 **B23（PRIVATE 零知识模型与证据层分享）** 与 **B24（平台以组织为身份与访问单元）**；B3 的 `PRIVATE` 数据层、ProtectedResource 模型与访问矩阵，以及 B14、B15、B18、B20、B16 中与“平台可读私有证据”相关的表述一并修正。
+>
+> 2026-10-18 第三次修订：B3 新增「核心字段地板」并把数量归类与标识粒度绑定；B11 新增 Profile 的三条硬约束（含 conformance check）与扩展字段判据，明确 profile 不得把核心字段设为 optional。
 
 本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
 
@@ -325,6 +327,40 @@ ProtectedResource (platform-side record)
 - 如果消费者需要：从 shared trace 生成 `PUBLIC` projection。
 
 如果某字段既不能让联盟成员看到，又是重建最小 trace 必不可少的内容，则当前简化模型不成立；必须修改共享假设或重新引入加密/private collection。
+
+### 核心字段地板：数量按什么规则定？
+
+判据落到具体字段时需要一条地板，否则每个 profile 都能自行决定"哪些字段算结构性"，最终会出现某条产品线的 trace 无法重建。
+
+**必进 `CONSORTIUM` 的核心字段**（每条都挂到它所服务的决策）：
+
+| 字段 | 服务的决策 |
+|---|---|
+| event type、`eventTime`、`eventTimeZoneOffset` | A3、B6（顺序与迟到判定） |
+| `bizStep`、`disposition` | A3、B9（交接阶段识别） |
+| `sourceList`、`destinationList` | B18（一上一下的召回遍历） |
+| `readPoint`、`bizLocation`（GLN 或 URI） | B3、B18 |
+| 对象标识：`epcList` 或 `quantityList`（含 `epcClass` / `uom`） | A3、B17（lineage 与冲突并存） |
+| `profileId` / `profileVersion`、`canonicalisationVersion` | B11、B5（签名绑定） |
+| `captureRecordId`、`epcisEventId`、`SignatureEnvelope` | A6、B5、B6 |
+| 交接用的 `bizTransactionList` 引用 | B9、B19 |
+
+**数量不是全局无条件，而是与粒度绑定：**
+
+```text
+class/lot 级事件（批次、散装、农产品常态）
+  → quantityList 必填，单位用 UN/CEFACT code
+  → 理由：B9 部分收货、B21 mass balance 都以"有多少"为前提
+
+instance 级事件（SSCC 整车 / 整托、序列化单品）
+  → 数量可由标识计数表达
+  → 重量、体积等可退化为证据引用 + 加盐承诺（B23）
+  → 这不是"藏数量"，是换了标识粒度
+```
+
+**为什么不能完全下放给 profile：** 字段只要进 canonical event 就是 `CONSORTIUM` 可见（B23 已确立没有中间档），所以 profile 能做的只有"放进 event"或"不放"。如果连核心字段也交给 profile 决定，就可能出现"某产品线没有数量、因此不支持部分收货与批量筛查"却仍被当作已实现的能力——这需要显式记录，而不是靠遗漏。
+
+**profile 仍可决定的是**哪些扩展字段、哪些证据要求、哪条公开 allowlist；这些交给 schema 阶段由产品工作组识别，见 B11。
 
 ### Consortium archive encryption
 
@@ -853,16 +889,51 @@ Consumer view、dashboard、lineage visualisation、handover summary 和 analyti
 
 第一版 profile 可以定义：
 
+- 标识粒度（`class-lot` 或 `instance`），但受 B3 的数量规则约束；
 - required/optional EPCIS extension fields；
 - primitive types、formats 和 enumerations；
-- permitted units 和 product vocabulary；
+- permitted units（统一到 UN/CEFACT code）和 product vocabulary；
 - required/optional evidence-reference types；
 - consumer projection 的显式字段 allowlist；
 - 通用表单控件所需的 label、help text 和 display metadata。
 
-以下内容不能由任意 profile 重写：EPCIS event core semantics、Shipping/Receiving handover、correction/append-only rules、canonical digest、signature assurance、archive/anchor lifecycle、organisation authorization 和 recall traversal。Yield、mass balance、fraud heuristics、cross-event plausibility 和 compliance conclusions 不放入 profile，也不转移到核心领域代码，而由 Regulatory Analytics 子系统处理（B21）。
+以下内容不能由任意 profile 重写：EPCIS event core semantics、Shipping/Receiving handover、correction/append-only rules、canonical digest、signature assurance、archive/anchor lifecycle、organisation authorization 和 recall traversal。**Profile 也不得把 B3 的核心字段地板设为 optional 或重定义标识粒度**。Yield、mass balance、fraud heuristics、cross-event plausibility 和 compliance conclusions 不放入 profile，也不转移到核心领域代码，而由 Regulatory Analytics 子系统处理（B21）。
 
-Profile 不引入任意 field-level access policy。Profile 中的 shared trace fields 默认属于 `CONSORTIUM`；消费者只能读取 allowlisted `PUBLIC` projection；不能向联盟公开的文件或数据继续作为 `PRIVATE` ProtectedResource。
+Profile 不引入任意 field-level access policy。Profile 中的 shared trace fields 默认属于 `CONSORTIUM`；消费者只能读取 allowlisted `PUBLIC` projection；不能向联盟公开的文件或数据继续作为 `PRIVATE` ProtectedResource，也不进 event。
+
+### Profile 的三条硬约束
+
+| # | 约束 | 为什么 |
+|---|---|---|
+| 1 | 不得把 B3 的核心字段地板降级为 optional，也不得重定义其语义 | 否则某条产品线的 trace 会无法重建，而架构仍声称能重建 |
+| 2 | 必须显式声明**标识粒度**（`class-lot` 或 `instance`），且与 B3 的数量规则一致：`class-lot` 必须有 `quantityList` 与 `uom` | 数量是否进 event 取决于粒度，不能让"漏写数量"变成隐式的粒度切换 |
+| 3 | 必须通过 profile conformance check 才能发布 | 把"profile 不能弱化追溯"变成会挡住发布门禁，而不是一句原则 |
+
+```text
+profile conformance check（在 PUBLISH 之前执行）
+- 缺少任一核心字段，或把核心字段标为 optional        -> 失败
+- granularity=class-lot 但无 quantityList 或 uom    -> 失败
+- TransformationEvent 缺 input/output                -> 失败
+- AggregationEvent / AssociationEvent 缺 parent 或 child -> 失败
+- consumerProjectionAllowlist 引用未在 schema 中的字段 -> 失败
+- 声明了 profile 不支持的 unit 或 vocabulary          -> 失败
+```
+
+### 扩展字段的判据（给 schema 作者用）
+
+产品工作组不需要自己判断"这个字段算不算结构性"，只需要按顺序回答三问：
+
+```text
+1. 监管方已声明某类 rule 需要它做筛查？
+   → 必须进 event（并接受全联盟可见），
+     或明确记录"该产品线不支持这类筛查"，不能假装筛查还在
+2. 只用于举证、追溯附件或人工核查？
+   → 证据引用 + 加盐承诺（B23），不进 event
+3. 两者都不是？
+   → 不要收集
+```
+
+第 1 条的代价必须被看见：**进 event 就等于全联盟可见**。因此"不支持 mass balance 筛查"是一个合法的产品选择，但它要被写进 profile 的能力声明，而不是靠字段缺失隐式发生。
 
 ### 不可变版本模型
 
