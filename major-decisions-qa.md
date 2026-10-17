@@ -493,15 +493,42 @@ Participant/PWA storage
 
 完整权威记录是 `signed payload + archive copy + finalised commitment + inclusion proof` 的组合，而不是 PostgreSQL 行或单独一个 public-chain hash。
 
-平台接收事件时签发 acceptance receipt，其中包含 event ID、payload hash、received time 和预期 anchor window。Finality 后再提供 chain transaction reference 与 inclusion proof。Receipt 能证明平台已经接受提交，但不能替代 finality。
+canonical payload 完成签名并写入 independent archive 后，平台签发 acceptance receipt，其中包含 event ID、payload hash、archive reference、received time 和预期 anchor window。Finality 后再提供 chain transaction reference 与 inclusion proof。Receipt 能证明平台已经接受该归档记录并承诺纳入锚定，但不能替代 finality。
 
 Archive 已写入但 public-chain transaction 失败时，事件保持 `PENDING_ANCHOR` 并幂等重试；链上 commitment 已 finalise 但 PostgreSQL 更新失败时，根据 archive manifest 和 chain proof 修复运营数据库，不生成新事件。
 
-如果使用 Merkle batching，平台还必须公开或独立保存 batch manifest，使参与方能够验证某个 event 确实包含在 root 中。普通 projection 默认只使用 `CONFIRMED` events。
+Merkle batch manifest 必须随 canonical payload 一样保存在 independent archive，使参与方能够验证某个 event 确实包含在 root 中。普通 projection 默认只使用 `CONFIRMED` events。
 
 **代价：** 公链费用、finality delay、reorganisation、relayer failure 或 archive replication failure 都可能延迟确认。
 
 **为什么可以接受：** 延迟确认比在 payload 未安全保存或 commitment 尚未 finalise 时提前宣布共享历史更安全。现有 confirmed trace 仍可查询，pending events 在依赖恢复后继续处理。
+
+---
+
+## B7. 公共链 commitment 如何提交？
+
+**决定：** 第一版按固定时间窗口对已归档的 canonical events 生成 deterministic Merkle tree，由平台 relayer 统一支付 gas 并将 root 提交到公共链。具体窗口长度和 public network 作为部署参数留到最后决定，不阻塞领域模型和后续架构决策。
+
+```text
+Signed canonical event
+→ encrypted immutable archive object
+→ platform-signed acceptance receipt
+→ fixed anchor window
+→ deterministic batch manifest + Merkle root
+→ platform relayer submits root
+→ public-chain finality
+→ event inclusion proof
+```
+
+Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、hash/canonicalisation algorithm、Merkle root 和 archive reference，并与 event payload 一起独立归档。相同输入必须能够重建相同 root；参与方不需要信任平台提供的查询结果即可验证 inclusion proof。
+
+第一版不设置 independent secondary relayer。平台漏提或延迟提交时，receipt、archive copy 和逾期的 expected anchor window 会留下可审计的不一致，但不会自动绕过平台的 censorship。若实际治理要求在平台失效时仍能继续提交，可在不改变 event、archive 和 proof 格式的前提下增加 archive operator 或 auditor relayer。
+
+**未采用逐事件上链：** 它的 proof 更直接、确认等待通常更短，但每个 event 都产生链上交易，成本、nonce 管理和故障恢复随业务量增长。Merkle batching 把链上职责压缩为定期发布少量 root，更符合“公链只负责不可篡改时间界标”的边界。
+
+**需要接受的代价：** event 在所属窗口关闭并达到链上 finality 前只能保持 pending；manifest 和 inclusion-proof 服务成为必要组件；第一版只能检测平台未按承诺提交，不能保证在平台恶意停摆时自动完成提交。
+
+**为什么可以接受：** 完整 payload 已先进入独立归档，不会因为等待 batch 而只存在于平台数据库中。该作业的核心目标是让事后替换和已接受后漏锚定可被发现，而不是建立一条低延迟支付链。窗口长度可在得到事件量、gas 成本和可接受确认时延后再配置。
 
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
@@ -615,17 +642,17 @@ Consortium Key Service
 
 以下项目保留当前倾向和 trade-off，但尚未提升为架构基线。
 
-## C1. Public-chain anchoring 采用什么网络和提交粒度？
+## C1. Public-chain anchoring 采用什么网络和时间窗口？
 
-**当前倾向：** 使用成熟、具有明确 finality 和长期可验证性的 public network；canonical EPCIS payload 不上链，只提交 event commitment 或 periodic Merkle root。
+**已确认的边界：** canonical EPCIS payload 不上链；采用固定时间窗口的 deterministic Merkle batching，由平台 relayer 统一支付 gas 和提交 root。第一版不要求 independent secondary relayer。
 
-**为什么尚未定案：** 每事件上链能提供更短的遗漏窗口和直接 proof，但费用与吞吐开销较高；Merkle batching 成本低，却需要 acceptance receipt、batch manifest、inclusion proof 和明确 anchor window。
+**为什么部分参数尚未定案：** 网络选择与窗口长度不会改变 event、archive、receipt、manifest 或 proof 的逻辑边界。它们主要取决于实际事件量、gas 成本、finality 特性、生态稳定性和业务可接受的确认时延，因此可以在部署设计阶段比较后确定。
 
 **已否决：** 完整 EPCIS plaintext/ciphertext 默认上公链；以及由平台数据库保存唯一 payload、公链只留无法恢复内容的 opaque hash。
 
 **需要接受的代价：** 系统依赖外部网络的 gas、finality、validator/stake security、治理升级和长期可用性；平台需要 relayer、transaction monitor、proof service 和 chain migration procedure。
 
-**待回答：** 选择哪类 public network；按 event 还是按时间窗口 batching；谁支付 gas；平台是否是唯一 relayer；commitment contract 是否 immutable；如何迁移到新链并保持 anchor continuity；允许多长的 anchor/finality delay。
+**最后再回答：** 选择哪一个 public network；窗口是分钟级还是小时级；commitment contract 是否 immutable；如何迁移到新链并保持 anchor continuity；允许多长的 anchor/finality delay。
 
 ---
 
@@ -719,7 +746,7 @@ Consortium Key Service
 
 Canonical shared trace 使用 per-event DEK 加密并复制到平台控制域之外的 immutable archive；公共链只保存 event commitment 或 Merkle root，提供平台不能改写的外部完整性证明。平台 PostgreSQL 负责 hot query 和 projection，Consortium Key Service 负责联盟内解密权限。
 
-仍待定的是 public network、anchoring 粒度、archive/KMS 运营主体、RPO/RTO 和 chain migration，而不是自建 validator 数量。
+仍待定的是 public network、anchor window、archive/KMS 运营主体、RPO/RTO 和 chain migration，而不是 anchoring 粒度或自建 validator 数量。
 
 # 答辩时的一分钟版本
 
