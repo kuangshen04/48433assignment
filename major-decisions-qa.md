@@ -799,6 +799,56 @@ Projection 必须发布 `data complete through` watermark 和 lag。Consumer UI 
 
 **为什么可以接受：** 复杂度针对背景中真实不同的访问模式，而不是虚构统一的极端 TPS。Public plane 隔离保护内部系统，异步 export 防止大查询拖垮写入，offline queue 则直接处理农村连接这一明确需求，同时保留基于实测指标逐步扩容的路径。
 
+---
+
+## B13. 依赖故障时读写路径如何降级？
+
+**决定：** `Write path is fail-closed and resumable; read path remains available for previously confirmed data, with explicit freshness and degradation indicators.` 新事件通过持久化单向状态机推进，在哪个必要依赖失败就停在哪一步；依赖恢复后使用相同 identifiers 幂等续跑，不跳过安全门槛，也不回滚已经完成的外部事实。
+
+```text
+Signing provider unavailable
+→ PENDING_SIGNATURE
+
+Consortium KMS or all qualified archives unavailable
+→ PENDING_ARCHIVE
+→ no acceptance receipt
+
+Public chain or relayer unavailable
+→ PENDING_ANCHOR / SUBMITTED_ON_CHAIN
+→ receipt may exist, but not CONFIRMED
+
+Transaction included but finality not reached
+→ INCLUDED
+
+Projection worker unavailable
+→ canonical event may remain CONFIRMED
+→ affected projection becomes STALE and retries independently
+```
+
+### 三类失败结果
+
+1. **Transient dependency failure：** 保持当前 pending state，通过 durable outbox、backoff 和 reconciliation 重试。已写 archive、已分配 batch 或已广播 transaction 不执行补偿删除。
+2. **Permanent validation/business failure：** 无效签名、无权限、非法 profile/schema 或明确拒签进入 `REJECTED`、`SIGNING_REJECTED` 或 `EXPIRED`，不无限重试。
+3. **Read-model failure：** 不改变 canonical event 的确认状态，只使相应 projection 落后；修复后从 confirmed event index/archive rebuild。
+
+所有 retry 使用稳定的 event ID、archive object ID、operation ID、batch ID 和 transaction intent。Worker 必须先检查当前 state 与已有外部结果，再执行下一步，以防重复归档、重复 leaf allocation、重复 receipt 或重复链上提交。
+
+### Read degradation boundary
+
+已有 consumer snapshots 继续由 cache/CDN 提供，已有 confirmed trace 和未受影响的 operational projections 继续读取。每个异步 read model 暴露 `data complete through` watermark、lag 和 health；普通 UI 可以显示 stale indicator，recall/food-safety 查询超过安全阈值时必须等待、回查 confirmed event index，或返回 `STALE/INCOMPLETE`。
+
+“读继续”不代表所有依赖故障时所有数据都可读。KMS 不可用时，public projection 和已经合法物化的视图可以继续，但需要即时解密 archive payload 的查询会暂时不可用；PostgreSQL/平台整体失效时，CDN 可以继续提供已有 public snapshot，完整 consortium trace 则通过独立 recovery procedure 恢复，而不是承诺零中断切换。
+
+### Backpressure and receipts
+
+平台可以在 archive 暂时故障时有界保存 `RECEIVED/PENDING_ARCHIVE` submissions，但在获得至少一个 qualified independent archive acknowledgement 前不得签发 acceptance receipt。Pending queue 达到容量或最大等待时间后，停止接收并返回 retryable failure，由 participant offline queue 保留原 event。
+
+Public chain 故障时 payload 已在独立 archive 中，因此可以签发 receipt 并积累 `PENDING_ANCHOR` backlog；系统必须监控 oldest pending age 和 backlog size，但不能因超时自动提升为 `CONFIRMED`。
+
+**需要接受的代价：** 所有异步步骤都需要明确 state、idempotency、retry policy、dead-letter/reconciliation、backpressure 和可观测性；用户界面必须同时表达 submission progress 与 read freshness。
+
+**为什么可以接受：** 该模型优先保护已确认历史的可用性，同时避免依赖故障时降低签名、归档或 finality 标准。故障恢复是从最后一个可靠 checkpoint 继续，而不是用跨 KMS、archive、database 和 public chain 的虚假分布式事务换取表面上的同步成功。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -943,6 +993,8 @@ Consortium Key Service
 
 **已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
 
+故障语义也已经确定：write path 在失败步骤 fail closed 并可幂等续跑；既有 confirmed data 尽可能继续读取并暴露 freshness/degradation；archive acknowledgement 之前不签 receipt，public-chain finality 之前不进入 `CONFIRMED`。
+
 **为什么部分内容尚未定案：** 权力边界已经确定，但背景没有给出愿意签约的 archive operator、联盟治理实体、部署地区、保留期限或恢复 SLA，不能虚构具体组织和供应商。
 
 **已否决：** 仅罗列云服务品牌而不说明谁控制账号、密钥和恢复；也否决要求每个小型参与方部署完整基础设施。
@@ -966,6 +1018,8 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 产品扩展采用不可变、版本化并由联盟治理的 Product Validation Profiles。Profile 只配置字段、枚举、单位、简单校验、证据要求和 consumer allowlist；交接、纠错、转换、授权、签名和召回等跨事件语义保留在领域代码中，不承诺用配置取代所有产品代码扩展。
 
 性能设计分为 participant ingestion、regulator/internal investigation 和 public consumer 三个 workload planes。低频写入通过离线队列、幂等和 outbox 保证可靠；大范围监管读取使用带 watermark 的异步 export；消费者只访问 versioned public projections，并由 cache/CDN 承担高并发。农村网络造成的 edge sync lag 与平台 processing lag、public-chain anchor lag 分开度量。
+
+依赖故障时，写路径停留在最后一个持久化状态并幂等续跑，不绕过签名、archive acknowledgement 或 public-chain finality；读路径继续提供已有 confirmed data，并通过 watermark、stale status 和安全查询的 fail-closed 行为诚实表达降级。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
