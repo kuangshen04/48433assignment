@@ -136,7 +136,7 @@
 
 - 已 finalise 的 commitment 必须位于平台控制域之外的公共链；
 - 完整 canonical trace 必须至少有一个平台控制域之外的 immutable archive；
-- 平台接受事件时签发 receipt，anchor finalise 后提供 inclusion proof；
+- canonical payload 写入规定的独立 archive 后，平台签发 receipt，anchor finalise 后提供 inclusion proof；
 - 平台不能把自己的 acceptance receipt 当作 public-chain finality；
 - 平台仍可能在上链前拒绝或延迟事件，因此 censorship 与 tamper resistance 分开处理。
 
@@ -271,7 +271,9 @@ Event DEK
 → keyEpoch recorded in archive envelope
 ```
 
-Consortium KEK 保存在受控 KMS/HSM 中，不把同一个 private key 文件复制给所有成员。成员通过 organisation identity 获得解密权限；成员变化后启用新 key epoch。Revocation 只能阻止未来获取，不能撤回成员已经下载的明文。
+Consortium KEK 保存在专业 managed KMS/HSM 中，不把同一个 private key 文件复制给所有成员。承载 KEK 的 cloud/KMS account 必须由联盟或独立受托方控制，而不是平台运营者自己的管理员账号。平台只获得日常加解密所需的最小使用权限，不获得 key policy、disable、deletion 或 recovery 管理权限。
+
+成员通过 organisation identity 获得解密权限；成员变化后启用新 key epoch。Revocation 只能阻止未来获取，不能撤回成员已经下载的明文。使用 AWS、Azure 或其他专业 KMS 降低了密钥存储和运维风险，但真正决定权力边界的是 account ownership、key policy 和 recovery authority，而不是供应商品牌。
 
 公共链只保存 ciphertext/archive manifest 的 hash 或 Merkle root，不保存 plaintext、DEK 或可直接揭示供应链关系的 metadata。
 
@@ -409,6 +411,28 @@ ManagedSigningPort
 
 第一版只集成一个默认 external signing provider，不同时维护多个同类供应商。新增供应商只增加 adapter，不改变事件、验证、archive 或 public-chain commitment 模型。
 
+AWS KMS 等支持 asymmetric signing API 的专业 KMS 可以实现 `ManagedSigningPort`，但“私钥存放在专业 KMS”本身不决定 assurance level：
+
+- key/account 由参与组织控制，平台只收到签名结果时，属于 `ENTERPRISE_SELF_CUSTODY`；
+- provider 要求参与方 passkey、设备确认或独立 key share 时，属于 `ASSISTED_EXTERNAL_CUSTODY`；
+- 平台服务账号可以单独调用 `Sign` 时，即使私钥从不离开 KMS，仍属于 `DELEGATED_PLATFORM_CUSTODY`。
+
+### Participant signing key 与 Consortium KEK 分离
+
+B5 管理的是“谁声明了 event”的 organisation signing key；B3 管理的是“谁能读取 archive payload”的 Consortium KEK。二者可以使用同一类专业 KMS 和相似的 provider-adapter 技术，但必须使用不同的 keys、用途、policy 和 lifecycle：
+
+```text
+ManagedSigningPort
+→ asymmetric organisation key
+→ produces SignatureEnvelope
+
+ConsortiumKeyEncryptionPort
+→ symmetric consortium KEK
+→ wraps/unwraps per-event DEK
+```
+
+系统不得用 Consortium KEK 签署参与方事件，也不得因为平台有权解密 shared trace 就赋予平台调用参与方 signing key 的权限。
+
 ### 所有模式签署相同 canonical digest
 
 Network profile 必须固定并版本化 canonicalisation。签名输入至少绑定：
@@ -529,6 +553,45 @@ Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、h
 **需要接受的代价：** event 在所属窗口关闭并达到链上 finality 前只能保持 pending；manifest 和 inclusion-proof 服务成为必要组件；第一版只能检测平台未按承诺提交，不能保证在平台恶意停摆时自动完成提交。
 
 **为什么可以接受：** 完整 payload 已先进入独立归档，不会因为等待 batch 而只存在于平台数据库中。该作业的核心目标是让事后替换和已接受后漏锚定可被发现，而不是建立一条低延迟支付链。窗口长度可在得到事件量、gas 成本和可接受确认时延后再配置。
+
+---
+
+## B8. Independent Archive 与 Consortium KMS 由谁运营？
+
+**决定：** Independent Archive 采用“一个强制独立副本 + 可选多方 mirror”的开放复制模型；Consortium KEK 托管在由联盟或独立受托方控制的专业 managed KMS 中。二者都不能只存在于平台自己的 cloud account 和管理员权限域内。
+
+### Archive replication baseline
+
+每个 canonical event 在成为 `CONFIRMED` 前，至少获得一个签约的、非平台控制的 WORM archive operator 的持久化 acknowledgement。大型联盟成员、监管方或审计机构可以自愿运行额外只读 mirror，但系统不假设监管方一定愿意承担该职责，也不等待所有自愿 mirror 才确认事件。
+
+```text
+Platform operational copy
+→ query and processing; not an independent recovery copy
+
+Required external WORM archive
+→ minimum platform-independent recovery guarantee
+
+Optional enterprise/regulator mirrors
+→ additional resilience and independent verification
+```
+
+Mirror 接收标准化 archive bundle：encrypted canonical payload、wrapped DEK、key epoch、event signature、batch manifest、receipt 和可用后补充的 chain inclusion proof。保存密文副本不自动授予解密权限；archive replication role 与 consortium data-reader role 分开授权。
+
+该模型不要求 mirror 运行 consensus、smart contract 或完整业务应用。它只需验证 content hash、保持 append-only/WORM storage，并能按标准 export/recovery protocol 返回对象，因此成本和治理负担显著低于联盟链 validator。
+
+### KMS control baseline
+
+专业云 KMS 负责密钥材料的保护、密码学操作和审计，但联盟或独立受托方拥有 KMS account、customer-managed KEK、key policy 与 recovery authority。平台服务角色可以获得业务运行所需的 `GenerateDataKey`、wrap/unwrap 或 decrypt 权限，但不能管理、禁用、删除或接管 KEK。
+
+平台作为获授权的数据处理者仍可能读取 `CONSORTIUM` payload；这里解决的是平台不能单方面销毁密钥、垄断恢复或使 archive 永久不可读，而不是向平台隐藏联盟共享数据。如果未来要求平台也不可见明文，需要 client-side decryption 或 confidential-computing 等另一套更复杂的威胁模型。
+
+### 必须诚实保留的依赖
+
+外部 KMS 把信任从平台转移给专业服务与 KMS account governance，并没有消除信任。Archive 全部存在但 KEK 永久丢失时，trace 仍不可恢复。因此 key deletion protection、region/provider outage、rotation、emergency recovery 和管理员交接必须纳入恢复设计；是否增加第二 provider escrow 或 threshold recovery 留到 RPO/RTO 与监管要求明确后决定。
+
+**需要接受的代价：** 平台需要跨控制域调用 archive 与 KMS，处理权限故障和外部服务不可用；至少一个独立 archive operator 与 KMS account owner 需要合同、审计和交接安排。
+
+**为什么可以接受：** 这些参与方只承担标准化存储或密钥托管职责，无需验证业务交易或参与共识。一个强制外部副本提供最低恢复保证，自愿 mirrors 可以逐步增加韧性，同时不会让小型参与方承担基础设施义务。
 
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
@@ -726,17 +789,17 @@ Consortium Key Service
 
 ---
 
-## C7. 云部署如何表达权力边界？
+## C7. 独立控制域的恢复目标和具体运营安排是什么？
 
-**当前倾向：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive/Key Service 和 External Public Blockchain；云厂商与具体 managed services 后定。
+**已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
 
-**为什么尚未定案：** 部署图必须反映真实独立控制域。若 PostgreSQL、唯一 archive replica、Consortium KEK、relayer wallet 和恢复凭证全部属于平台同一账号，平台仍然可以垄断数据可用性和解密能力。
+**为什么部分内容尚未定案：** 权力边界已经确定，但背景没有给出愿意签约的 archive operator、联盟治理实体、部署地区、保留期限或恢复 SLA，不能虚构具体组织和供应商。
 
 **已否决：** 仅罗列云服务品牌而不说明谁控制账号、密钥和恢复；也否决要求每个小型参与方部署完整基础设施。
 
 **需要接受的代价：** 跨控制域部署增加网络、安全、监控、升级和故障协调成本。
 
-**待回答：** Archive 由独立行业机构、专业托管方还是 consortium-owned cloud account 控制；需要多少 replicas 和怎样的 RPO/RTO；Consortium KMS 的管理员与恢复 quorum；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
+**待回答：** 强制 archive operator 和 KMS account owner 的具体组织；archive retention、replica geography、RPO/RTO；KEK deletion protection、rotation 和 emergency recovery；是否需要第二 provider escrow；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
 
 # 当前总体结论
 
@@ -744,10 +807,10 @@ Consortium Key Service
 
 > 本系统是跨组织农业供应链追溯层，而不是农业 ERP。参与方通过 PWA 或既有系统发布联盟 profile 约束的 EPCIS events。消费者只读取公开 projection；联盟成员共享足以重建路径和定位潜在责任方的 canonical EPCIS trace core；商业详情和原始证据作为 participant-owned ProtectedResources，由参与方保存或选择平台托管。系统不声称区块链证明物理事实真实，但要求平台运营者不能单方面静默重写或垄断已经确认的历史。
 
-Canonical shared trace 使用 per-event DEK 加密并复制到平台控制域之外的 immutable archive；公共链只保存 event commitment 或 Merkle root，提供平台不能改写的外部完整性证明。平台 PostgreSQL 负责 hot query 和 projection，Consortium Key Service 负责联盟内解密权限。
+Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少一个平台控制域之外的 WORM archive；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的外部完整性证明。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台只有有限使用权而没有密钥管理权。
 
-仍待定的是 public network、anchor window、archive/KMS 运营主体、RPO/RTO 和 chain migration，而不是 anchoring 粒度或自建 validator 数量。
+仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
 # 答辩时的一分钟版本
 
-> We are building a cross-organisation agricultural traceability layer rather than an ERP. Small participants may use the platform PWA, while mature organisations integrate through EPCIS or APIs. The consortium-approved EPCIS trace core is encrypted and replicated in an independently controlled immutable archive so that the trace remains recoverable if the platform fails. A public blockchain stores only event commitments or periodic Merkle roots, making post-confirmation replacement detectable without exposing supply-chain data. Consumers receive an allowlisted public projection, while detailed evidence remains participant-owned and may optionally be hosted by the platform. This design does not claim that blockchain proves the physical truth of source assertions.
+> We are building a cross-organisation agricultural traceability layer rather than an ERP. Small participants may use the platform PWA, while mature organisations integrate through EPCIS or APIs. Before confirmation, the encrypted canonical trace is persisted in at least one independently controlled WORM archive; large members and regulators may maintain additional optional mirrors. The consortium encryption key is held by a professionally managed KMS account controlled by the consortium or an independent trustee, while the platform receives usage but not administrative authority. A public blockchain stores periodic Merkle roots, making post-confirmation replacement detectable without exposing supply-chain data. Consumers receive an allowlisted public projection, while detailed evidence remains participant-owned and may optionally be hosted by the platform. This design does not claim that blockchain proves the physical truth of source assertions.
