@@ -71,6 +71,8 @@
 
 **为什么是项目成立前提：** 作业明确要求 blockchain。如果完全信任平台控制 payload、唯一副本、密钥和验证结果，managed database + WORM backup 已经足够，继续使用 blockchain 就是 theatre。B1 是有意建立的场景，使公共链确实承担平台控制域之外的 existence/integrity checkpoint；最终部署若没有真实独立的 archive/KMS/recovery control，便没有兑现该决策。
 
+**两种表述（不是两个决定）：** 日志保留内部表述（"参与方不完全信任运营者"，便于向组内解释为什么每条约束是 load-bearing）；**报告用对外表述**——跨组织共享历史本身就要求没有单一所有者，因此任何一方包括运营方都不能单方静默改写、且第三方可独立验证。机制完全相同，对外表述不增加任何能力声明。
+
 <a id="b2"></a>
 ### B2 · 平台失效后恢复最小完整 trace
 
@@ -100,7 +102,7 @@
 <a id="b6"></a>
 ### B6 · ArchiveAck + public finality 后才 CONFIRMED
 
-**Baseline.** 普通 event 必须先独立归档，再完成公共链 finality。Official Recall/Safety Notice 可在签名与 ArchiveAck 后以 `VERIFIED_PENDING_ANCHOR` 紧急发布。
+**Baseline.** 普通 event 必须先进入**平台控制域之外**的 immutable archive（副本持有者见 B8），再完成公共链 finality。门禁比较的是"是否已离开平台控制域"，不是"是否由某类专职机构保管"。Official Recall/Safety Notice 可在签名与 ArchiveAck 后以 `VERIFIED_PENDING_ANCHOR` 紧急发布。
 
 <a id="b7"></a>
 ### B7 · 固定窗口 deterministic Merkle batching
@@ -110,7 +112,9 @@
 <a id="b8"></a>
 ### B8 · 一个强制独立归档 + 联盟控制 KMS
 
-**Conditional baseline.** 至少一个非平台控制的 WORM archive；额外 mirrors 可选。Consortium KEK 使用由联盟/受托方控制账户和 recovery authority 的专业 KMS。
+**Conditional baseline.** 至少一个位于平台控制域之外的持久副本；**持有者可以是成员或监管方 mirror，也可以是独立账户的商用 WORM，不要求专职 archive 服务商**——首版把"签约独立操作方"作为演进目标而非上线前置条件（理由见日志 B8）。额外 mirrors 可选。Consortium KEK 使用由联盟/受托方控制账户和 recovery authority 的专业 KMS。
+
+**演进触发条件：** 监管或成员治理要求第三方持久化证明、mirror 覆盖不足、或审计要求 retention commitment 具合同效力时，引入签约操作方作为第二个强制副本。
 
 <a id="b9"></a>
 ### B9 · 联盟内 B2B handover 使用两份独立 claims
@@ -187,7 +191,9 @@
 
 **为什么不当成外部黑盒：** 平台自身的基础审查能力（缺证据、跨断言冲突、handover 异常、recall 辅助范围）由该子系统提供；若画在系统边界之外，合规只能靠“平台不判”回答，AI/ML 的模型版本、训练数据快照、评估与 human-in-the-loop 也没有可描述的架构位置。
 
-**由此产生的义务：** C4 3.2–3.10 必须覆盖该子系统（container / component / code 三层都要有），并把 Traceability Core ↔ Regulatory Analytics 标注为主要信任边界。关闭 Analytics 属于**系统内**降级：追溯、查询与人工调查照常，但 risk assessment 必须显示 `DELAYED/UNAVAILABLE`。
+**由此产生的义务：** C4 3.2–3.10 必须覆盖该子系统（container / component / code 三层都要有），并把 Traceability Core ↔ Regulatory Analytics 标注为主要信任边界。关闭 Analytics 属于**系统内**降级：追溯、查询与人工调查照常，但 risk assessment 必须显示 `DELAYED/UNAVAILABLE`。首版只做**最小覆盖**（3 container / 4 component / 7 类），扩展条件写在 [Regulatory Analytics](/systems/regulatory-analytics)。
+
+**`RuleVersion` 的锚定：** 规则正文留在监管域，只把 `RuleVersionManifest`（ruleId/version、issuer、effective、scope、`ruleBodyDigest`、disclosures、签名）放进 platform archive 与 Merkle 锚定——这样"当时依据哪条规则"可事后验证，又不会把筛查规则正文暴露给全体成员。撤回通过发布新版本实现，不回溯已签发的 finding。
 
 <a id="b22"></a>
 ### B22 · 使用显式、可测试的 NSW pilot 数量假设

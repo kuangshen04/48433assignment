@@ -149,7 +149,20 @@ Analytics 故障时，trace ingestion/query、recall traversal 和人工调查�
 
 ### Code（对应 3.8）
 
-`Rule`、`RuleVersion`、`DatasetSnapshot`、`ScreeningRun`、`Finding`、`AdvisoryFinding`、`DisclosurePolicy`
+`Rule`、`RuleVersion`、`RuleVersionManifest`、`DatasetSnapshot`、`ScreeningRun`、`Finding`、`AdvisoryFinding`、`DisclosurePolicy`
+
+### RuleVersion 的两处存放
+
+```text
+监管域：规则正文（Rule）+ 签署后的 RuleVersion
+平台侧：RuleVersionManifest（ruleId/version、issuer、effective、scope、
+        ruleBodyDigest、disclosuresAllowed、regulatorSignature）
+        → 进 archive + Merkle 锚定
+```
+
+正文不进 `CONSORTIUM`：把筛查规则公开等于告诉参与方"哪里会被查"，会同时伤害筛查效果和监管调查利益。平台验证时只比对 digest；需要复核时由监管方向审计方出示正文。
+
+撤回 = 发新 `RuleVersion`（`supersedes`），不回溯已签发的 `AdvisoryFinding`；finding 的有效性由自身 `ruleVersion`、`expiresAt` 和 `dataWatermark` 决定。
 
 ### 首版明确不做
 

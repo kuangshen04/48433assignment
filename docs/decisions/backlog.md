@@ -17,6 +17,9 @@
 | **T1 决策部分** | 数量归类：`quantityList` 进 `CONSORTIUM`，但**与粒度绑定**——`class-lot` 级必填（+ UN/CEFACT `uom`），`instance` 级可用标识计数、重量退化为证据引用。核心字段地板写入 B3；Profile 三条硬约束 + 扩展字段判据写入 B11 |
 | **B25 新增** | Core 收缩为机制（含强制 scope / non-collapsing / watermark 的 `QueryPort`）；handover、召回遍历、合规重建、分析输入、洞察改为同进程语义模块；字段地板改由模块 manifest 编译；B9 补配对键义务、B18 明确遍历策略归属、B11 补编译冻结、B21 投影归 AnalyticsInputModule |
 | **范围冻结（2026-10-18）** | Analytics 的 C4 取**最小覆盖**（3 container / 4 component / 7 类），并框定 Insights 与 AnalyticsInput 共用的 `DatasetSnapshot` 数据平面；两者合并为 T2+T3，扩展条件写在系统页 |
+| **A1 B1 双轨表述** | 日志保留内部表述（"不完全信任运营者"），报告改用对外表述（"跨组织共享历史要求没有单一所有者"）；机制不变，由 B4 的保证边界约束 |
+| **A2 B8 放宽副本资格** | v1 外部副本持有者可为成员/监管方 mirror 或独立账户 WORM，不要求专职 archive 服务商；B6 的门禁改为"是否离开平台控制域"，`ArchiveAck` 语义不变；签约操作方转为演进目标 + 三条触发条件 |
+| **A3 `RuleVersion` 锚定** | 规则正文留监管域，只把 `RuleVersionManifest`（含 `ruleBodyDigest`）进 archive + Merkle；撤回发新版本、不回溯已签发 finding |
 | 文档迁移 | `major-decisions-qa.md` 移入本站为[完整决策日志](/decisions/log) |
 
 ---

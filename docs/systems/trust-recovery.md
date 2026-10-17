@@ -23,9 +23,11 @@ Blockchain 是题目明确要求的架构元素。若参与方完全信任平台
 
 | 层 | 保存什么 | 提供什么保证 |
 |---|---|---|
-| Independent WORM Archive | encrypted canonical payload、signature、envelope、manifest | 可恢复的确切字节和保留承诺 |
+| External Archive（平台控制域之外） | encrypted canonical payload、signature、envelope、manifest | 可恢复的确切字节和保留承诺 |
 | Public Blockchain | versioned Merkle root/commitment | 外部 existence/integrity checkpoint |
 | Operational PostgreSQL | 状态、索引、outbox、projection | 高效运行；可由外部历史重建 |
+
+**外部副本的持有者可以是**联盟成员 mirror、监管/审计方 mirror，或使用独立账户的商用 WORM 服务；**不要求专职 archive 服务商**（B8）。门禁比较的是"是否已离开平台控制域"，不是"由哪类机构保管"；`ArchiveAck` 的格式与语义不变，只是签发方资格放宽。
 
 公共链 inclusion time 只证明 commitment 最迟在该时点存在，不证明业务 `eventTime`。
 

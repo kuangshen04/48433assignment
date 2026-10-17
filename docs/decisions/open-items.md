@@ -47,7 +47,7 @@
 
 已确定：
 
-- mandatory WORM archive 在平台控制域之外；
+- mandatory 外部副本在平台控制域之外；**持有者可以是成员/监管方 mirror 或独立账户 WORM，不要求专职 archive 服务商**（B8）；
 - 至少跨 Australian failure domain；
 - Consortium KMS account/policy/recovery authority 不归平台单独控制；
 - Recovery Client 不依赖平台 IAM、DNS、数据库；
@@ -55,12 +55,14 @@
 
 提交前需要选择：
 
-- archive operator/product 和 account owner；
+- 首版外部副本的**具体持有者与账户归属**（成员 mirror / 监管方 mirror / 商用 WORM + 独立账户）；
 - WORM/object-lock mode、retention、catalogue/export API；
 - recovery replica/failure domains；
 - KMS product、KEK ownership、key deletion protection 和 emergency recovery；
 - 是否需要第二 provider escrow 或 threshold recovery；
 - Participant Gateway 是否为首版 deliverable。
+
+**已从"必须关闭"降级为"演进目标"：** 签约的独立 archive 操作方。触发条件见 [B8](/decisions/catalog#b8)。
 
 ## 必须完成的验证场景
 

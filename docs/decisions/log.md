@@ -19,6 +19,8 @@ outline: false
 > 2026-10-18 第三次修订：B3 新增「核心字段地板」并把数量归类与标识粒度绑定；B11 新增 Profile 的三条硬约束（含 conformance check）与扩展字段判据，明确 profile 不得把核心字段设为 optional。
 >
 > 2026-10-18 第四次修订：新增 **B25（Core / Semantic Module 分层与不变量）**，把 handover 状态、召回遍历策略、合规重建、分析输入、洞察统计移出 Core；B3 地板改为由模块 manifest 编译、B9 补配对键义务、B18 明确遍历策略归属、B11 补编译步骤、B21 指明投影由 AnalyticsInputModule 生产。
+>
+> 2026-10-18 第五次修订：B1 补「对外表述（报告用）」双轨说明（内部保留原表述）；B8 放宽外部副本持有者资格并补演进触发条件，B6 的门禁改为"是否离开平台控制域"；B21 补 `RuleVersion` manifest 的锚定与撤回语义。
 
 本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
 
@@ -192,6 +194,22 @@ Normative basis: <https://ref.gs1.org/standards/epcis/2.0.1/#ErrorDeclaration>
 **承受的代价：** 外部 existence/integrity checkpoint 依赖 public network；数据可用性依赖独立 archive；系统还要维护 relayer、gas、finality 和 chain migration。
 
 **为什么可以接受：** 这些职责比组织和维护自己的 BFT validator consortium 更标准化。平台风险被拆成可分别验证的 integrity、availability 和 ingestion-censorship 问题，而不是假装由一个账本同时解决。
+
+### 对外表述（报告用）：同一决定，另一种讲法
+
+上文的内部表述是"参与方不完全信任平台运营者"，这是一个**有意建立的威胁模型**，写在这里是为了向组内解释"为什么区块链不是装饰"。**报告不要照抄这段**——报告里把它写成需求本身的属性，而不是我们的假设：
+
+> 农业供应链的追踪价值来自**互不信任的多个组织共享同一份历史**。区块链在本架构中的职责，是提供一个**没有单一所有者的、任何一方（包括服务运营方）都不能单方静默改写、且第三方可独立验证**的共享历史。因此平台不能是已确认历史的唯一完整性证明和唯一可恢复副本。
+
+两种表述指向完全相同的机制，区别只在论证起点：
+
+| | 内部（本日志） | 对外（报告） |
+|---|---|---|
+| 起点 | 我们有意假设平台不可完全信任，否则 blockchain 是 theatre | 跨组织共享历史本身就要求没有单一所有者 |
+| 作用 | 说明为什么每条约束是 load-bearing | 让读者不必先接受我们的假设 |
+| 不能省略的 | "这是题设驱动的前提" | "任何一方，包括运营方" |
+
+对外表述**降低**了论证对读者假设的依赖，但没有增加任何能力声明——B4 的保证边界、B23 的不承诺清单仍然全部有效。
 
 ---
 
@@ -570,7 +588,7 @@ Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 d
 
 ## B6. 事件什么时候进入正式共享历史？
 
-**决定：** 事件只有在 canonical payload 已进入 independent immutable archive，并且对应 commitment 已按所选 public network 的规则达到 finality 后，才成为 `CONFIRMED`。
+**决定：** 事件只有在 canonical payload 已进入**平台控制域之外**的 immutable archive（副本持有者可以是成员/监管方 mirror 或独立账户 WORM，见 B8），并且对应 commitment 已按所选 public network 的规则达到 finality 后，才成为 `CONFIRMED`。门禁比较的是"是否已离开平台控制域"，不是"是否由某类专职机构保管"。
 
 ```text
 DRAFT
@@ -606,7 +624,7 @@ ANCHOR_RETRY
 - `RECEIVED/VALIDATED`：平台已经接收和验证，尚未形成外部证明；repository 在 capture 时生成可信 `recordTime`，忽略客户端提供的 EPCIS `recordTime`，并另存 participant-asserted `eventTime` 与平台 `receivedAt`；
 - `REVIEW_REQUIRED`：迟到/离线 submission 使用已撤销或过期 key，且没有足以证明撤销前签署的可信时间证据；该状态不签发 acceptance receipt。只有使用当前有效 key 重新签署同一 canonical digest，或取得有明确责任主体的 signed governance/regulatory exception 后才能继续，否则转为 `REJECTED`；
 - `PENDING_SIGNATURE`：仅 managed/assisted custody 路径进入，等待参与方或 signing provider 批准；pre-signed self-custody submission 验证通过后直接进入 `PENDING_ARCHIVE`；
-- `PENDING_ARCHIVE`：等待 encrypted canonical payload 获得 qualified independent archive operator 的 signed acknowledgement；
+- `PENDING_ARCHIVE`：等待 encrypted canonical payload 获得位于平台控制域之外的合格副本持有者的 signed acknowledgement；
 - `PENDING_ANCHOR`：archive object 已持久化，等待生成 event commitment 或进入 Merkle batch；
 - `SUBMITTED_ON_CHAIN/INCLUDED`：交易已广播或进入区块，但尚未满足最终性规则；
 - `FINALISED`：public network 已达到所选 finality；
@@ -676,11 +694,17 @@ Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、h
 
 ## B8. Independent Archive 与 Consortium KMS 由谁运营？
 
-**决定：** Independent Archive 采用“一个强制独立副本 + 可选多方 mirror”的开放复制模型；Consortium KEK 托管在由联盟或独立受托方控制的专业 managed KMS 中。二者都不能只存在于平台自己的 cloud account 和管理员权限域内。
+**决定：** Independent Archive 采用“一个强制外部副本 + 可选多方 mirror”的开放复制模型。副本持有者可以是联盟成员、监管方/审计方 mirror，或使用独立账户的商用 WORM 服务；**不要求由专职 archive 产品服务商承担**（理由与演进触发条件见下）。Consortium KEK 托管在由联盟或独立受托方控制的专业 managed KMS 中。二者都不能只存在于平台自己的 cloud account 和管理员权限域内。
 
 ### Archive replication baseline
 
-每个 canonical event 在成为 `CONFIRMED` 前，至少获得一个签约的、非平台控制的 WORM archive operator 的持久化 acknowledgement。大型联盟成员、监管方或审计机构可以自愿运行额外只读 mirror，但系统不假设监管方一定愿意承担该职责，也不等待所有自愿 mirror 才确认事件。
+每个 canonical event 在成为 `CONFIRMED` 前，必须获得**至少一个位于平台控制域之外**的持久化副本的 acknowledgement。合格副本持有者按优先顺序包括：
+
+1. 联盟成员或成员代表组织运行的只读 mirror；
+2. 监管方或独立审计机构运行的只读 mirror；
+3. 商用 WORM / object-lock 服务，且使用与平台分离的账户与管理员权限域。
+
+**不要求该副本由一家专职的"archive 产品服务商"签发 ack。** 首版把"签约的独立 archive 操作方"作为演进目标而不是上线前置条件——原因见下面的可行性说明。系统同样不假设监管方一定愿意承担 mirror 职责，也不等待所有自愿 mirror 才确认事件。
 
 归档对象不只是一段无上下文的 ciphertext，而是 versioned `EncryptedArchiveEnvelope`：
 
@@ -730,6 +754,21 @@ Optional enterprise/regulator mirrors
 Mirror 接收标准化 archive bundle：encrypted canonical payload、wrapped DEK、key epoch、event signature、batch manifest、receipt 和可用后补充的 chain inclusion proof。保存密文副本不自动授予解密权限；archive replication role 与 consortium data-reader role 分开授权。
 
 该模型不要求 mirror 运行 consensus、smart contract 或完整业务应用。它只需验证 content hash、保持 append-only/WORM storage，并能按标准 export/recovery protocol 返回对象，因此成本和治理负担显著低于联盟链 validator。
+
+### 为什么首版不硬性要求"专职 archive 服务商"
+
+`CONFIRMED` 门禁挂在外部 ack 上是对的——它保证确认前 payload 已经在平台控制域之外存在。但"必须是一家专职的、能签发 retention commitment 的 archive 产品服务商"这个条件是**上线前置的合同依赖**，风险有两个：
+
+1. 标准 WORM 服务（object lock）只提供存储语义，不提供带签名与 retention commitment 的 `ArchiveAck`；要在其上加一层签名服务，等于先成立一个还不存在的服务方；
+2. 试点阶段（200 家组织、一个 NSW 监管域）没有证据表明会有机构愿意承担该角色。
+
+因此首版把 ack 的**供给方**放宽为"任意位于平台控制域之外的合格副本持有者"，而 ack 的**格式与语义保持不变**（仍是 `ArchiveAck` + 签名 + retention commitment）。这样：
+
+- 完整性保证不变：确认前 payload 一定已在外部控制域；
+- 恢复保证不变：至少一份非平台副本可枚举、可导出；
+- 不需要先签一份合同才能上线。
+
+**演进触发条件：** 出现下列任一情况时引入签约的独立 archive 操作方（作为第二个强制副本，而不是替换现有机制）：监管或成员治理要求第三方持久化证明；成员 mirror 数量不足以覆盖跨故障域；审计要求 retention commitment 具有合同效力。
 
 ### KMS control baseline
 
@@ -1655,6 +1694,29 @@ AdvisoryFinding 不进入 canonical trace，不影响 event validation、handove
 因此“监管方授权基础规则给平台”在第一版中的准确含义是：监管方授权特定 `ruleId/ruleVersion` 的 finding 可按指定 scope、watermark 和 expiry 被平台用于提醒；规则仍在监管控制域执行，平台不能修改或扩大适用范围。若未来确实需要低延迟本地执行，再单独评估 signed declarative rule package 和 sandbox，不能把它悄悄并入 Core validation。
 
 当前基线不把 industry association 视为 Regulatory `AdvisoryFinding` 签发主体。行业机构可以通过联盟治理提议 Product Profile、vocabulary 或行业指导，但只有按 GovernanceRecord 流程发布后才影响平台。若未来允许行业机构直接发布提示，必须新建与 Regulatory Advisory 明确分开的 authority type、适用成员范围和 UI 语义，不通过泛化 `sourceRegulatorId` 默认扩权。
+
+### RuleVersion 的发布、锚定与撤回
+
+`RuleVersion` 由监管方签署，但平台必须能事后证明"当时依据的是哪条规则且它未被替换"。因此：
+
+```text
+RuleVersionManifest（进 platform archive + Merkle 锚定）
+- ruleId / ruleVersion
+- issuerRegulatorId
+- effectiveFrom / supersedes
+- scope（适用 profile、event types、jurisdictions）
+- ruleBodyDigest            规则正文的摘要
+- disclosuresAllowed        REGULATOR_ONLY / SUBJECT_ORGANISATION / CONSORTIUM_ADVISORY
+- regulatorSignature
+```
+
+**规则正文不进 archive，只锚定 digest 与 manifest。** 理由：`CONSORTIUM` 层对全体成员可见，把筛查规则正文公开等于告诉参与方"哪里会被查"，会同时伤害筛查效果和监管方的调查利益。平台验证时只比对 digest，需要复核时才由监管方向审计方出示正文。
+
+撤回与过期：
+
+- 撤回 = 发新 `RuleVersion`（`supersedes` 指向旧版本），不原地修改；
+- 撤回**不回溯**已签发的 `AdvisoryFinding`：finding 保留自己的 `ruleVersion` 引用与 `expiresAt`，其有效性由 `expiresAt` 和数据 watermark 决定；
+- `activeRuleSetVersion` 变化必须对平台可见，否则平台无法向用户解释"为什么上个月有提示、这个月没有"。
 
 ### Analytics freshness and failure semantics
 
