@@ -4,7 +4,7 @@
 
 ## 责任
 
-Traceability Core 是跨组织 source assertion 的接收与查询机制，不是农业 ERP、库存系统或真实性裁判，也**不承载业务语义**（B25）。它负责：
+Traceability Core 是跨组织 source assertion 的接收与查询机制，不是农业 ERP、库存系统或真实性裁判，也**不承载业务语义**（B25）。**为什么是 EPCIS 而不是自定义模型**：跨组织追溯必须与各方既有系统互换，而 EPCIS/GS1 是食品链里唯一被普遍支持的交换标准；自定义事件模型会让每个参与方多一次有损映射，并把标识、聚合、加工与纠错语义全部变成项目私有规则。它负责：
 
 - 接收标准 EPCIS events 和受治理的 product-profile extensions；
 - canonicalisation、schema、signature、authority 和 idempotency validation；
@@ -101,6 +101,18 @@ Core 保留原声明、纠错声明、发布方、时间、profile 和签名。�
 
 `UNRESOLVED_INPUT`、`MASS_BALANCE_WARNING` 这类 platform verdict 是禁止的；“该对象存在两条由不同组织发布、无法相互衔接的已确认断言”属于 provenance fact，必须可见。两类的区别是：前者是平台对现实的判断，后者是对已提交断言的陈述。
 
+### 边推导必须是可重放的确定性函数
+
+`QueryPort` 是唯一读入口，所以"平台有没有把某条边藏起来"必须能在**平台之外**判定，否则 B17 的"不裁决"只是平台的自律。
+
+规则：**边只是 canonical events 的确定性函数**。给定 ① canonical payload、② `canonicalisationVersion`、③ `edgeDerivationVersion`，任何持有明文的方都能重算出同一套边。因此：
+
+- 边推导规则与 canonicalisation 一起版本化，并进入恢复包（B2）；
+- 全 scope 方、或经治理获得 KEK epoch 授予的组织，可以拉 archive 密文、自行解密、重算边集，与 `QueryPort` 返回的集合比对；
+- 于是"漏边 / 折叠"是**可举证的事故**，而不是不可验证的状态。
+
+这条保证的强度要说清：它是**事后可归责**，不是实时可验证，也不是逐查询证明。代价是验证必须在离线批处理里跑，且要求验证方与被验证方使用同一 `edgeDerivationVersion`。
+
 Consumer projection 受 `PUBLIC` allowlist 约束，但同样不得在存在竞争断言时呈现为单一路径；具体措辞可与消费者视图的合规审查一并确定。
 
 ## Handover 模型
@@ -162,10 +174,26 @@ Capture API
   -> Signature / Authority Validator
   -> Submission State Machine
   -> Archive & Anchor Orchestrator
-  -> Confirmed Event Store（append-only）
+  -> Confirmed Event Store（append-only canonical fields + edges）
   -> Evidence Graph Builder（只由 EPCIS 标准语义生成边）
   -> QueryPort（强制 scope + non-collapsing + watermark）
 ```
+
+### 明文物化副本：`QueryStore`
+
+在线查询不能每次回源解密，所以 canonical 字段与边必须物化一份明文副本。它必须是有名字、有边界的东西——否则全系统最敏感的数据集恰好没有设计：
+
+```text
+QueryStore（Operational PostgreSQL 内，按 organisationId 分区）
+  内容     已验证的 canonical 字段 + 已推导的边
+  权威性   无。archive 才是权威历史，QueryStore 可随时从 archive 重建
+  保护     静态加密（平台持有的数据密钥，与 consortium KEK 分开）
+           + 仅服务身份可访问 + 组织级读取审计
+  保留     随 B20 的 retention 终态一起删除
+  不变量   不进恢复包、不作为任何"唯一副本"的证据、人工直接查询需 break-glass
+```
+
+它与 B1 不矛盾：B1 限制的是**平台对确认后历史的单方改写**，不是"平台读不到明文"——B1/B4 已明确平台运行时被授权读 `CONSORTIUM` 明文。所以这里要做的是把这份权力写下来、限定用途并加审计，而不是假装它不存在。KMS 或 archive 故障时，已物化的 QueryStore 内容继续服务查询，这正是故障表的"即时解密不可用但仍可读"。
 
 业务语义不在 Core 内，而是同一进程里的语义模块，各自通过 `QueryPort` 读事实、维护可重建投影：
 

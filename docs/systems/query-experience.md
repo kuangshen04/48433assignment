@@ -40,6 +40,8 @@ Recall 是对共享 consortium lineage 的保守、可复现遍历，不是实�
 
 **遍历范围受 scope 限制。** 普通成员能运行的遍历只覆盖自己的 scope（B3），结果必须标注 `scope-limited`，不能当作权威影响范围；权威遍历由全 scope 方在同一 watermark 和同一遍历规则下执行。超出 scope 的节点显示为“存在但不在可见范围内”，不能当作不存在。
 
+**最近一窗单列为 `provisionalImpact`。** receipted / pending-anchor claims 不进 `confirmedImpact`，但对它们跑同一套遍历规则，结果单独标注 `provisional`、不合并、不排序为权威范围（见[召回与监管调查](/flows/recall-investigation)）。UI 必须同时显示两个集合与各自的 watermark，不能只显示较新的那一个。
+
 ## Freshness 契约
 
 每个 projection 显示：

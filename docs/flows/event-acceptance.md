@@ -64,6 +64,14 @@ DRAFT
 | Chain finality | commitment 达到所选外部 finality | 物理事实真实、参与方未串谋 |
 | CONFIRMED projection | 可进入标准 trace/query | Analytics 已完成最新风险分析 |
 
+### 为什么可见性也要等 finality
+
+一个自然的反对意见是：acceptance receipt 已经证明外部归档保存了字节，为什么投影还要再等 15–60 分钟？
+
+因为两者的承诺对象不同：**receipt 是对参与方的持久性承诺，投影是对消费者与监管方的"不会被我改写"承诺**。让未锚定的记录进入标准 trace，等于把"平台仍可改写"的数据当作历史展示出去。所以门禁不只是内部状态机，它决定了展示层的可信度声明。
+
+代价是最近一窗不可见。缓解不是偷偷放宽门禁，而是承认这一窗存在并用标注处理它——见[召回与监管调查](/flows/recall-investigation)的 provisional 遍历。
+
 ## Idempotency
 
 重试沿同一 `captureRecordId`、archive object identity、batch intent 和 transaction intent 继续。Worker 每次执行前检查已有外部结果：

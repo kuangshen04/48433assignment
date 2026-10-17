@@ -30,6 +30,8 @@ outline: false
 
 > 2026-10-18 第九次修订（报告前一致性检查）：把 **B21「租户归属由控制平面决定」** 补记进日志（此前只在修订说明里指向部署页，决策本身没有落到日志）；补记 `RegulationRequirement` 的约束与 **B25 的 Insights 聚合边界**；归档系统名统一为 **External Archive / 外部归档**；并修正 B4 的 PRIVATE 表述、B9 的 `handoverId` 残留、B12 的离线签名单、B20 的 `availabilityStatus` 取值、B5 已废弃的 L2 标签、多处以 `archive operator` 代替副本持有方的旧说法，以及 B22 的窗口区间被 C1 重新打开的一处。
 
+> 2026-10-18 第十次修订（外部冷读评审后的补强）：针对"声明很硬、机制跟不上"的几处补决策——**B3** 明确成员侧的解锁通道是 KEK epoch 授予，并承认收窄属架构变更；**B6** 说明为什么连可见性也等到 finality；**B8** 给强制副本加资格条件（必须能签发 `ArchiveAck`）与三条"独立性"验收测试；**B16** 把准入强度提到影响半径相应的高度，并引入 `PLATFORM_OPERATOR` 主体与 break-glass；**B17** 补边推导的可重放性，使"漏边"成为可举证事故；**B18** 补 `provisionalImpact` 遍历；**B20** 把 retention 的判定/执行/例外分给三个主体。新增设计：`QueryStore`（明文物化副本）与 `evidencePresence`。
+
 本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
 
 ## 本页结构
@@ -331,7 +333,11 @@ Public Blockchain
 
 这样定的理由是：B1 的保证是**完整性**，而完整性验证不需要明文——成员靠 root 序列、inclusion proof 和 consistency proof 就能证明"我的记录在这条链里，且这条链没有被重写"。扁平可见性额外提供的"我能读别人的全部记录"对防篡改没有贡献，它服务的是恢复能力；而恢复能力可以由全 scope 方承担。
 
-反过来，如果按 trace 收窄重建范围（只让当事人解密自己经手的批次），独立验证能力不变，但"任一成员可自行重建整条链"会退回到受托方一级。因此 v1 仍按扁平运行（scope = 全体 active 成员）；收窄是治理参数，不是架构重写。
+反过来，如果按 trace 收窄重建范围（只让当事人解密自己经手的批次），独立验证能力不变，但"任一成员可自行重建整条链"会退回到受托方一级。
+
+**但"收窄"不是改参数。** 一旦真的按 trace 收窄，`QueryPort` 的 scope 计算、KEK epoch 授予和召回遍历的可见范围都要跟着改，属架构变更；v1 选扁平的理由是试点规模下它与"联盟共享 trace"这个商业前提一致，而风险**由准入强度与读取审计承担**（B24），不是由 scope 细分承担。
+
+**成员怎么拿到明文：** 默认不持 KEK，读取走平台 `QueryPort`。需要自行重建时（争议、审计、退出），治理可把某一 epoch 的 unwrap 权限授予该组织的 `ENCRYPTION` 密钥，成员即可从 archive catalogue 取自己 scope 的密文自行解密——**epoch 授予就是那条解锁通道**，不需要另建密钥分发系统。这也是 `keyId/keyEpoch` 不进入 canonical payload、签名输入或 Merkle leaf 的原因：受众变化只改 KMS policy 与治理记录，不改事件格式。
 
 **这条降低的是能力声明，不是安全保证。** 受影响的下游表述见 B2（恢复主体）、B7（consistency proof）、B17（non-collapsing 相对 scope）、B18（成员召回范围受限）。
 
@@ -627,6 +633,8 @@ Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 d
 
 **为什么可以接受：** 强迫所有小农场自行管理不可恢复的 PKI 会伤害可访问性，把所有密钥交给平台又会破坏上述 non-impersonation 保证。统一 envelope 加分级 assurance 保留了共同事件模型，同时诚实暴露不同 custody mode 的信任差异。
 
+**为什么 device-bound 单独占一档，而不是并进 `assuranceLevel`：** 从"谁能冒充组织"看，它与 enterprise self-custody 是同一档（平台不能代签），差别只在载体与 assurance 数值——所以它**不是第四条信任边界**。单独保留的理由是它回答另一个问题：没有企业 KMS 的小参与方，能否在不把密钥交给平台的前提下产生真实签名。并进 assurance 档位会丢掉"哪一档平台绝对不能代签"这个清晰对照，而这正是 B1 要展示的东西。
+
 ---
 
 ## B6. 事件什么时候进入正式共享历史？
@@ -642,6 +650,12 @@ DRAFT / QUEUED_OFFLINE / SYNCING → RECEIVED → VALIDATED
 失败或终止状态：`REJECTED`、`SIGNING_REJECTED`、`EXPIRED`、`ARCHIVE_RETRY`、`ANCHOR_RETRY`，以及不签发 receipt 的隔离态 `REVIEW_REQUIRED`。
 
 完整状态机、每个状态的精确含义和每个 gate 的保证见[事件接收与确认](/flows/event-acceptance)。本决策只保留门禁本身：**`CONFIRMED` 要求"archive 已离开平台控制域"与"达到所选 finality"同时成立**，任何一侧故障都停在对应状态，不得降级确认。
+
+### 为什么连可见性也要等 finality
+
+一个自然的反对意见是：acceptance receipt 已经证明外部归档保存了字节，为什么投影还要再等 15–60 分钟？因为两者的承诺对象不同——**receipt 是对参与方的持久性承诺，投影是对消费者与监管方的"不会被我改写"承诺**。让未锚定的记录进入标准 trace，等于把"平台仍可改写"的数据当作历史展示出去。
+
+代价是最近一窗在标准视图中不可见。处理方式不是偷偷放宽门禁，而是承认这一窗存在：召回可以在同一套规则下另跑一次 `provisionalImpact`（B18），带标注、不合并、不作为权威范围。用新鲜度换掉可复现性，正是 B17 禁止的那种"用界面替平台裁决"。
 
 ### 权威关系
 
@@ -751,11 +765,21 @@ Mirror 接收标准化 archive bundle：encrypted canonical payload、wrapped DE
 - 恢复保证不变：至少一份非平台副本可枚举、可导出；
 - 不需要先签一份合同才能上线。
 
+**但"合格"必须写死，否则放宽会变成放水。** 资格条件是能力而不是身份——持有方必须能对**实际保存的字节**签发 `ArchiveAck`（HSM 或组织签名密钥）。所以：
+
+| 候选持有方 | 能否满足门禁 |
+|---|---|
+| 成员 / 监管方 / 审计方 mirror（持有签名密钥） | 能 |
+| 托管归档服务（提供 HSM 签发的归档对象） | 能 |
+| 普通对象存储桶 + object lock（只能存不能签） | **不能**，只能作为附加 mirror |
+
+**"独立"要写成可执行的验收测试，否则它只是形容词：** 平台对该账户/服务没有 delete / admin / billing 权限；删除需要持有方与平台之外的第三方共同批准；catalogue 能被非平台方独立枚举。三条里任一条不成立，就按"未兑现 B1"处理并写进报告——这正是 B1 反误读测试要求的诚实。
+
 **演进触发条件：** 出现下列任一情况时引入签约的独立 archive 操作方（作为第二个强制副本，而不是替换现有机制）：监管或成员治理要求第三方持久化证明；成员 mirror 数量不足以覆盖跨故障域；审计要求 retention commitment 具有合同效力。
 
 ### KMS control baseline
 
-专业云 KMS 负责密钥材料的保护、密码学操作和审计，但联盟或独立受托方拥有 KMS account、customer-managed KEK、key policy 与 recovery authority。平台服务角色可以获得业务运行所需的 `GenerateDataKey`、wrap/unwrap 或 decrypt 权限，但不能管理、禁用、删除或接管 KEK。
+专业云 KMS 负责密钥材料的保护、密码学操作和审计，但联盟或独立受托方拥有 KMS account、customer-managed KEK、key policy 与 recovery authority。平台服务角色可以获得业务运行所需的 `GenerateDataKey`、wrap/unwrap 或 decrypt 权限，但不能管理、禁用、删除或接管 KEK。**KEK epoch 的授予同时是成员侧的按需解锁通道（B3）：** 普通成员默认不持 KEK，争议或审计时由治理把某一 epoch 的 unwrap 权限授予该组织密钥，因此 KMS policy 的每次变更都必须留下 `GovernanceRecord`。
 
 平台作为获授权的数据处理者仍可能读取 `CONSORTIUM` payload；这里解决的是平台不能单方面销毁密钥、垄断恢复或使 archive 永久不可读，而不是向平台隐藏联盟共享数据。如果未来要求平台也不可见明文，需要 client-side decryption 或 confidential-computing 等另一套更复杂的威胁模型。
 
@@ -1303,7 +1327,17 @@ Public-chain commitment
 → prevents silent replacement of confirmed records
 ```
 
-普通 participant onboarding 可以由一个独立 authorised membership officer 批准；regulator role、lost-key recovery、KMS recovery、profile publication、archive-operator change 和 chain migration 等高影响操作使用独立 dual control。这里的审批是低频治理流程，不是新的 BFT network，也不要求所有联盟成员逐项投票。
+**准入强度必须匹配影响半径。** 最初的写法是"普通 onboarding 一个 officer 批准即可"，但那低估了这件事：v1 的 scope 是全体 active 成员，`CONSORTIUM` trace 含对手方、地点、数量与节奏，而已下载的明文收不回来——**所以批准一个成员就等于授予全网读取权**。因此普通 onboarding 也需要：实体核验（注册号/法人实体，如 ABN/ASIC）、至少一个现有成员 sponsor、两名 independent officer 批准，并对 `CONSORTIUM` 读取做**按组织的读取审计**（导出与跨组织对象读取记对象级，交互式查询按请求聚合）。
+
+**残余风险要写明：** 有真实壳公司、又有成员背书的渗透者仍能读到全部 trace。缓解是合同、读取审计与"trace core 本来就是联盟共享"这个前提；不能用"这是商业假设"一句话把它盖过去，因为商业假设回答的是"成员愿不愿意共享"，不是"成员是不是真的"。
+
+Regulator role、lost-key recovery、KMS recovery、profile publication、**retention 提前删除与 policy 变更**、外部归档持有者/账户变更、chain migration，以及平台 operator 权限授予，使用独立 dual control。这里的审批是低频治理流程，不是新的 BFT network，也不要求所有联盟成员逐项投票。
+
+### 平台自己的人员也是主体
+
+前面把 Human Identity 整体推给企业 IdP 和 IoT vendor，这在参与方一侧是对的；但它留下一个洞：**平台自己的运维、DBA 和发布权限不属于任何组织**。B1 假设平台运营者不完全可信，那么运营者**内部的人**必须有主体、有权限、有审计，否则这个前提在最关键的一层失效。
+
+因此引入独立的 `PLATFORM_OPERATOR` principal：不属于任何 organisation membership，默认没有明文读取权，需要时走 break-glass（时限、双人批准、会话全录），并且 **break-glass 事件本身作为 `GovernanceRecord` 进 archive 与 Merkle batch**——治理方定期取 extract，遗漏可由批次一致性证明发现。删掉这条，平台内部人读全量 `CONSORTIUM` 就没有任何可归责的记录。
 
 Membership/key/profile changes 使用签名的 `GovernanceRecord`，进入 external archive 和 Merkle anchoring；PostgreSQL current registry 是可重建 projection。平台不能仅修改数据库就无痕激活虚假组织、授予 regulator role 或替换历史 public key。
 
@@ -1398,6 +1432,18 @@ Recall/food-safety 查询尤其不能折叠：任何“受影响 / 未受影响�
 
 Shipping/Receiving 的 `ACCEPTED/PARTIALLY_ACCEPTED/DISPUTED` 是对两份明确声明的机械关联结果，而不是异常检测；同理，correction relationship 和 recall traversal 是结构处理，不代表平台认定声明真实。这也是 non-collapsing 的一个特例：handover status 可以机械派生，但派生依据必须能回到原始的两份声明。
 
+#### 可验证性：边是可重放的确定性函数
+
+`QueryPort` 是唯一的读入口，所以"平台有没有藏起一条边"必须能在**平台之外**判定，否则上面所有要求都只是平台自律。
+
+规则：**边是 canonical events 的确定性函数**。给定 canonical payload、`canonicalisationVersion` 和 `edgeDerivationVersion`，任何持有明文的方重算出的边集，必须与 `QueryPort` 返回的一致。于是：
+
+- 边推导规则与 canonicalisation 一起版本化，并进入恢复包（B2）；
+- 全 scope 方，或经治理获得 epoch 授予的组织（B3），可以拉 archive 密文、自行解密、重算并比对；
+- "漏边 / 折叠"因而成为**可举证的事故**，而不是不可验证的状态。
+
+强度要说清：这是**事后可归责**（离线批处理、双方同一版本），不是实时验证，也不是逐查询证明。它的价值在于把"平台是否服从"从信任问题降级为审计问题——没有它，"不裁决"就没有任何外部检查。
+
 ### No authoritative material-balance model
 
 平台不维护 authoritative inventory、remaining quantity、expected yield、consumed balance、fraud score 或 MaterialBalanceProjection。TransformationEvent 只记录 publisher 声称的 inputs、outputs、quantities、transformation ID 和 process context；AggregationEvent 只记录 publisher 声称的 parent/child relationship。ERP/MES 继续负责库存、配方、生产核算和内部控制。
@@ -1474,6 +1520,10 @@ recentPendingClaims
 
 新事件、迟到事件或 correction 到达后可以在新 watermark 上重新运行并生成新 export/version，不能无提示覆盖先前范围。Disputed、partially accepted 和 unacknowledged handover relationships 仍属于 confirmed claims 时，应被保守遍历并带状态返回。
 
+**但"不混入"只解决了显示，没解决覆盖。** `recentPendingClaims` 原本只是单独列出、不参与遍历——结果是最近一窗内的货在结构性遍历里根本不存在，而召回最关心的往往正是这批货。因此补一条：对 receipted / pending-anchor claims **跑同一套遍历规则**，产出 `provisionalImpact`，标注 `provisional`、不合并、不排序为权威范围。
+
+这不是放宽 non-collapsing，而是把它贯彻到底：两套结果各自带 watermark，谁也不能覆盖谁。把 provisional 混进 confirmed、或只显示较新的那个，才会让"可复现的权威范围"消失。
+
 ### Safety publication fast path
 
 Authorised regulator/responsible organisation 的 official Recall/Safety Notice 与普通 trace event 的 finality gate 分开处理。Notice 在 organisation/regulator signature 验证通过并取得 external ArchiveAck 后即可用 `VERIFIED_PENDING_ANCHOR` 状态进入 consumer/regulator view，不等待 15–60 分钟 anchor window 或 public-chain recovery；UI 必须显示 issuer、issuedAt、archive verification 和 pending-anchor status。
@@ -1544,9 +1594,10 @@ Small-farm business identifiers/location 仍可能间接识别个人，因此详
 
 在 active retention period 内，confirmed organisation-level business trace **不接受物理删除**，错误通过 correction event 处理。到期不是静默改写历史，而是进入显式终态；各类数据按什么保留、终态状态图见 [Data & Access](/systems/data-access) 的「Retention」。
 
-留在本决策里的有三条：
+留在本决策里的有四条：
 
 - **"至少七年"是容量与试点政策假设，不是 NSW 食品记录的法定最低期。** 实际 policy 由 data class、product profile、jurisdiction 与 legal hold 共同决定，发布前需由联盟/法律与监管代表批准。
+- **判定到期、执行删除、批准例外是三件事，不能都留在平台手里。** 到期依据来自已发布 policy，保留期台账在全 scope 方另存一份；平台只发起请求，副本持有方按同一 policy 独立复核后执行并签发 deletion acknowledgement；早于 policy 的删除属例外，走 dual control。否则平台只要"算错"到期日，就重新拿回了 B1 明确否掉的删历史能力。
 - **删除由副本持有方签署，并进入后续 Merkle anchoring。** authorised retention worker 只能发起请求，不能单独完成；平台也不能单方面提前删除 WORM object——这样"删了什么、谁批准"本身也可被外部验证。
 - **完整 payload recovery 只在 active retention / legal hold 内成立。** 到期后只能证明曾存在某 commitment 以及按何种 policy 完成删除，不能再恢复 payload。
 
@@ -2201,7 +2252,7 @@ Q&A 阶段可以保留产品选型待定，但最终 deployment/infrastructure v
 
 其中有两个不能在报告压缩时省略的成立前提。第一，B1 是为了让题目明确要求的 blockchain 承担真实的外部完整性职责；如果参与方完全信任平台，数据库加 WORM backup 已足够，区块链会退化为 theatre。第二，B17/B21 不是取消领域校验，而是把“记录断言”和“签署判定”分开：Traceability Core 只记录断言，判定只能由有权主体以签署声明进入历史；普通领域启发式与高级分析在**系统边界内**的 Regulatory Analytics 子系统中执行，该系统与 Traceability Core 对等但拥有独立运行时与治理域，规则和模型所有权属于监管方。投影层不得把竞争断言折叠成单一路径。只有 ML 算法本身是可选的。
 
-Canonical shared trace 使用 per-event DEK 加密，并在确认前取得至少一个位于平台控制域之外的副本持有者的 signed ArchiveAck（B8）；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的 external existence/integrity checkpoint。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台有运行所需的 decrypt 使用权但没有密钥管理权，因此本方案不声称防止被攻破的平台 runtime 泄露 consortium plaintext。
+Canonical shared trace 使用 per-event DEK 加密，并在确认前取得至少一个位于平台控制域之外的副本持有者的 signed ArchiveAck（B8）；大型成员和监管方可以自愿维护额外 encrypted mirrors。**"独立"不按机构类型判定，而按三条可执行测试判定**（平台无 delete/admin/billing 权限、删除需第三方共同批准、catalogue 可被非平台方枚举）；能签 ack 是持有强制副本的资格条件。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的 external existence/integrity checkpoint。平台在自己的 `QueryStore` 里保留可重建的明文副本用于查询与召回遍历，并对其做静态加密与按组织读取审计；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台有运行所需的 decrypt 使用权但没有密钥管理权，因此本方案不声称防止被攻破的平台 runtime 泄露 consortium plaintext。
 
 联盟内注册组织之间的 B2B 实物交接由 sender-signed shipping claim 与 receiver-signed receiving claim 两份独立声明组成，在 EPCIS 中映射为标准 events 加 shipping/receiving bizStep；二者分别确认，平台只派生 handover status。网络外对手方使用明确标注的单方 boundary claim，消费者零售不要求消费者签名。缺少接收确认不会抹去发货声明，争议、未确认和 `EXTERNAL_COUNTERPARTY` edges 仍进入 recall/audit 查询并明确标记保证等级。
 

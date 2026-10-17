@@ -67,7 +67,7 @@ Regulator tenancy (separate cloud account)
 | 故障 | 写入行为 | 读取行为 |
 |---|---|---|
 | Signing provider | `PENDING_SIGNATURE` | confirmed data 不受影响 |
-| KMS/all archives | `PENDING_ARCHIVE`；不签 receipt | public/materialised view 可继续；即时解密不可用 |
+| KMS/all archives | `PENDING_ARCHIVE`；不签 receipt | 已物化的 `QueryStore` 内容继续可查；未物化的内容因无法解密而不可读 |
 | Public chain/relayer | `PENDING_ANCHOR`；不确认 | confirmed data 继续；official notice 可走 fast path |
 | Projection worker | canonical state 不回滚 | affected projection 标记 stale |
 | Analytics | trace 继续 | risk assessment 标记 delayed/unavailable |

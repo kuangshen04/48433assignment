@@ -60,7 +60,7 @@
 ### B3 · PUBLIC / CONSORTIUM / PRIVATE 三层数据模型
 **Conditional baseline.** Active 成员共享 canonical trace core；消费者只读 allowlisted public projection；敏感证据不上平台，只在 canonical event 留加盐承诺（B23）。广泛共享是待验证的商业假设。
 
-**保证范围（验证 ≠ 重建）：** 任一成员可验证"历史是 append-only、自己的记录已被纳入"（inclusion + consistency proof），重建受 scope 限制；完整重建由全 scope 方执行。KEK epoch 构成时间边界，v1 scope = 全体 active 成员，收窄只是治理参数。
+**保证范围（验证 ≠ 重建）：** 任一成员可验证"历史是 append-only、自己的记录已被纳入"（inclusion + consistency proof），重建受 scope 限制；完整重建由全 scope 方执行。KEK epoch 构成时间边界，v1 scope = 全体 active 成员。**收窄不是改参数**——它同时改动 scope 计算、epoch 授予与遍历可见范围。成员默认不持 KEK，读取走 `QueryPort`；需要自行重建时由治理授予某一 epoch 的 unwrap 权限，这就是成员侧的解锁通道。
 
 **核心字段地板：** 事件类型、时间、`bizStep`/`disposition`、source/destination、位置、对象标识、profile/canonicalisation 版本、`captureRecordId`/`epcisEventId`、签名、交接 `bizTransaction` 必须在 canonical event 内，profile 不得设为 optional；**数量与粒度绑定**——`class-lot` 级必须带 `quantityList` + UN/CEFACT `uom`，`instance` 级可用标识计数。设计见 [Data & Access](/systems/data-access)。
 
@@ -76,7 +76,7 @@
 
 <a id="b6"></a>
 ### B6 · ArchiveAck + public finality 后才 CONFIRMED
-**Baseline.** 门禁是"已离开平台控制域"且"达到所选 finality"，比较的不是"由哪类专职机构保管"。Official Recall/Safety Notice 可在签名与 ArchiveAck 后以 `VERIFIED_PENDING_ANCHOR` 紧急发布。
+**Baseline.** 门禁是"已离开平台控制域"且"达到所选 finality"，比较的不是"由哪类专职机构保管"。Official Recall/Safety Notice 可在签名与 ArchiveAck 后以 `VERIFIED_PENDING_ANCHOR` 紧急发布。**投影发布同样等到 finality**：receipt 是对参与方的持久性承诺，投影是对消费者与监管方的"不会被我改写"承诺；代价是最近一窗不可见，由 B18 的 `provisionalImpact` 处理。
 
 <a id="b7"></a>
 ### B7 · 固定窗口 deterministic Merkle batching
@@ -85,6 +85,8 @@
 <a id="b8"></a>
 ### B8 · 一个平台控制域外的强制副本 + 联盟控制 KMS
 **Conditional baseline.** 至少一个位于平台控制域之外的持久副本；**持有者可以是成员/监管方 mirror，也可以是独立账户的商用 WORM，不要求专职 archive 服务商**——签约操作方是演进目标而非上线前置条件。Consortium KEK 由联盟/受托方控制的专业 KMS 保护。
+
+**持有强制副本有资格条件：必须能对实际保存的字节签发 `ArchiveAck`。** 只能存、不能签的普通对象存储桶只能当附加 mirror。**"独立"另有三条可执行验收测试**：平台无 delete/admin/billing 权限；删除需持有方与第三方共同批准；catalogue 可被非平台方独立枚举。
 
 **演进触发条件：** 监管或成员治理要求第三方持久化证明、mirror 覆盖不足、或审计要求 retention commitment 具合同效力时，引入签约操作方作为第二个强制副本。
 
@@ -124,17 +126,21 @@
 ### B16 · Human/Device IAM 在外围，Organisation Governance 在核心
 **Baseline.** 企业/IoT vendor 管理账号与设备 fleet；核心只保存 organisation membership、public keys、delegations 与 signed GovernanceRecords。扩权变更在 archive/anchor finality 后生效，紧急撤销可先 fail closed。
 
+**准入强度匹配影响半径：** 批准一个成员等于授予全网读取权，因此需要实体核验 + 现有成员背书 + 双人批准 + 按组织读取审计。**平台自身运维人员是独立的 `PLATFORM_OPERATOR` 主体**，不属任何 organisation，默认无明文读取权，break-glass 需双人批准且进不可变历史。
+
 <a id="b17"></a>
 ### B17 · Core 记录断言，不裁决真伪
 **Baseline.** Core 只做 admission/protocol validation，并原样保留相互冲突的 signed assertions；不判定哪条冲突声明为真，也不产生 anomaly、mass balance、fraud 或 compliance verdict。判定只能由有权主体以签署声明进入历史。
 
 **必须配对的表示义务（non-collapsing）：** lineage、recall、handover 与 audit 的默认视图不得折叠竞争断言，必须多边并存、带 provenance、不排序、不打分、不选代表路径。该义务**相对于 scope**：超出 scope 的内容显示为"存在但不在你的可见范围内"。
 
+**可验证性：** 边是 canonical events 的确定性函数（随 `edgeDerivationVersion` 版本化）。持明文的方可以重算边集并与查询结果比对，所以"漏边/折叠"是**事后可举证的事故**，不是实时保证——没有这条，"不裁决"就只是平台自律。
+
 <a id="b18"></a>
 ### B18 · Recall 是保守 lineage query，不是物理下架
 **Baseline.** 平台查询可能受影响对象、展示授权 notice、记录后续 claims；ERP/WMS/POS 与人员执行封存、下架、退货、销毁。遍历策略归 RecallModule（B25），Core 只提供带 scope / non-collapsing / watermark 的边查询。
 
-成员自行运行的遍历只覆盖其 scope，必须标注 `scope-limited`；权威遍历由全 scope 方在同一 watermark 与同一规则下执行。`confirmedImpact` 与 `recentPendingClaims` 分开展示。
+成员自行运行的遍历只覆盖其 scope，必须标注 `scope-limited`；权威遍历由全 scope 方在同一 watermark 与同一规则下执行。`confirmedImpact` 与 `recentPendingClaims` 分开展示，并且**对后者跑同一套遍历规则产出 `provisionalImpact`**：标 `provisional`、不合并、不排序为权威范围——否则最近一窗的货在结构性遍历里根本不存在。
 
 <a id="b19"></a>
 ### B19 · 标识符由参与方分配，QR 不是防伪证明
@@ -143,6 +149,8 @@
 <a id="b20"></a>
 ### B20 · NSW/Australian residency 与按类别 retention
 **Conditional baseline.** 非公开数据、外部归档与 Consortium KMS 默认位于 Australian regions。Canonical trace 按七年容量/保留假设设计，可由 product/jurisdiction/legal hold 调整；到期删除 payload 与 DEK，保留最小删除审计和非个人 commitment。
+
+**判定、执行、例外三权分立：** 到期依据已发布 policy（台账在全 scope 方另有副本）；平台只发起请求、持有方按同一 policy 复核后执行并签发删除确认；早于 policy 的删除走 dual control。否则平台只要"算错"到期日，就重新拿回了 B1 否掉的删历史能力。
 
 <a id="b21"></a>
 ### B21 · Regulatory Analytics 是边界内的 peer subsystem

@@ -27,7 +27,25 @@ Blockchain 是题目明确要求的架构元素。若参与方完全信任平台
 | Public Blockchain | versioned Merkle root/commitment | 外部 existence/integrity checkpoint |
 | Operational PostgreSQL | 状态、索引、outbox、projection | 高效运行；可由外部历史重建 |
 
-**外部副本的持有者可以是**联盟成员 mirror、监管/审计方 mirror，或使用独立账户的商用 WORM 服务；**不要求专职 archive 服务商**（B8）。门禁比较的是"是否已离开平台控制域"，不是"由哪类机构保管"；`ArchiveAck` 的格式与语义不变，只是签发方资格放宽。
+**外部副本的持有者可以是**联盟成员 mirror、监管/审计方 mirror，或使用独立账户的商用 WORM 服务；**不要求专职 archive 服务商**（B8）。门禁比较的是"是否已离开平台控制域"，不是"由哪类机构保管"。
+
+**但持有一个强制副本是有资格条件的：必须能对实际保存的字节签发 `ArchiveAck`。** B8 放宽的是"不必是专职归档服务商"，没有放宽"必须能签名"：
+
+| 候选持有方 | 能否满足门禁 |
+|---|---|
+| 成员 / 监管方 / 审计方 mirror（持有 HSM 或组织签名密钥） | 能 |
+| 托管归档服务（提供由 HSM 签发的归档对象） | 能 |
+| 普通对象存储桶 + object lock（不能签名） | **不能**，只能作为附加 mirror 提高可用性 |
+
+**"独立"要写成可执行的验收测试，而不是形容词：**
+
+```text
+平台侧对该账户/服务必须没有 delete / admin / billing 权限
+删除需要持有方与平台之外的第三方共同批准
+catalogue 能被非平台方独立枚举
+```
+
+三条任一条不成立，就按"未兑现 B1"处理并写进报告——这正是 B1 反误读测试要求的诚实。
 
 公共链 inclusion time 只证明 commitment 最迟在该时点存在，不证明业务 `eventTime`。
 
@@ -78,6 +96,18 @@ Merkle leaf
 - Participant signing keys 与 Consortium KEK 是不同用途、策略和生命周期的密钥。
 
 外部 KMS 是信任转移，不是信任消失。KEK 永久丢失时，即使 archive 完整，payload 也无法恢复。
+
+### KEK epoch 就是成员侧的解锁通道
+
+普通成员**默认不持有 KEK**，读取明文走平台 `QueryPort`；但这不等于成员永远无法自行重建。争议、审计或成员退出时，治理可以把**某一 epoch 的 unwrap 权限**授予该组织的 `ENCRYPTION` 密钥，使其能从 archive 取出自己 scope 的 envelope 自行解密。因此不需要另建密钥分发系统：
+
+```text
+成员可读路径 A（默认）：QueryPort / QueryStore，明文由平台提供，受 scope 与审计约束
+成员可读路径 B（按需）：治理授予 epoch → 成员从 archive catalogue 取 ciphertext
+                        → 用自有密钥 unwrap → 自行解密并重算边集（见 Traceability Core）
+```
+
+`keyId/keyEpoch` 因此不进入 canonical payload、签名输入或 Merkle leaf：增删受众只改 KMS policy 与治理记录，不改事件格式。**epoch 授予本身是治理动作**，必须有 GovernanceRecord，并与成员加入/退出时的时间边界一致。
 
 ## 恢复包
 

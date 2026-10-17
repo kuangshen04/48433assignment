@@ -66,7 +66,34 @@ Membership Governance 可以验证现实组织资格、批准角色和发布治�
 - 删除外部归档中的历史；
 - 把自身审批变成对业务声明真实性的证明。
 
-普通 onboarding 可由独立 authorised membership officer 批准。Regulator role、lost-key recovery、KMS recovery、profile publication、外部归档持有者/账户变更 和 chain migration 使用独立 dual control。
+### 准入强度要匹配影响半径
+
+**批准一个成员就等于授予全网读取权。** v1 的 scope 是全体 active 成员，`CONSORTIUM` trace 含对手方、地点、数量与节奏，而已下载的明文收不回来。准入因此不能按"填个表"设计：
+
+- **实体核验**：注册号与法人实体核验（如 ABN/ASIC），并交叉验证联系人与该组织的关系；
+- **成员背书**：至少一个现有成员 sponsor，写进 `GovernanceRecord`；
+- **双人批准**：两名 independent authorised membership officer；
+- **读取审计**：`CONSORTIUM` 读取按组织记录——导出与跨组织对象读取记对象级审计，交互式查询按请求聚合。这让"谁把数据搬走了"可归因，而不只是可被告。
+
+**仍然接受的残余风险：** 一个有真实壳公司、又有成员背书的渗透者仍能读到全部 trace。缓解是合同、读取审计与"trace core 本来就是联盟共享"这个设计前提；这条残余风险必须写进报告，不能用"这是商业假设"一句话盖过去。
+
+### 使用 dual control 的变更
+
+Regulator role、lost-key recovery、KMS recovery、profile publication、**retention 提前删除与 policy 变更**、外部归档持有者/账户变更、chain migration，以及**平台 operator 权限授予**，都使用独立 dual control。
+
+### 平台自身的人也是主体
+
+前面把 Human Identity 全部推给企业 IdP，但平台的运维、DBA、发布权限不属于任何组织。B1 假设平台运营者不完全可信，那么**运营者内部的人**必须有主体、有权限、有审计：
+
+```text
+PLATFORM_OPERATOR（独立 principal 类型，不属于任何 organisation membership）
+  -> 最小权限，无默认明文读取权
+  -> 需要时走 break-glass：时限 + 双人批准 + 会话全录
+  -> break-glass 事件作为 GovernanceRecord 进 archive 与 Merkle batch
+  -> 治理方定期取 extract；遗漏可由批次一致性证明发现
+```
+
+默认禁止人工直接查询 `QueryStore` 或解密 payload；只有 break-glass 能短暂打开，且打开这件事本身进不可变历史。
 
 ## Governance effective gate
 
@@ -90,6 +117,8 @@ PROPOSED
 | `DELEGATED_PLATFORM_CUSTODY` | 平台可调用 | 保证等级最低；平台理论上可代签 |
 
 四种模式输出相同 `SignatureEnvelope`，但必须保留 `custodyMode` 和 `assuranceLevel`，不能用统一接口抹去信任差异。
+
+**它不是第四条信任边界。** 从"谁能冒充组织"看，`DEVICE_BOUND_SELF_CUSTODY` 与 enterprise self-custody 是同一档（平台不能代签），差别只在载体与 assurance。保留它作为独立一档，是因为它回答的是另一个问题：**没有企业 KMS 的小参与方，能不能在不把密钥交给平台的前提下产生真实签名**。若把它并进 `assuranceLevel`，就失去了"哪一档平台绝对不能代签"的清晰对照。
 
 **设备密钥的注册方式：** 它是 `Organisation Key Registry` 下的一条组织密钥，`owner = organisation`，并绑定一条 Delegation 限定可发布的 scope 与事件类型。因此"小农场用手机离线自签"在语义上是**组织用设备密钥签名**——归因仍是组织，canonical trace 不出现自然人。离线时不存在"该以哪个组织身份签"的歧义，因为一把设备密钥只绑一个组织。
 

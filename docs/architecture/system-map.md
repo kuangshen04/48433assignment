@@ -78,19 +78,21 @@ Core 的职责边界可以压缩成一句规则：**平台记录断言，判定�
 
 “任一成员可独立验证”这句话必须拆开，否则会被读成“任一成员能读全部历史”：**验证**历史是 append-only、自己的记录已被纳入、批次序列无断裂，不需要明文；**重建并验证内容**需要明文，范围由 scope 决定；**完整历史**的重建只有全 scope 方（监管方、审计者、受托恢复方）能做。三者的准确划分与 KEK epoch 的时间边界见 [Data & Access](/systems/data-access)。
 
-关键在于：B1 的保证是**完整性**，而完整性验证不需要明文。扁平可见性额外提供的“我能读别人的全部记录”对防篡改没有贡献，它服务的是恢复能力；而恢复能力可以由全 scope 方承担。因此 v1 的 scope 取“全体 active 成员”，收窄只是治理参数，不是架构重写。
+关键在于：B1 的保证是**完整性**，而完整性验证不需要明文。扁平可见性额外提供的“我能读别人的全部记录”对防篡改没有贡献，它服务的是恢复能力；而恢复能力可以由全 scope 方承担。因此 v1 的 scope 取“全体 active 成员”。
+
+**但收窄不是"改个参数"。** 一旦治理要求按 trace 收窄，`QueryPort` 的 scope 计算、KEK epoch 授予和召回遍历的可见范围都要跟着改，属于架构变更（做法见 [Data & Access](/systems/data-access)）。选扁平的真正理由不是"收窄便宜"，而是：试点规模下它与"联盟共享 trace"这个商业前提一致，而它的风险**由准入强度与读取审计承担**，不是由 scope 细分承担（见 [Identity & Governance](/systems/identity-governance)）。
 
 ### Regulatory Analytics 是边界内的 peer subsystem
 
 Traceability Core 保存可归责的 source assertions；Regulatory Analytics 维护监管方拥有的 deterministic heuristics、statistics 和 optional ML，并解释领域风险。监管方可以授权指定 rule/version 的 signed findings 给平台形成基础提醒。
 
-两者同属系统边界内，但 Analytics 处在监管方的独立运行时域，规则和模型归监管方所有：`RuleVersion` 由监管方密钥签署，平台只提供 runtime 与 registry，不 author、不改规则、不扩大适用范围。正因为它在边界内并为平台提供基础审查能力，C4 的 container / component / code 三层都必须覆盖它；关闭它时的行为属于系统内降级，而非外部依赖故障——追溯写入、查询、召回遍历或监管人员手工调查继续，但必须显式显示分析结果过期或不可用。
+两者同属系统边界内，但 Analytics 处在监管方的独立运行时域，规则和模型归监管方所有：`RuleVersion` 由监管方密钥签署，平台只交付 runtime 制品与 registry 接口（跑在监管方账户里），不 author、不改规则、不扩大适用范围。正因为它在边界内并为平台提供基础审查能力，C4 的 container / component / code 三层都必须覆盖它；关闭它时的行为属于系统内降级，而非外部依赖故障——追溯写入、查询、召回遍历或监管人员手工调查继续，但必须显式显示分析结果过期或不可用。
 
 ## 主要数据类别
 
 | 数据类别 | 默认位置 | 默认访问 | 平台能否读明文 |
 |---|---|---|---|
-| Canonical EPCIS trace | 外部归档（加密）；PostgreSQL 索引/投影 | `CONSORTIUM` | 能（运行时被授权） |
+| Canonical EPCIS trace | 外部归档（加密）；`QueryStore` 明文物化副本 | `CONSORTIUM` | 能（运行时被授权，读取受审计） |
 | Consumer projection | 版本化对象/CDN | `PUBLIC` | 能（它就是生成者） |
 | Raw IoT、报告、合同等证据 | 参与方一侧；可选零知识托管（只有密文） | `PRIVATE` | **不能**（B23） |
 | Membership/profile/key history | 外部归档并锚定；数据库 current projection | 受治理访问 | 能 |

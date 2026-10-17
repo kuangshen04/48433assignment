@@ -72,6 +72,7 @@ ProtectedResource (platform-side record)
   ownerOrganisationId
   resourceType / mediaType
   plaintextCommitment        参与方计算、加盐；平台无法验证内容
+                             加盐用 nonce，**nonce 只由所有者持有、不随事件发布**
   ciphertextDigest           仅零知识托管存在
   storageMode=PARTICIPANT_HOSTED | PLATFORM_HOSTED_ZERO_KNOWLEDGE
   externalLocator            自托管时由所有者提供
@@ -85,6 +86,8 @@ ProtectedResource (platform-side record)
 1. **没有平台可执行的 `accessScope`。** 平台没有明文，内容级授权无法由它执行；访问权只能由所有者“加密给谁”来表达。
 2. **没有结构化 JSONB 存 private detail。** 需要按字段查询的内容必须进 `CONSORTIUM`，没有中间地带。
 3. **平台无法验证 commitment 与内容一致。** 它只能证明自己保存的密文未被替换；参与方自管内容在调查时可能无法提供，而“无法提供”本身就是有意义的结论。
+
+**加盐的 nonce 只由所有者持有，不随事件发布。** 低熵内容（是否有机、是否检出某菌、固定模板报告）的承诺可以被字典穷举，加盐就是为了堵住这条路；nonce 一旦随事件进入 `CONSORTIUM`，承诺就退化成可被比对的口径。举证时所有者把内容与 nonce 一并出示，平台才算得出相同的承诺值。
 
 分享路径：
 
@@ -137,9 +140,10 @@ owner encrypts to: owner itself / regulator scope / named trading partners
 External Archive（平台控制域之外）
   authoritative encrypted payload and verification material
 
-PostgreSQL
-  current registry + ingestion state + event index
-  + outbox + rebuildable projections
+Operational PostgreSQL
+  current registry + ingestion state + event index + outbox
+  + QueryStore：可重建的明文物化副本（canonical 字段 + 边）
+  + rebuildable projections
 
 CDN/Object snapshots
   versioned PUBLIC consumer views
@@ -147,6 +151,8 @@ CDN/Object snapshots
 Regulatory export objects
   short-lived, purpose-bound investigation datasets
 ```
+
+`QueryStore` 是明文的、平台运行时可以读的副本，因此它是这套设计里唯一**必须写下来**的敏感数据集：可重建、不进恢复包、静态加密、按组织审计读取。定义与不变量见 [Traceability Core](/systems/traceability-core)。
 
 第一版不采用全应用 Event Sourcing。Canonical events、signatures、ArchiveAck、manifests 和 proofs append-only；用户资料、job state、retry state 和 UI 配置使用普通事务模型。
 
@@ -185,6 +191,16 @@ ACTIVE_RETENTION
 ```
 
 七年是 NSW pilot 的默认 capacity/retention assumption，不是所有食品记录的统一法定最低期。到期后系统只能证明"曾存在某 commitment、并按何种 policy 完成删除"，不再能恢复 payload。
+
+**判定、执行、例外是三件事，不能都留在平台手里：**
+
+| 环节 | 谁做 | 为什么 |
+|---|---|---|
+| 判定到期 | 依据已发布的 retention policy；保留期台账在全 scope 方（监管方/审计方）另存一份 | 否则平台可以"算错"到期日，把删除变成单方权力 |
+| 执行删除 | 平台发起请求，**副本持有方按同一 policy 独立复核后执行**并签发 deletion acknowledgement | 删除需要控制域之外的第二个签名，才不是平台自说自话 |
+| 例外（早于 policy 删除） | dual control，并写进删除审计 | 这是 B1 唯一真正的例外路径，必须留痕 |
+
+删除审计与治理记录一起锚定，所以"平台偷偷删了历史"会留下外部可查的痕迹——**不是不可删，而是删了会被看见**。
 
 ## Residency
 

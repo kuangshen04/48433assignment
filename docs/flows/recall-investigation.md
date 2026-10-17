@@ -45,6 +45,18 @@ Shipping/Receiving object -> all claimed destinations/custodians
 
 超过 10,000 edges 或接近响应限制时转为异步 export。Export 固定 watermark、记录 dataset version、purpose、recipient、expiry 和审计 ID。
 
+## 最近一窗：provisional 遍历
+
+`confirmedImpact` 只覆盖 watermark 之前的事件，而普通事件要等 15–60 分钟 finality。召回最关心的往往是**最近几车货**，所以必须显式处理这个窗口，而不是假装它不存在：
+
+```text
+confirmedImpact    watermark W 之前的 confirmed assertions → 可复现，可作为权威范围
+provisionalImpact  同一套遍历规则，跑在 receipted / pending-anchor claims 上
+                   → 只作提示，标注 provisional，不合并，不排序为权威范围
+```
+
+provisional 结果**不得**被写成召回范围、也不能替代正式通知；它只回答"这一窗里可能还有谁"。把两套结果合并、或让 provisional 覆盖 confirmed，就是用新鲜度换掉可复现性——正是 B17 禁止的那种"用界面替平台裁决"。
+
 ## Analytics 辅助路径
 
 ```text
