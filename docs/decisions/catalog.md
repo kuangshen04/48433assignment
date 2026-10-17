@@ -57,6 +57,8 @@
 
 **Conditional baseline.** 参与方信任平台提供服务，但不授予其单方面静默改写、销毁密钥或垄断已接受历史的权力；当前模型仍允许获授权 runtime 读取 consortium plaintext。
 
+**为什么是项目成立前提：** 作业明确要求 blockchain。如果完全信任平台控制 payload、唯一副本、密钥和验证结果，managed database + WORM backup 已经足够，继续使用 blockchain 就是 theatre。B1 是有意建立的场景，使公共链确实承担平台控制域之外的 existence/integrity checkpoint；最终部署若没有真实独立的 archive/KMS/recovery control，便没有兑现该决策。
+
 <a id="b2"></a>
 ### B2 · 平台失效后恢复最小完整 trace
 
@@ -137,6 +139,8 @@
 
 **Baseline.** 冲突、数量、mass balance、timing/location 和 fraud heuristic 属于 regulator-controlled analytics；Core 保留相互冲突的 signed source assertions。
 
+**为什么是项目成立前提：** 平台不知道不同产品、地区和监管制度下的权威领域规则，也无权自行发明。普通 deterministic heuristics 与高级 statistics/optional ML 因而统一放在 Regulatory Analytics 中，由监管方配置、版本化、审计并承担规则责任。Optional 的是 ML 技术，不是该核心业务子系统。
+
 <a id="b18"></a>
 ### B18 · Recall 是保守 lineage query，不是物理下架
 
@@ -155,7 +159,7 @@
 <a id="b21"></a>
 ### B21 · Regulatory Analytics 是 peer subsystem
 
-**Baseline.** Findings 默认 regulator-private；监管方可签署受限 AdvisoryFinding 给平台路由。Analytics 有独立 watermark/health，规则未运行不能展示为“无风险”。行业协会当前不是 Regulatory Advisory issuer。
+**Baseline.** Findings 默认 regulator-private；监管方可把指定基础 `ruleId/ruleVersion` 的输出授权为受限 signed AdvisoryFinding，由平台用于基础提醒。规则仍在监管控制域执行，平台不取得修改或扩大规则的权力。Analytics 有独立 watermark/health，规则未运行不能展示为“无风险”。行业协会当前不是 Regulatory Advisory issuer。
 
 <a id="b22"></a>
 ### B22 · 使用显式、可测试的 NSW pilot 数量假设

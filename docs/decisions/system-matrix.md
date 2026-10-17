@@ -29,6 +29,16 @@
 | QR 不等于防伪证明 | Consumer projection | Consumer UI/Analytics |
 | PRIVATE hosting 不改变 ownership | Data Access | IoT、Evidence、Regulator access |
 
+## 两个反误读测试
+
+### B1：删除不完全信任前提后，区块链还有独立职责吗？
+
+如果答案只是“多写一份 hash”或“数据库更难修改”，说明没有建立真实的外部验证和控制权分离，属于 blockchain theatre。合格答案必须指出 public commitment、独立 ArchiveAck、非平台 KMS/recovery control 分别限制了平台的哪一种单方能力。
+
+### B17：关闭 ML 后，Regulatory Analytics 是否就没有必要？
+
+如果答案是“是”，说明错误地把 Regulatory Analytics 当成可选 AI 工具。即使完全不用 ML，产品/地区/监管特定的 deterministic heuristics、规则版本、risk finding、controlled disclosure 和 freshness 仍属于这个核心 peer subsystem；平台只消费被监管方授权的基础提醒结果。
+
 ## 容易混淆的边界
 
 ### Traceability Core vs Regulatory Analytics

@@ -26,6 +26,12 @@ features:
 
 项目根目录中的 `major-decisions-qa.md` 是完整的决策日志，适合回答“为什么这样决定”。随着决策增多，同一个系统的职责会分散在多个问题中，不适合直接用来理解“这个系统到底做什么”。
 
+::: warning 两个不能被弱化的架构前提
+**B1 — 平台运营者不被完全信任。** 题目明确要求 blockchain；若平台仍控制唯一数据、密钥和证明，普通数据库加 WORM backup 已经足够，区块链就只是 theatre。公共链、独立 archive 和非平台控制的 KMS/recovery authority 必须实际改变信任边界。
+
+**B17/B21 — Regulatory Analytics 是核心 peer subsystem。** 平台既不知道也无权发明产品、地区和监管领域规则，所以普通业务启发式校验与高级统计/ML 一起由监管控制域管理。监管方可以授权部分基础 rule findings 给平台做提醒；ML 可选，不代表 Regulatory Analytics 只是可有可无的查询工具。
+:::
+
 本站提供三个互补入口：
 
 1. [系统地图](/architecture/system-map)：先确定系统、控制域和信任边界。

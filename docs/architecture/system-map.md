@@ -4,6 +4,16 @@
 
 本系统是跨组织农业供应链追溯层：参与方发布可归责的 EPCIS source assertions；平台负责接收、查询和投影；独立归档、联盟控制的 KMS 与公共链共同限制平台运营者单方面改写或垄断历史的能力；监管分析在独立控制域中判断领域风险。
 
+## 两个有意选择的成立前提
+
+### B1 不是装饰性 threat model
+
+作业明确要求 blockchain，因此架构必须给它一个普通平台数据库不能独立完成的职责。B1 显式假设参与方不完全信任平台对确认后历史的单方控制，使公共链成为外部 existence/integrity checkpoint。若 archive、KMS、recovery identity 和验证结果最终仍全部由平台单独控制，即使使用公链也只是 `blockchain theatre`。
+
+### B17/B21 不是把领域功能移出核心
+
+Traceability Core 不掌握产品、地区和监管制度下的权威领域规则，因此只做 admission/protocol validation。普通领域启发式、统计分析和 optional ML 一起由 regulator-controlled Regulatory Analytics 管理；监管方可授权一部分基础 rule findings 给平台用于提醒。它是平台整体的一等核心业务子系统，只是不是 canonical write path 的同步依赖。
+
 ## 控制域与系统
 
 ```text
@@ -45,7 +55,7 @@ Regulator-controlled Environment
 
 ### 平台运营者不是完全可信方
 
-架构主要限制平台对完整性、可恢复性、密钥控制和接受后审查的单方权力。平台 runtime 仍然被授权读取 `CONSORTIUM` 明文，因此当前模型不声称在 runtime 被攻破时仍能保持联盟数据机密性。
+架构主要限制平台对完整性、可恢复性、密钥控制和接受后审查的单方权力。这个边界是题设所要求 blockchain 的实际用途，而不是泛化地声称“区块链更安全”。平台 runtime 仍然被授权读取 `CONSORTIUM` 明文，因此当前模型不声称在 runtime 被攻破时仍能保持联盟数据机密性。
 
 ### 组织声明不等于物理事实
 
@@ -53,7 +63,7 @@ Regulator-controlled Environment
 
 ### Regulatory Analytics 是 peer subsystem
 
-Traceability Core 保存可归责的 source assertions；Regulatory Analytics 解释领域风险。关闭 Analytics 不应阻止追溯写入、查询、召回遍历或监管人员手工调查，但必须显式显示分析结果过期或不可用。
+Traceability Core 保存可归责的 source assertions；Regulatory Analytics 维护监管方拥有的 deterministic heuristics、statistics 和 optional ML，并解释领域风险。监管方可以授权指定 rule/version 的 signed findings 给平台形成基础提醒。关闭 Analytics 不应阻止追溯写入、查询、召回遍历或监管人员手工调查，但必须显式显示分析结果过期或不可用；这种故障隔离不降低它作为核心业务子系统的地位。
 
 ## 主要数据类别
 

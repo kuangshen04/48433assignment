@@ -34,6 +34,8 @@ optional evidence references protected resources, not embedded files
 
 ## 验证边界
 
+Core 只做 admission/protocol validation，不是因为领域校验不重要，而是因为平台既不知道也无权决定跨产品、地区和监管制度的权威业务规则。这些规则必须由 [Regulatory Analytics](/systems/regulatory-analytics) 的监管主体管理。
+
 | Core 验证 | Core 不判断 |
 |---|---|
 | EPCIS/schema/profile 结构 | 数量或 yield 是否合理 |
@@ -44,6 +46,8 @@ optional evidence references protected resources, not embedded files
 | correction relationship | 是否违反具体食品法规 |
 
 `CONFIRMED` 只能解释为“声明已签名、独立归档并锚定”，不能显示为“平台已验证业务真实或合规”。
+
+将规则放入 Regulatory Analytics 不会把它降为外围系统：deterministic heuristics 是平台整体的核心领域能力，只有 ML 算法本身是可选的。Core 与 Analytics 使用异步 peer integration，是为了隔离规则故障并保留原始冲突证据，而不是让平台忽略领域风险。
 
 ## 不可变历史与纠错
 

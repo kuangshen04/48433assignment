@@ -146,9 +146,11 @@ Normative basis: <https://ref.gs1.org/standards/epcis/2.0.1/#ErrorDeclaration>
 
 **边界条件/假设：** 平台可能发生内部滥用、管理员账号泄露、基础设施入侵、错误恢复、商业压力或停止运营。系统需要防止平台在事件确认后无痕修改历史，并在平台失效后恢复 canonical trace。
 
+**这是题设驱动且有意选择的架构前提。** 作业明确要求采用 blockchain，因此必须给它一个普通平台数据库、审计日志和备份不能独立完成的职责。如果所有参与方都完全信任平台运营者控制 payload、唯一副本、密钥和审计结果，那么 managed PostgreSQL + WORM backup 已经足够，额外写入 blockchain 只会成为 `blockchain theatre`。B1 因而不是背景已经证明的行业事实，而是为题目中的区块链要求建立的显式 scenario：参与方不完全信任平台对确认后历史的单方控制，公共链承担平台控制域之外的 existence/integrity checkpoint。
+
 该“不完全信任”主要针对 history integrity、availability、key control 和 censorship accountability，不代表向平台 runtime 隐藏 `CONSORTIUM` plaintext。平台作为获授权数据处理者具有运行查询/projection 所需的 decrypt 能力；应用或 service role 被攻破仍可能造成 consortium confidentiality breach，需以 least privilege、审计、限流和 breach response 缓解。若要求平台也不可读，需要另行采用 client-side decryption/confidential computing，不属于当前基线。
 
-**为什么这样定：** 如果事件 payload、commitment、查询结果和唯一副本都由平台控制，blockchain 只是平台内部的 append-only 实现，参与方仍然必须完全信任平台。
+**为什么这样定：** 如果事件 payload、commitment、查询结果和唯一副本都由平台控制，blockchain 只是平台内部的 append-only 实现，参与方仍然必须完全信任平台。反过来，如果最终部署中的 archive、KMS account、recovery identity 和 chain verification 仍全部由平台单独控制，即使名义上用了公链，也没有兑现 B1，仍属于 blockchain theatre。
 
 **否决的方案一：完全信任平台数据库和备份。** 无法独立验证历史，也无法应对平台退出。
 
@@ -1181,6 +1183,8 @@ APPLICANT → ACTIVE → SUSPENDED → ACTIVE / EXITED / REVOKED
 
 **决定：** 不判断。核心平台只验证 event 的 schema/profile shape、signature、organisation authority、canonicalisation、idempotency 和 envelope/lifecycle validity。只要一项声明在技术和权限上有效，就保留发布方签署的原始 claim；平台不生成官方 anomaly、fraud、mass-balance 或 compliance status，也不因跨事件关系看起来不合理而拒绝归档和锚定。
 
+**这是领域知识与规则权威的架构前提，不是为了减少实现工作。** 平台运营者不知道不同产品、地区和监管制度下什么数量、时序、温度、加工损耗或关系组合才算合理，也无权自行发明这些规则。把普通领域启发式校验和高级 statistical/ML analysis 一起放入 regulator-controlled Regulatory Analytics，可让监管方配置、版本化和审计规则，并对规则结论负责。这里 optional 的只是 ML 技术；deterministic regulatory heuristics、rule evaluation、freshness 和 controlled disclosure 使 Regulatory Analytics 成为平台整体的一等核心业务子系统，而不只是供监管人员“查东西”的外围报表工具。
+
 ### Admission validation only
 
 核心可以拒绝：无法解析的 EPCIS/profile payload、缺失 schema-required fields、非法数据类型或 vocabulary、无法 canonicalise 的内容、无效 signature、无权 publisher、同一 `captureRecordId` 对应不同 digest、违反 A6 Error Declaration 特例的重复 EPCIS eventID、损坏的 signature/archive envelope，以及非法 lifecycle transition。
@@ -1212,11 +1216,11 @@ Confirmed source assertions
 → optional regulator-signed Assessment/Inspection event
 ```
 
-监管方可以自行配置 duplicate-consumption、mass-balance、timing/location、correction-frequency、sensor-excursion 和 supplier-risk rules。它们遵守 B15 的最小化数据权限，输出默认 regulator-private；经监管方显式批准的 finding 可以按 B21 作为 preliminary advisory 提供给平台转达。只有监管人员复核并签署的正式结论才进入 canonical trace。
+监管方可以自行配置 duplicate-consumption、mass-balance、timing/location、correction-frequency、sensor-excursion 和 supplier-risk rules。它们遵守 B15 的最小化数据权限，输出默认 regulator-private；监管方可以把一部分基础 rule/version 的输出授权为 `SUBJECT_ORGANISATION` 或 `CONSORTIUM_ADVISORY`，由平台据此提供基础提醒。第一版的“授权给平台”是返回带 rule version、watermark、expiry、scope 和 regulator signature 的 `AdvisoryFinding`，不是把可执行监管代码复制进 Traceability Core，也不授予平台自行修改规则的权力。只有监管人员复核并签署的正式结论才进入 canonical trace。
 
 **需要接受的代价：** 没有启用监管分析时，核心系统会保存甚至展示明显矛盾的 source assertions。`CONFIRMED` 只能解释为“已签名、归档并锚定”，不能被 UI 或报告表达为“平台已验证业务真实、数量合理或合规”。Recall traversal 也必须保守处理所有相关 claims，而不能依赖一个平台判定的唯一正确路径。
 
-**为什么可以接受：** 区块链和 EPCIS 在本系统中提供 attribution、trace reconstruction 和 post-confirmation integrity，而不是通用欺诈检测。把产品、地区和监管机构特有的启发式规则留在 regulator-controlled analytics，可以避免核心平台变成难以治理的规则引擎，也避免错误规则阻止冲突证据进入历史。
+**为什么可以接受：** 区块链和 EPCIS 在本系统中提供 attribution、trace reconstruction 和 post-confirmation integrity，而不是通用欺诈检测。把产品、地区和监管机构特有的启发式规则留在 regulator-controlled analytics，可以避免 Traceability Core 变成由平台擅自维护的规则权威，也避免错误规则阻止冲突证据进入历史；受控披露又让平台仍能使用监管方批准的基础结果提供及时提醒。
 
 ---
 
@@ -1408,7 +1412,7 @@ Platform、participant 和 regulator 分别保留适用于自身控制数据的�
 
 ## B21. Regulatory Analytics 是否只供监管方使用，还是也向平台提供辅助能力？
 
-**决定：** Regulatory Analytics 与 Traceability Core 是 peer subsystems。规则、统计分析和 optional ML 在 regulator-controlled environment 中运行；结果默认 regulator-private，但监管方可以通过明确的 disclosure policy，把选定的 rule/finding 作为 signed preliminary advisory 提供给平台。平台只负责验证、路由和展示获准结果，不继承监管系统的完整数据、模型或法定权限。
+**决定：** Regulatory Analytics 与 Traceability Core 是 peer core subsystems，而不是只供监管人员查询的附加报表模块。普通领域启发式规则、统计分析和 optional ML 都在 regulator-controlled environment 中运行；结果默认 regulator-private，但监管方可以通过明确的 disclosure policy，把选定基础 rule/version 的输出作为 signed preliminary advisory 提供给平台用于基础提醒。平台只负责验证、路由和展示获准结果，不继承监管系统的完整数据、模型或法定权限。
 
 ```text
 Confirmed CONSORTIUM Projection
@@ -1460,6 +1464,8 @@ AdvisoryFinding
 Platform Advisory Ingestion 验证 regulator identity、signature、rule/finding version、expiry 和 disclosure scope，再将结果路由给允许的组织或角色。平台不能扩大 audience、重新解释 severity、查看 regulator-only context，或把 advisory 与平台自己的判断混合。
 
 AdvisoryFinding 不进入 canonical trace，不影响 event validation、handover status、membership、consumer projection 或 recall status。它只能生成 preliminary reminder、建议查看 evidence 或联系监管方。如果一项规则要成为强制 submission/schema requirement，必须经独立治理流程发布新的 Product Profile/Regulatory Policy 和 effective date，不能通过隐藏 analytics rule 改变 write path。
+
+因此“监管方授权基础规则给平台”在第一版中的准确含义是：监管方授权特定 `ruleId/ruleVersion` 的 finding 可按指定 scope、watermark 和 expiry 被平台用于提醒；规则仍在监管控制域执行，平台不能修改或扩大适用范围。若未来确实需要低延迟本地执行，再单独评估 signed declarative rule package 和 sandbox，不能把它悄悄并入 Core validation。
 
 当前基线不把 industry association 视为 Regulatory `AdvisoryFinding` 签发主体。行业机构可以通过联盟治理提议 Product Profile、vocabulary 或行业指导，但只有按 GovernanceRecord 流程发布后才影响平台。若未来允许行业机构直接发布提示，必须新建与 Regulatory Advisory 明确分开的 authority type、适用成员范围和 UI 语义，不通过泛化 `sourceRegulatorId` 默认扩权。
 
@@ -1722,6 +1728,8 @@ Q&A 阶段可以保留产品选型待定，但最终 deployment/infrastructure v
 
 > 本系统是跨组织农业供应链追溯层，而不是农业 ERP。参与方通过 PWA 或既有系统发布联盟 profile 约束的 EPCIS events。消费者只读取公开 projection；联盟成员共享足以重建路径和定位潜在责任方的 canonical EPCIS trace core；商业详情和原始证据作为 participant-owned ProtectedResources，由参与方保存或选择平台托管。系统不声称区块链证明物理事实真实，但要求平台运营者不能单方面静默重写或垄断已经确认的历史。
 
+其中有两个不能在报告压缩时省略的成立前提。第一，B1 是为了让题目明确要求的 blockchain 承担真实的外部完整性职责；如果参与方完全信任平台，数据库加 WORM backup 已足够，区块链会退化为 theatre。第二，B17/B21 不是取消领域校验，而是把平台无权定义的普通领域启发式与高级分析统一交给 regulator-controlled Regulatory Analytics；该系统是一等核心业务子系统，监管方可将选定基础 rule findings 授权给平台用于提醒，只有 ML 算法本身是可选的。
+
 Canonical shared trace 使用 per-event DEK 加密，并在确认前取得至少一个平台控制域之外 WORM archive operator 的 signed ArchiveAck；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的 external existence/integrity checkpoint。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台有运行所需的 decrypt 使用权但没有密钥管理权，因此本方案不声称防止被攻破的平台 runtime 泄露 consortium plaintext。
 
 联盟内注册组织之间的 B2B 实物交接由 sender-signed shipping claim 与 receiver-signed receiving claim 两份独立声明组成，在 EPCIS 中映射为标准 events 加 shipping/receiving bizStep；二者分别确认，平台只派生 handover status。网络外对手方使用明确标注的单方 boundary claim，消费者零售不要求消费者签名。缺少接收确认不会抹去发货声明，争议、未确认和 `EXTERNAL_COUNTERPARTY` edges 仍进入 recall/audit 查询并明确标记保证等级。
@@ -1754,4 +1762,4 @@ NSW pilot 的 reference workload 为 200 个初始组织、2,000 名内部用户
 
 # 答辩时的一分钟版本
 
-> We are building a cross-organisation agricultural traceability layer rather than an ERP. Small participants may use the platform PWA, while mature organisations integrate through EPCIS or APIs. Before confirmation, the encrypted canonical trace receives a signed acknowledgement from at least one independently controlled WORM archive; large members and regulators may maintain additional optional mirrors. The consortium encryption key is held by a professionally managed KMS account controlled by the consortium or an independent trustee, while the platform receives usage but not administrative authority. A public blockchain stores periodic Merkle roots, making post-confirmation replacement detectable without exposing supply-chain data. During the applicable retention or legal-hold period, an independent recovery path can rebuild the trace without the platform database. Consumers receive an allowlisted public projection, while detailed evidence remains participant-owned and may optionally be hosted by the platform. This design does not claim that blockchain proves the physical truth or consistency of source assertions.
+> We are building a cross-organisation agricultural traceability layer rather than an ERP. Because the assignment explicitly requires blockchain, we make platform-operator distrust an explicit scenario: otherwise a managed database and WORM backup would be sufficient and blockchain would be theatre. Before confirmation, the encrypted canonical trace receives a signed acknowledgement from an independently controlled WORM archive, the consortium key is administered outside the platform account, and a public blockchain stores periodic Merkle roots so post-confirmation replacement is externally detectable. The Traceability Core validates structure, signatures and authority but does not invent product- or jurisdiction-specific plausibility rules. Those deterministic heuristics, statistics and optional ML belong to a regulator-controlled Regulatory Analytics peer subsystem, which can authorise selected signed findings for platform reminders while retaining rule ownership and formal decision authority. Consumers receive an allowlisted public projection, detailed evidence remains participant-owned, and an independent recovery path can rebuild retained trace data without the platform database. Neither blockchain nor analytics is presented as proof of physical truth.

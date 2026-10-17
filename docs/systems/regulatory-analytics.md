@@ -4,9 +4,11 @@
 
 ## 系统定位
 
-Regulatory Analytics 与 Traceability Core 是 peer subsystems。Core 保留可归责的 source assertions；Analytics 在 regulator-controlled environment 中运行启发式规则、统计分析或 optional ML，并把结果用于调查辅助。
+Regulatory Analytics 与 Traceability Core 是 peer core subsystems。Core 保留可归责的 source assertions；Analytics 在 regulator-controlled environment 中运行普通领域启发式规则、统计分析或 optional ML，并把结果用于风险筛查、平台基础提醒和监管调查。
 
-它不是 Traceability Core 的内部规则引擎，也不是平台用来自动决定违法、召回或事件有效性的组件。
+它不是只供监管人员“查东西”的附加报表工具，也不是 Traceability Core 的内部规则引擎。平台运营者不知道不同产品、地区和监管制度下的权威领域规则，因此 deterministic heuristics 与高级分析统一由监管方配置、版本化和审计。这里 optional 的是 ML 技术，而不是 Regulatory Analytics 这一核心业务能力。
+
+它也不是平台用来自动决定违法、召回或事件有效性的组件：规则执行结果必须保留来源、版本、watermark 和保证等级，正式监管结论仍需 authorised officer 签署。
 
 ## 身份与权限分离
 
@@ -48,6 +50,12 @@ approved rule/finding
 ```
 
 `AdvisoryFinding` 至少绑定 issuer、rule/version、affected references、severity/reason codes、data watermark、generated/expiry time、disclosure scope 和 regulator signature。它不进入 canonical trace，不改变 event validity，也不自动成为 recall。
+
+### 基础规则如何授权给平台
+
+监管方可以把部分基础 `ruleId/ruleVersion` 的输出标为 `SUBJECT_ORGANISATION` 或 `CONSORTIUM_ADVISORY`。第一版仍由规则在 regulator-controlled environment 中运行，再向平台返回 signed `AdvisoryFinding`；平台据此生成基础提醒，但不能修改规则、重新解释 severity 或扩大 audience。
+
+这实现了“监管方把基础规则能力授权给平台使用”，同时避免平台维护一套未经授权的领域规则副本。未来若低延迟确实要求平台本地执行，可以单独设计 signed declarative rule package 与 sandbox；它不能悄悄进入 Core write validation。
 
 ## 披露范围
 
