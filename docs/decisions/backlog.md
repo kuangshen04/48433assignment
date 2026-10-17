@@ -1,0 +1,78 @@
+# 待办清单
+
+本页记录**还没关掉的架构决策与交付工作**。已确定的内容见[决策目录](/decisions/catalog)，理由与取舍见[完整决策日志](/decisions/log)，C1–C3 的参数关闭见[待定事项](/decisions/open-items)。
+
+状态：`未开始` / `进行中` / `已完成`。
+
+## 已完成（2026-10-18）
+
+| 事项 | 结果 |
+|---|---|
+| B17 重述 | 改为「记录断言 / 签署判定」两分，补上 non-collapsing 表示义务（相对 scope） |
+| B21 重述 | Regulatory Analytics 明确为系统边界内的 peer subsystem、监管方独立运行时域，并承担 C4 分解责任 |
+| B3 保证范围 | 验证与重建分开：任一成员可验证历史 append-only，重建受 scope 限制；KEK epoch 构成时间边界 |
+| B7 补强 | 批次序列必须可验证（running hash chain 或 consistency proof），作为 B3 的技术前提 |
+| B23 新增 | PRIVATE 不上平台，只留加盐承诺；可选零知识托管；分享由所有者加密授予，不做事件级受众 |
+| B24 新增 | 组织是唯一身份、访问与租户单元；每请求显式绑定 acting organisation；组织层级 out of scope |
+| 文档迁移 | `major-decisions-qa.md` 移入本站为[完整决策日志](/decisions/log) |
+
+---
+
+## 第一批：会改变容器图，必须先做
+
+这几条决定 container / component 清单，晚做会返工。
+
+| 编号 | 事项 | 动作 | 影响 |
+|---|---|---|---|
+| T1 | **数量归类** | 按 B3 判据把 `quantityList` 定为 `CONSORTIUM`；商业数量（PO / 发票 / 合同量 / 价格）留在平台外；`PUBLIC` 投影默认不含精确数量 | 2.4 / 2.8；也是 B9 部分收货与 B21 mass balance 的前提 |
+| T2 | **平台侧 Insights 数据层** | 定义 ELT（confirmed projection → 列式 warehouse / mart）+ dashboard / serving 容器；只读 `CONSORTIUM`，不碰 PRIVATE；与 Regulatory Analytics 的「判断」明确分离 | 4.6–4.9（5 分）+ brief 第 6 条 |
+| T3 | **Analytics 子系统的 C4 设计** | 落实 B21 的债：5–6 个 container、约 10 个 component、9 个类，命名 + 职责 + 接口；Core ↔ Analytics 作为信任边界 | 3.2–3.10；4.B 加分的基础 |
+| T4 | **运营数据的租户隔离** | registry / job / outbox / export 的 `organisationId` 谓词 + RLS 兜底；export 绑定 tenant 或 case scope；运维访问 break-glass | 2.7 / 4.18（B23 只解决了内容，没解决运维数据） |
+
+## 第二批：把已有材料写成论证
+
+不需要新设计，主要是改写与补表。
+
+| 编号 | 事项 | 动作 | 影响 |
+|---|---|---|---|
+| T5 | **B1 框定改写** | 从「不信任平台运营者」改为「多方不可抵赖 + 第三方可验证」；机制完全不变 | 1.1 / 1.2 的说服链 |
+| T6 | **B8 可行性 fallback** | 给出 v1 基线（平台存储 + 跨管理域副本）与演进触发；说明 `ArchiveAck` 需要会签名的服务方，而不是一个存储桶 | 1.1 risk、4.14 deployment |
+| T7 | **合规义务映射表** | 「法规义务 → profile 强制字段 / EPCIS 关系 → 缺失时状态」3–5 行；不越过 B17（只证明字段存在且可追溯） | brief 第 5 条、2.7 |
+| T8 | **IoT 时延三层** | 实时采集（边缘）/ 准实时可用（receipted）/ 最终可验证（CONFIRMED）；明确冷链超温响应归参与方本地，平台侧告警是 post-confirmation | brief 第 3 条、A8 |
+| T9 | **`RuleVersion` 治理** | 规则如何发布与发现、是否进 archive / Merkle batch、撤回时已发出的 AdvisoryFinding 怎么处理 | B21 的完整闭环 |
+| T10 | **第二个替代方案** | 「不上公链」对照：中心化 WORM + 外部时间戳 / 透明日志；三方案在成本、信任结构、合规风险上比较 | 5.4（+2 分） |
+
+## 第三批：小修与新债
+
+不改变容器，只改文字和一两张表，可以一次过。
+
+| 编号 | 事项 | 动作 |
+|---|---|---|
+| T11 | `actorId` 移出 canonical trace | EPCIS 没有 who 维度；归因由 organisation + signature 承担，actor 留在可变 audit |
+| T12 | `DEVICE_BOUND_SELF_CUSTODY` | B5 补第 4 档：PWA 本地 passkey/WebCrypto 签名，让离线能产生真实签名事件；同步改 iot-edge 的「只能存 draft」 |
+| T13 | `handoverId` 改为 `bizTransaction` | 用 `bizTransactionList`（desadv / receiving advice）承载，提升 EPCIS/CBV 一致性 |
+| T14 | 四角色 UI 职责表 | farmer / distributor / retailer / consumer 的录入与查询职责（现在只有三个读取平面） |
+| T15 | 多区域论证 | 产品线靠 profile、区域靠单区试点 + 分区触发，写成完整回答 |
+| T16 | B3 扁平论证改写 | 「强商业披露假设」改成正面论证（验证/重建 + B23 已提供材料） |
+| T17 | 加密密钥生命周期 | `ENCRYPTION` 用途密钥的发布、轮换、旧私钥保留（否则历史证据变不可读） |
+| T18 | Evidence request 流转 | `REQUESTED → GRANTED / DECLINED / EXPIRED` 状态、超时、审计；平台只转达不取证 |
+| T19 | `availabilityStatus` 语义 | `OWNER_ASSERTED / OBJECT_PRESENT / UNKNOWN` 谁设置、UI 怎么表达、调查里算不算不配合 |
+
+## 报告阶段：不需要新决策，但必须做
+
+| 编号 | 事项 | 说明 |
+|---|---|---|
+| R1 | Dynamic diagram 选型 | 建议用 event capture → archive → anchor → confirm 作主场景；18 个状态折叠成 5 段 |
+| R2 | SOLID / 设计味道映射 | A7 的 ports/adapters、B5 的单一 `EventSignatureVerifier`、B11 的 profile 与 core 分层已是现成证据（4.4 / 4.5） |
+| R3 | ATAM / HAZOP | 日志里的「承受的代价」「否决的方案」直接就是风险与 trade-off 素材（5.3） |
+| R4 | C1–C3 reference deployment | 云部署策略按要求暂缓，但提交前必须选定一套可实施的配置，否则 4.14 / 4.15 没有内容 |
+| R5 | Glossary | 所有图例、符号、缩写、关键术语进附录，**不超过三页**（硬性要求） |
+| R6 | 字数预算与裁剪 | ≤5000 词；D1–D7 保留、B8/B16/B20 的细节压缩或移出正文 |
+| R7 | 提交检查 | Contribution Table 全员签署（未签为零分）；Turnitin 时间 |
+
+## 建议顺序
+
+1. **T1 → T2 → T3 → T4**：一口气做完，因为它们共同决定容器图。
+2. **T5 → T10**：论证类，材料都在日志里，写成文即可。
+3. **T11 → T19**：批量小修。
+4. **R1 → R7**：进入写报告阶段。

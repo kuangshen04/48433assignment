@@ -1,5 +1,7 @@
 # 待定事项
 
+本页只管 C1–C3 这类「逻辑边界已定、只差产品参数」的关闭项。**还没做出的架构决策与交付工作见[待办清单](/decisions/backlog)。**
+
 现有架构不需要大规模重构。剩余工作主要是把已确定的逻辑边界落实为一套可验证的 reference deployment，而不是继续增加抽象决策。
 
 ## C1 · Public-chain anchoring

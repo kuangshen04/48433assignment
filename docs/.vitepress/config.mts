@@ -60,6 +60,7 @@ export default defineConfig({
             { text: '完整决策日志', link: '/decisions/log' },
             { text: '系统—决策矩阵', link: '/decisions/system-matrix' },
             { text: '待定事项', link: '/decisions/open-items' },
+            { text: '待办清单', link: '/decisions/backlog' },
           ],
         },
       ],
