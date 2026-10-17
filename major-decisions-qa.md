@@ -171,6 +171,8 @@
 - network profile 允许的 sensor/compliance summary；
 - protected-resource reference、owner、issuer metadata 和 content commitment。
 
+除 EPCIS trace payload 外，独立恢复包还必须保留验证和解释历史所需的 published Product Profile definitions、canonicalisation definitions、organisation/public-key history、key revocation history、network vocabularies、governance records、archive envelope specification 以及 public-chain contract/migration metadata。只恢复 payload 而无法还原当时的身份、schema 和验证规则，不算完成 trace recovery。
+
 **默认不强制恢复：** 原始高频 telemetry、完整实验室文件、证书文件、照片、合同、商业单据、内部 ERP/WMS/TMS 明细和私有扩展。
 
 ### 当前存储分工
@@ -396,6 +398,8 @@ APPROVED
 REJECTED
 EXPIRED
 ```
+
+Human authentication 与 organisation event signing 是不同边界。大型企业用户通过企业 IdP federation 登录，小型参与方使用 managed customer identity provider；核心系统只消费 authenticated subject claim 并检查其 organisation/role binding，不自行实现企业员工目录、密码或 MFA。Canonical event 只保留 pseudonymous `actorId`、signer organisation 和 signature，不永久保存员工姓名或邮箱。
 
 ### 平台需要维护的 provider adapters
 
@@ -886,6 +890,8 @@ PLATFORM_HOSTED
 
 IoT provider/device signature 可以证明 bundle 的技术来源，但 canonical EPCIS publication 仍需要 organisation 或其注册 gateway/machine actor 承担声明责任。企业 gateway 可以按获批 policy 自动签名，无需人工批准每一条 reading。
 
+IoT vendor/参与方负责完整 device fleet identity、certificate provisioning、firmware、connectivity 和 calibration operations。追溯平台只注册向本系统上传数据的 integration principal、organisation delegation、allowed scopes、public-key/credential reference 与 validity；不为每个低成本 sensor 建立平台账号。Device-level signature 是可选 provenance，不能替代 organisation 对 canonical publication 的责任。
+
 缺少 sensor evidence 不得使已经发生的 shipping/receiving 从 trace 中消失。业务事件仍可记录，但 evidence status 显示为 `MISSING`、`DELAYED` 或 `UNAVAILABLE`，product profile 可以产生 compliance warning 或阻止某个合规结论。设备签名、校准、防拆和 content hash 提高 assurance，但不能证明传感器实际安装位置或测量的物理真实性。
 
 **需要接受的代价：** 平台和审计方不能随时直接查询所有 raw telemetry；调查时可能需要 participant access grant，且参与方可能无法提供材料。Platform-hosted 模式还需要 tenant isolation、retention、deletion 和 access-audit controls。
@@ -948,6 +954,92 @@ ML alert 默认属于 regulator-owned `PRIVATE` data，不能直接进入 consum
 **需要接受的代价：** 平台需要单独的 regulatory analytics projection、service identity、export audit 和 risk-alert store；监管人员调查 private evidence 时走另一条 case-specific authorization path，不能简单复用 ML 的批量数据接口。
 
 **为什么可以接受：** ML 需要足够数据发现异常，但不需要监管机构的全部法定权力。身份和数据路径分离降低了大规模 private-data 暴露、外部模型供应商滥用、误报自动执法以及模型输出泄露企业声誉信息的风险，同时保留监管方依法调查和签署正式结论的能力。
+
+---
+
+## B16. Human、Machine 与 Organisation Identity 的管理边界是什么？
+
+**决定：** 核心系统不建设完整 Human IAM 或 IoT device-fleet IAM。Human identities 由企业 IdP 或 managed customer identity provider 认证；IoT/device identities 由参与方或 IoT provider 管理。追溯核心只管理 `Organisation Registry`、`Organisation Key Registry`、进入本系统的 scoped delegations，以及不可覆盖的 governance-change history。
+
+```text
+External/participant Human IAM
+→ authenticated subject claim
+→ platform organisation/role authorisation
+
+Participant/IoT-provider Device IAM
+→ registered gateway/integration principal
+→ scoped sensor-data submission
+
+Core traceability identity
+→ organisation membership + public keys + delegations
+→ accountable canonical event publication
+```
+
+### Minimal core registries
+
+```text
+Organisation Registry
+- organisationId
+- legal/business identifiers
+- organisationType
+- membershipStatus
+
+Organisation Key Registry
+- keyId / publicKey
+- custodyMode
+- validFrom / validTo
+- revocationStatus
+
+Delegation Registry
+- subjectOrIntegrationPrincipalId
+- organisationId
+- allowedScopes
+- validFrom / validTo
+- status
+
+Governance Record History
+- membership/key/profile change
+- approvers/signatures
+- effectiveAt/reason
+- previousRecordHash
+```
+
+Human subject binding 支持 organisation-local roles，例如 OrgAdmin、EventPublisher、EvidenceManager 和 Viewer，但 employee onboarding/offboarding、HR structure、password 和 MFA lifecycle 由 identity provider 管理。Machine delegation 只允许已注册 gateway/provider 代表指定 organisation 发布限定 event types、locations 或 devices，不能因为能上传 sensor data 就获得 shipping、transformation 或 regulator 权限。
+
+### Membership governance is limited trust
+
+现实组织身份不能由 public chain 自动判断，因此保留一个 `Membership Governance Function`，而不是假设一个全能、完全可信的 Membership Authority。平台执行 application、材料收集、technical checks 和 tenant provisioning；联盟秘书处、行业机构或被授权 membership officer 核实现实组织身份并签署 activation/suspension/exit record。
+
+```text
+Membership governance
+→ establishes who may participate and under which role
+
+Organisation signature
+→ attributes each business statement
+
+Public-chain commitment
+→ prevents silent replacement of confirmed records
+```
+
+普通 participant onboarding 可以由一个独立 authorised membership officer 批准；regulator role、lost-key recovery、KMS recovery、profile publication、archive-operator change 和 chain migration 等高影响操作使用独立 dual control。这里的审批是低频治理流程，不是新的 BFT network，也不要求所有联盟成员逐项投票。
+
+Membership/key/profile changes 使用签名的 `GovernanceRecord`，进入 independent archive 和 Merkle anchoring；PostgreSQL current registry 是可重建 projection。平台不能仅修改数据库就无痕激活虚假组织、授予 regulator role 或替换历史 public key。
+
+### Membership and key lifecycle
+
+```text
+APPLICANT → ACTIVE → SUSPENDED → ACTIVE / EXITED / REVOKED
+```
+
+`SUSPENDED/EXITED/REVOKED` organisation 不能发布新 canonical events 或获得新的 consortium access/key epoch，但过去的 membership、public keys 和 signed events 保留供验证。正常 key rotation 由当前 organisation key 授权；旧 key 丢失时走独立 dual-control recovery。Key compromise 触发 suspension、new-key issuance 和受影响事件调查，不物理删除旧签名，也不自动断言泄露前全部事件无效。
+
+退出成员不再获得新 KEK epoch 或在线 consortium access，但密码学上无法撤回其已经下载的 plaintext。是否在争议或法律要求下恢复特定旧资料，走审计的 regulator/governance access path。
+
+**为什么仍需要 public blockchain：** Membership governance 只被有限信任去判断现实参与资格，不被授权代表成员签事件、删除 archive 或重写历史。即使它错误批准恶意成员，该成员也只能用自己的可追责身份发布声明；它不能伪造其他 self-custody organisation 的签名或修改过去的 finalised commitments。如果平台和 membership governance 被假设为可以完全控制且完全可信，区块链才确实没有必要，但这不是 B1 的威胁模型。
+
+**需要接受的代价：** 平台需要 federation/managed-IAM adapters、organisation/key/delegation registries 和治理审批记录；onboarding、lost-key recovery 和高权限变更不会即时完成。
+
+**为什么可以接受：** 核心只保留跨组织追责所必需的身份事实，不复制企业 IAM 或 IoT device-management 能力。有限治理解决现实身份入口，签名解决声明归属，public commitment 解决确认后的不可篡改，三者职责不重叠。
 
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
@@ -1124,6 +1216,8 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 原始 IoT telemetry 默认作为 participant-controlled PRIVATE ProtectedResource，由参与方自管或选择平台托管；canonical trace 只保存 profile-required sensor summary、异常、provenance、reference 和 content commitment。一体化设备接入不改变数据分类和举证责任。
 
 监管机构与其 ML 工具使用不同身份和权限。监管方可以读取 confirmed consortium trace，并在具体案件中依据记录的法律或治理授权访问选定 private evidence、签署正式监管事件；ML 只读取最小化的 regulatory analytics projection，输出 regulator-private advisory alerts，不能访问任意 private resource、作出监管决定或直接写入 canonical trace。
+
+Human 和 IoT fleet identity 由外部/参与方 IAM 管理；核心只保存 organisation membership、organisation public keys、scoped user/machine delegations 和 signed governance history。Membership governance 只判断现实参与资格，高影响变更采用独立 dual control；它不能替成员签署事件或改写 public-chain finality，因此不取代区块链的完整性职责。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
