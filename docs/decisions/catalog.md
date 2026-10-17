@@ -97,7 +97,11 @@
 <a id="b5"></a>
 ### B5 · 统一 SignatureEnvelope，保留 custody 差异
 
-**Baseline.** 支持 enterprise self-custody、assisted external custody 和 delegated platform custody。签名真实性、acceptance-time authority 与 trusted signing-time evidence 分开验证；客户端时间不能绕过撤销。
+**Baseline.** 支持 enterprise self-custody、**device-bound self-custody**、assisted external custody 和 delegated platform custody。签名真实性、acceptance-time authority 与 trusted signing-time evidence 分开验证；客户端时间不能绕过撤销。
+
+**Device-bound 档位的边界：** 它是**组织的设备密钥**（私钥不可导出、绑定一条 delegation），不引入自然人身份，因此只证明"哪个组织"、不证明"哪个自然人"；设备丢失或共享会削弱 assurance。**载体是硬边界**——iOS 上可靠的密钥持久化不可得，该档位只在支持的载体上提供，其余退回 draft + 联网补签。不要对外承诺"所有小农场都能离线签名"。
+
+**`actorId` 已移出：** canonical trace 与 `SignatureEnvelope` 都不再带自然人标识，归属只由 `signerOrganisationId` + `keyId` + `custodyMode` + `assuranceLevel` 承担（EPCIS 本无 who 维度）。"谁操作了"留在可变 operational audit。代价：immutable 层不再能回答"哪个员工签的"，内部追责需组织自证。
 
 <a id="b6"></a>
 ### B6 · ArchiveAck + public finality 后才 CONFIRMED
@@ -121,7 +125,7 @@
 
 **Baseline.** Sender 与 receiver 分别签署；Core 只存两份 claim 与配对引用，**handover status 由 HandoverModule 派生**（B25）。网络外交易方标为 `EXTERNAL_COUNTERPARTY`，消费者零售不要求消费者签名。
 
-**配对键必须稳定：** profile 指定唯一的配对键类型，收货方必须引用**发货方签发的那个键**（候选：`bizTransaction` 的 desadv，见待办 T13）。否则 `ACCEPTED` 退化为启发式匹配，`PARTIALLY_ACCEPTED` 不可靠。
+**配对键用 `bizTransaction`（desadv），不自造标识：** 发货方 shipping claim 引用自己签发的 desadv，**收货方 receiving claim 必须引用同一个 desadv**，HandoverModule 按它配对。理由是 EPCIS 本就把物理流（`quantityList`）与商业单据（`bizTransactionList`）分开，而 desadv 是唯一"双方在看同一个东西"的单据。`EXTERNAL_COUNTERPARTY` 可以没有配对键。收货方不复用发货方的键，`ACCEPTED` 就会退化成启发式匹配、`PARTIALLY_ACCEPTED` 不可靠。
 
 <a id="b10"></a>
 ### B10 · Append-only trace core，不采用全应用 Event Sourcing
@@ -154,6 +158,8 @@
 ### B15 · Regulator 与 Analytics 使用不同身份权限
 
 **Baseline.** Analytics 只读 purpose-minimised confirmed projection，无任意 archive/KMS/private-evidence 权限，不能继承监管人员法定能力。该子系统位于系统边界内但属监管方运行时域（B21）：边界内不代表平台可获得它的规则、模型或 finding 数据。**唯一例外**是 B23 的窄通道——所有者提交时已把内容加密给监管 scope，Analytics 可用自有密钥解密并对照 commitment 校验；授权来自所有者，不是权限扩张。
+
+**Evidence request 只是审计记录：** 平台无法代理解密，因此取用私有证据必须落成一次请求。它是一条 `AuditRecord(type=EVIDENCE_REQUEST)`（caseId、requester、owner、resourceRefs、legalBasis、有效期、`outcome`），`outcome` 由参与方行动**推导**、超时为 `NO_RESPONSE`；**不建工作流引擎、portal、催办或 SLA**；请求记录属 regulator-private、不进 canonical trace，可信性靠最终签署的 assessment 引用 `requestId`。
 
 <a id="b16"></a>
 ### B16 · Human/Device IAM 在外围，Organisation Governance 在核心
@@ -208,6 +214,10 @@
 **收益而非限制：** commitment 随事件锚定后，参与方事后无法替换证据而不被发现；加盐使低熵内容不可被字典穷举；retention 到期后 commitment 仍在但无 nonce 无法反推内容。平台在提交时无法验证 commitment 对应真实材料——这正是“举证义务在参与方”的准确含义。
 
 **明确不承诺：** 密钥恢复、平台侧取证、PRIVATE 内容的可用性进入 core RPO/RTO、删除的全局证明、元数据保密。详见日志 B23 的不承诺清单。
+
+**`availabilityStatus` 是两个独立事实的并集：** `OBJECT_PRESENT`（平台确实存着密文，**不代表能解密**）、`OWNER_ASSERTED`（所有者声明持有，平台无法核实）、`UNKNOWN`（两者都无）。两条使用规则：`OBJECT_PRESENT ≠ 可读`、`UNKNOWN ≠ 不存在`——调查不能把"平台查不到"写成"对方没提供"。它不影响任何 canonical event 的有效性。
+
+**`ENCRYPTION` 密钥生命周期与签名密钥相反：** 撤销只阻止"再加密给它"，已加密的密文仍可解；**旧私钥必须保留到最后一份用它加密的密文被删除**，否则历史证据永久不可读；丢失即永久不可解（无 escrow）。因此 `recipientKeyRefs` 必须带 `keyId`，且旧私钥销毁要与 B20 的 retention 终态联动。
 
 **设计：** `ProtectedResource` 字段与 `availabilityStatus` 语义见 [Data & Access](/systems/data-access)。
 

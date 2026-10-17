@@ -6,11 +6,13 @@
 
 | 层 | 谁管理 | Core 保存什么 |
 |---|---|---|
-| Human Identity | 企业 IdP 或 managed customer identity | pseudonymous subject 与 organisation/role binding |
+| Human Identity | 企业 IdP 或 managed customer identity | **仅可变层的 delegation**（subject → organisation + scope）；canonical trace 不含任何自然人引用 |
 | Machine/Device Identity | 参与方或 IoT vendor fleet IAM | integration principal、delegation、scope、credential reference |
 | Organisation Identity | Membership Governance | organisation status、public keys、roles、governance history |
 
 平台不复制企业员工目录、密码/MFA lifecycle，也不为每个低成本 sensor 建立平台账户。
+
+**`actorId` 不进入 immutable 历史**（B5）：canonical event 只记录 signer organisation、`keyId`、`custodyMode` 与 `assuranceLevel`。"谁在何时操作"留在可变的 operational audit，可被组织自己的 IdP 日志印证；组织内部追责由组织负责（B24）。
 
 ## 组织是唯一的身份与访问单元（B24）
 
@@ -83,10 +85,15 @@ PROPOSED
 | 模式 | 私钥控制 | 主要保证 |
 |---|---|---|
 | `ENTERPRISE_SELF_CUSTODY` | 参与组织 | 平台不能单独冒充组织 |
+| `DEVICE_BOUND_SELF_CUSTODY` | 组织拥有、私钥留在设备上不可导出 | 同为 self-custody，但只证明"哪个组织"，不证明"哪个自然人"；按载体可用 |
 | `ASSISTED_EXTERNAL_CUSTODY` | 外部 provider/MPC；参与方批准 | 取决于 provider policy 和独立 authenticator |
 | `DELEGATED_PLATFORM_CUSTODY` | 平台可调用 | 保证等级最低；平台理论上可代签 |
 
-三种模式输出相同 `SignatureEnvelope`，但必须保留 `custodyMode` 和 `assuranceLevel`，不能用统一接口抹去信任差异。
+四种模式输出相同 `SignatureEnvelope`，但必须保留 `custodyMode` 和 `assuranceLevel`，不能用统一接口抹去信任差异。
+
+**设备密钥的注册方式：** 它是 `Organisation Key Registry` 下的一条组织密钥，`owner = organisation`，并绑定一条 Delegation 限定可发布的 scope 与事件类型。因此"小农场用手机离线自签"在语义上是**组织用设备密钥签名**——归因仍是组织，canonical trace 不出现自然人。离线时不存在"该以哪个组织身份签"的歧义，因为一把设备密钥只绑一个组织。
+
+**载体是硬边界：** iOS 上 WebCrypto 非导出密钥持久化不可靠、passkey 也无法直接签任意 digest，因此该档位只在能可靠持有密钥的载体（原生 App 或支持的 PWA）上提供；其余载体退回 draft + 联网补签。不要承诺"所有小农场都能离线签名"。
 
 ## 离线签名与撤销
 

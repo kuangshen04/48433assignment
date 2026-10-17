@@ -20,6 +20,12 @@
 | **A1 B1 双轨表述** | 日志保留内部表述（"不完全信任运营者"），报告改用对外表述（"跨组织共享历史要求没有单一所有者"）；机制不变，由 B4 的保证边界约束 |
 | **A2 B8 放宽副本资格** | v1 外部副本持有者可为成员/监管方 mirror 或独立账户 WORM，不要求专职 archive 服务商；B6 的门禁改为"是否离开平台控制域"，`ArchiveAck` 语义不变；签约操作方转为演进目标 + 三条触发条件 |
 | **A3 `RuleVersion` 锚定** | 规则正文留监管域，只把 `RuleVersionManifest`（含 `ruleBodyDigest`）进 archive + Merkle；撤回发新版本、不回溯已签发 finding |
+| **B2 `DEVICE_BOUND_SELF_CUSTODY`** | 第 4 档 custody：**组织的设备密钥**（非个人密钥），私钥不可导出、绑定 delegation，归因仍是组织；三条限制（证明不了自然人、设备丢失/共享、**载体是硬边界**）写入 B5 与 iot-edge |
+| **B4 evidence request** | 只做 `AuditRecord(type=EVIDENCE_REQUEST)`，`outcome` 由参与方行动推导、超时为 `NO_RESPONSE`；不建工作流/portal/催办/SLA，不进 canonical trace |
+| **B1 `actorId` 移出** | canonical trace 与 `SignatureEnvelope` 都不再含自然人标识；归因由 organisation + `keyId` + `custodyMode` + `assuranceLevel` 承担；"谁操作了"只在可变 audit。代价：immutable 层无法回答"哪个员工签的" |
+| **B3 配对键** | 确定为 `bizTransaction(type=desadv)`：发货方签发、收货方必须引用同一个；`EXTERNAL_COUNTERPARTY` 可无；同一产品线只用一种 |
+| **B5 `availabilityStatus`** | 三态 = 两个独立来源的并集（`OBJECT_PRESENT` / `OWNER_ASSERTED` / `UNKNOWN`），规则是"存在 ≠ 可读""未知 ≠ 不存在" |
+| **B6 `ENCRYPTION` 密钥生命周期** | 撤销只阻止再加密、旧私钥保留到对应密文删除、丢失即永久不可解；`recipientKeyRefs` 必须带 `keyId`，与 retention 终态联动 |
 | 文档迁移 | `major-decisions-qa.md` 移入本站为[完整决策日志](/decisions/log) |
 
 ---

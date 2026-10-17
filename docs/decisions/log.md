@@ -21,6 +21,10 @@ outline: false
 > 2026-10-18 第四次修订：新增 **B25（Core / Semantic Module 分层与不变量）**，把 handover 状态、召回遍历策略、合规重建、分析输入、洞察统计移出 Core；B3 地板改为由模块 manifest 编译、B9 补配对键义务、B18 明确遍历策略归属、B11 补编译步骤、B21 指明投影由 AnalyticsInputModule 生产。
 >
 > 2026-10-18 第五次修订：B1 补「对外表述（报告用）」双轨说明（内部保留原表述）；B8 放宽外部副本持有者资格并补演进触发条件，B6 的门禁改为"是否离开平台控制域"；B21 补 `RuleVersion` manifest 的锚定与撤回语义。
+>
+> 2026-10-18 第六次修订：B5 增补第 4 档 `DEVICE_BOUND_SELF_CUSTODY`（组织设备密钥，不引入自然人身份，载体受限）并补 assurance 表；B15 增补「Evidence request 只是一条审计记录」，明确不建工作流。
+>
+> 2026-10-18 第七次修订：B5 移除 `actorId`（canonical trace 与 signature envelope 都不再含自然人标识，B20 同步）；B9 确定配对键为 `bizTransaction(desadv)`；B23 补 `availabilityStatus` 三态语义与 `ENCRYPTION` 密钥生命周期。
 
 本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
 
@@ -421,11 +425,16 @@ Epoch 同时定义了**时间维度上的访问边界**：新加入的成员默�
 
 **决定：** 采用分级 custody/assurance，并统一签名结果、验证格式和状态机；不要求企业 self-custody 与托管服务共享相同的私钥调用方式。
 
-三种支持模式是：
+四种支持模式是：
 
 ```text
 ENTERPRISE_SELF_CUSTODY
 → 企业 Gateway/KMS 本地签名
+
+DEVICE_BOUND_SELF_CUSTODY
+→ 组织拥有的设备密钥，私钥不可导出、留在手机上
+→ 按载体可用，用于小农场/农村离线场景
+→ 不引入自然人身份，见下
 
 ASSISTED_EXTERNAL_CUSTODY
 → 外部 signing provider 托管或分割密钥
@@ -436,6 +445,36 @@ DELEGATED_PLATFORM_CUSTODY
 → 保证等级最低
 ```
 
+### DEVICE_BOUND_SELF_CUSTODY：为什么不是"个人密钥"
+
+小农场离线签名的顾虑通常来自一个默认假设——离线签名等于个人身份签名。实际做法是**组织的设备密钥**：
+
+```text
+Device Key（私钥在手机上，不可导出）
+  ├─ 注册在 Organisation Key Registry 下，owner = 该 organisation
+  ├─ custodyMode = DEVICE_BOUND_SELF_CUSTODY
+  └─ 绑定一条 Delegation：该设备只能代表本组织发布指定 scope 的事件
+
+离线签名 → 事件带 keyId + SignatureEnvelope
+验收时   → 校验 key 状态 + 该 delegation 在签署时刻有效
+```
+
+三点由此成立：
+
+1. **归因仍是组织。** 验证对象是"这个组织"，不是某个自然人；canonical trace 不出现个人身份。B24 的组织粒度不受影响。
+2. **"个人"只是物理持有者。** 手机在谁手里，平台不知道也不需要知道——这正是 B24 的边界。一个顾问代表三个组织就持有三把设备密钥，互不干扰。
+3. **它反而简化了 acting organisation 绑定。** 设备密钥天然绑死一个组织，离线时不存在"该以哪个身份签"的歧义。
+
+**必须同时承认的三条限制：**
+
+| 限制 | 后果 | 已有的缓解 |
+|---|---|---|
+| 证明不了是哪个自然人签的 | 共享设备 = 共享组织签名能力 | 本地 PIN/生物识别解锁；组织内部争议归组织（B24）；高价值事件可由 event policy 要求更高 assurance |
+| 设备丢失/被攻破 = 组织签名能力外泄 | 攻击者可代该组织签署 | 设备密钥按 scope + 短有效期发放，可单把撤销；已确认历史不因事后 compromise 自动失效（本决策的时间证据规则） |
+| **PWA 不一定能可靠持有签名密钥** | iOS 上 WebCrypto 非导出密钥持久化不可靠，passkey 也无法直接签任意 digest | **这是可行性边界**：该档位只在能可靠持有密钥的载体上提供（原生 App 或支持的 PWA），其余载体仍退回 draft + 联网补签 |
+
+因此 B5 不承诺"所有小农场都能离线签名"，只承诺"支持的载体上可以，其余是草稿"。这条写进 assurance 表，避免过度承诺。
+
 ### 统一的是 SignatureEnvelope
 
 无论签名来自企业 KMS、外部托管服务、设备密钥还是平台 KMS，提交到追溯系统的结果统一为：
@@ -443,8 +482,8 @@ DELEGATED_PLATFORM_CUSTODY
 ```text
 SignatureEnvelope
 - signerOrganisationId
-- actorId
 - keyId
+- keyPurpose = SIGNING
 - algorithm
 - payloadDigest
 - signature
@@ -455,13 +494,27 @@ SignatureEnvelope
 - providerReceipt
 ```
 
+**`actorId` 不在 envelope 里，也不在 canonical trace 里。** 理由三条：
+
+1. EPCIS 的五个维度是 what/when/where/why/how，**没有 who**——归因本来就由发布组织承担；
+2. 平台承诺的是"这个组织发布了什么"，不是"哪个员工点了一下"（B24：组织是唯一身份单元，人员管理在外围）；
+3. 自然人标识一旦进入七年 WORM，就无法响应 APP 13 的更正/删除请求（B20），而它对可追溯性没有增量。
+
+因此：
+
+- 归属只由 `signerOrganisationId` + `keyId` + `custodyMode` + `assuranceLevel` 承担；
+- "谁在何时以何身份操作" 留在**可变的 operational audit**，并可被组织的 IdP 日志印证；
+- 组织若需要更强的内部问责，属于组织自己的流程（B24），不是平台的历史记录职责。
+
+**代价要写明：** immutable 层不再能回答"是哪个员工签的"。真有内部追责需求时，需要组织提供自己的 IdP/审批记录；平台侧只能证明"该组织的一把有效密钥签了这条事件"。
+
 所有模式使用同一个 `EventSignatureVerifier`：
 
 ```text
 canonical event digest
-→ lookup registered public key
+→ lookup registered public key (keyPurpose = SIGNING)
 → verify signature
-→ check key and actor/organisation authority at acceptance
+→ check key validity and organisation authority at acceptance
 → evaluate trusted signing-time evidence for late/offline submissions
 → check assurance level required by event policy
 ```
@@ -519,7 +572,7 @@ REJECTED
 EXPIRED
 ```
 
-Human authentication 与 organisation event signing 是不同边界。大型企业用户通过企业 IdP federation 登录，小型参与方使用 managed customer identity provider；核心系统只消费 authenticated subject claim 并检查其 organisation/role binding，不自行实现企业员工目录、密码或 MFA。Canonical event 只保留 pseudonymous `actorId`、signer organisation 和 signature，不永久保存员工姓名或邮箱。
+Human authentication 与 organisation event signing 是不同边界。大型企业用户通过企业 IdP federation 登录，小型参与方使用 managed customer identity provider；核心系统只消费 authenticated subject claim 并检查其 organisation/role binding，不自行实现企业员工目录、密码或 MFA。**Canonical event 不保留任何自然人标识**——`actorId` 已移出 signature envelope 与 canonical trace（见上），immutable 层只有 signer organisation、key 与 signature；"谁操作了"只存在于可变 operational audit。
 
 ### 平台需要维护的 provider adapters
 
@@ -575,10 +628,11 @@ signerOrganisationId
 ### 统一接口不能抹去信任差异
 
 - `ENTERPRISE_SELF_CUSTODY`：平台不能在没有企业私钥的情况下代签，适用完整 L2 non-impersonation guarantee；
+- `DEVICE_BOUND_SELF_CUSTODY`：与上一档同为 self-custody，但**保证的是"这个组织"，不是"哪个自然人"**；设备丢失/共享会削弱 assurance，且该档位并非所有载体都可用；
 - `ASSISTED_EXTERNAL_CUSTODY`：只有 provider policy 确实要求参与方持有的 authenticator 或独立 key share 时，才能接近同等保证；
 - `DELEGATED_PLATFORM_CUSTODY`：平台理论上可以代签，只保证事件取得 finality 后不能被平台单方面静默修改。
 
-Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 delegated custody，而 organisation-key change、实验室证书或高风险 dispute 可以要求 self-custody 或 participant-approved external custody。
+Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 delegated custody 或 device-bound custody，而 organisation-key change、实验室证书或高风险 dispute 可以要求 enterprise self-custody 或 participant-approved external custody。**载体能力不足不能作为降低既有 assurance 要求的理由**：没有可靠密钥载体的参与方仍可提交，只是适用较低档位并在事件上标注。
 
 **承受的代价：** 平台仍需维护一个默认托管服务 integration、异步 callback、key registry、rotation 和 revocation；不同参与方获得的 attribution guarantee 不完全相同。
 
@@ -809,7 +863,24 @@ Recovery identity、KMS policy、archive catalogue/export endpoint、profile/key
 
 **谁派生 handover 状态：** 按 B25，Core 只存两份 claim 与它们的配对引用，不产生交接状态；**状态由 HandoverModule 派生**，作为可重建投影存在，并由该模块的 manifest 声明它需要的 `requiresPairingKey`。
 
-**配对键必须稳定。** 如果发货方和收货方各自引用自己的单据编号，两个 URI 配不上，`ACCEPTED` 就退化成"标识符 + 时间窗 + 双方组织"的启发式匹配，`PARTIALLY_ACCEPTED` 在实践中不可靠。因此 profile 必须指定唯一的配对键类型，并由**收货方在其 receiving claim 中引用发货方签发的那个键**（候选实现：`bizTransaction` 的 desadv，见待办 T13）。若无法配对，进入 reconciliation/dispute，不静默合并。
+**配对键使用 `bizTransaction`（desadv），不引入平台自造标识。**
+
+```text
+配对键 = bizTransactionList 中 type = desadv 的引用
+发货方：shipping claim 引用自己签发的 desadv
+收货方：receiving claim 必须引用同一个 desadv
+HandoverModule：按该引用配对两份 claim
+```
+
+三条原因：
+
+1. **标准已经区分了"物理流"和"商业单据"。** EPCIS 用 `quantityList` 表达搬动了多少，用 `bizTransactionList` 引用订单/发票/提单；交接凭据本来就该走后者。
+2. **desadv 天然由发货方签发、收货方核销**，是唯一"双方在看同一个东西"的单据，比平台自造的 `handoverId` 更符合现实流程。
+3. **`EXTERNAL_COUNTERPARTY` 可以没有配对键**——网络外对手方不发 desadv，此时按单方边界声明处理，handover 标为外部交易，不进入 `ACCEPTED` 判定。
+
+**收货方的义务是这条决策的落点：** 若收货方不复用发货方的 desadv、而只填自己的收货单号，两个 URI 永远配不上，`ACCEPTED` 会退化成"标识符 + 时间窗 + 双方组织"的启发式匹配，`PARTIALLY_ACCEPTED` 在实践中不可靠。因此 profile 必须把"引用对方 desadv"写成 receiving claim 的必填要求；配不上则进入 reconciliation/dispute，不静默合并。
+
+若某产品线的 EDI 惯例不使用 desadv，profile 可以指定另一种 GS1/CBV 业务交易类型（例如 despatch advice 的等价物），但**同一产品线必须只用一种**，不能让双方各自选。
 
 ```text
 Sender-signed ShippingEvent
@@ -1203,6 +1274,29 @@ ML RiskAlert
 
 对 `PRIVATE` evidence 的访问必须绑定 case ID、resource IDs、purpose、authorised identity、legal/governance basis、effective/expiry time 和 access audit。该访问权属于监管调查主体，不自动下放给日常批量筛查模型。
 
+### Evidence request 只是一条审计记录，不是工作流
+
+按 B23，平台无法代理解密私有证据，所以"监管方取用证据"必须落成一次**请求**。这里刻意不建独立服务：
+
+```text
+AuditRecord(type = EVIDENCE_REQUEST)
+- requestId / caseId
+- requesterOrganisationId / officerId
+- ownerOrganisationId
+- resourceRefs[]
+- legalBasis
+- issuedAt / expiresAt
+- outcome: GRANTED | DECLINED | NO_RESPONSE
+```
+
+三条约束：
+
+1. **`outcome` 是推导的，不是驱动的。** 参与方通过 B23 的加密授予或明确拒绝来行动，平台只记录结果；超过 `expiresAt` 即 `NO_RESPONSE`。没有任务分配、升级、催办或 SLA 引擎。
+2. **不新建存储与组件。** 复用既有 audit 与导出路径；请求记录属于 regulator-private，**不进 canonical trace**（否则"谁在查谁"会变成全联盟可见）。
+3. **可信性靠引用，不靠新机制。** 请求记录进审计日志；当它最终导致一份签署的 Inspection/Assessment 时，assessment 引用 `requestId`——"我们请求过"因此有可核验的落点。
+
+明确**不做**：独立工作流引擎、evidence request portal、通知与催办、跨案件统计。
+
 Analytics alert 默认属于 regulator-owned `PRIVATE` data，不能直接进入 consumer projection、改变 event validity、触发法律结论或公开企业风险标签。监管方可以按 B21 为特定 rule/finding 指定受限 disclosure scope，使平台向相关组织转达 preliminary advisory；该转达仍不是正式监管结论。只有经授权人员复核并以 regulator organisation key 签署的 Inspection/Assessment event 才进入 canonical trace；是否形成 `PUBLIC` safety notice 还需要独立的监管发布流程。
 
 **需要接受的代价：** 平台需要单独的 regulatory analytics projection、service identity、export audit 和 risk-alert store；监管人员调查 private evidence 时走另一条 case-specific authorization path，不能简单复用 ML 的批量数据接口。
@@ -1511,9 +1605,9 @@ Consumer scan logs 是 platform-private operational/analytics data，不进入 c
 
 ### Keep natural-person data out of immutable history
 
-Canonical `CONSORTIUM` trace 默认只保存 organisation/business location、product/lot/logistic-unit IDs、pseudonymous actor reference、event relationships、sensor summary、evidence reference 和 commitment。Employee name、personal email/phone、home address、authentication credential、consumer identity、scan IP/geolocation 和 regulator investigation notes 不得进入 immutable trace schema。
+Canonical `CONSORTIUM` trace 默认只保存 organisation/business location、product/lot/logistic-unit IDs、event relationships、sensor summary、evidence reference 和 commitment。**不含任何自然人引用**——`actorId` 已于 B5 移除。Employee name、personal email/phone、home address、authentication credential、consumer identity、scan IP/geolocation 和 regulator investigation notes 不得进入 immutable trace schema。
 
-Small-farm business identifiers/location 仍可能间接识别个人，因此详细 contact data 保存在受控、可更正的 operational organisation registry。Pseudonymous `actorId` 也按可能重新识别个人的数据保护；consortium/public views 不需要展开真实员工身份。
+Small-farm business identifiers/location 仍可能间接识别个人，因此详细 contact data 保存在受控、可更正的 operational organisation registry。既然 `actorId` 不再进入 immutable 历史，自然人维度的更正与删除就可以完全在可变层完成，不需要和 WORM 保留期讨价还价。
 
 ### Retention is data-class and policy based
 
@@ -1830,6 +1924,23 @@ Logical RPO=0 的必测场景是：event 已取得 independent ArchiveAck 并向
 1. **不再有由平台执行的 `accessScope`。** 平台没有明文，无法执行内容级授权；访问权只能由所有者通过"加密给谁"来表达。
 2. **没有"结构化 private detail 存 PostgreSQL JSONB"这条路。** 一旦平台需要按结构化字段查询，它就必须是 `CONSORTIUM`，没有中间地带。
 
+### `availabilityStatus` 是两种独立事实的并集
+
+平台既不能读内容，也不能替所有者保证它有货，所以"证据是否可用"不能压成一个布尔值。三个状态由**两个独立来源**产生：
+
+| 状态 | 来源 | 含义 |
+|---|---|---|
+| `OBJECT_PRESENT` | 平台自动判断（仅 `PLATFORM_HOSTED_ZERO_KNOWLEDGE` 且对象存在） | 平台确实保管着一份密文；**不代表能解密** |
+| `OWNER_ASSERTED` | 所有者声明 | 所有者声称自己持有该材料；平台无法核实内容 |
+| `UNKNOWN` | 初值（典型为 `PARTICIPANT_HOSTED` 且所有者未声明） | 平台既没有对象也没有声明 |
+
+两条使用规则，写进 UI 与调查流程：
+
+1. **`OBJECT_PRESENT` 不等于可读。** 没有 key 就打不开，UI 不能因为平台存着密文就显示"证据可用"。
+2. **`UNKNOWN` 不等于不存在。** 调查结论不能把"平台查不到"写成"对方没有提供"；正确的表述是"平台侧无法确认"，然后走 B15 的 evidence request 向所有者索取。
+
+`availabilityStatus` 只是运营元数据，**不影响任何 canonical event 的有效性、handover 状态或 finding**。所有者后续提供材料时，用已确认的 `plaintextCommitment` 校验内容是否与当时承诺一致；校验通过也不改变历史，只改变举证结果。
+
 ### 承诺的可执行性（这是收益，不是限制）
 
 - commitment 随 canonical event 一起锚定 → 参与方**事后无法替换证据而不被发现**。
@@ -1858,6 +1969,23 @@ owner encrypts evidence to:
 - `Organisation Key Registry` 必须区分密钥用途：`SIGNING | ENCRYPTION`；
 - B15 需要一条窄例外：Analytics 可以取用**所有者已加密给监管 scope** 的资源；这不是任意追取 ProtectedResource；
 - 同一内容可有多个接收方，平台无法审计"谁真的解开了"，只能审计"谁被授权持有 key"。
+
+### `ENCRYPTION` 密钥的生命周期与签名密钥不同
+
+加密密钥与签名密钥共用 `Organisation Key Registry`，但生命周期规则**必须分开**，否则会互相污染：
+
+| | 签名密钥（`SIGNING`） | 加密密钥（`ENCRYPTION`） |
+|---|---|---|
+| 撤销的后果 | 阻止未来签署；已签事件按 B5 的时间证据规则处理 | **只阻止"再加密给它"**；已加密给它的密文仍然可解 |
+| 轮换后旧私钥 | 需保留以验证历史签名（B5 已要求 key history） | **必须保留到"最后一份用它加密的密文被删除"为止**，否则历史证据永久不可读 |
+| 丢失的后果 | 无法再签；走 dual-control recovery | 对应密文永久不可解，**没有 escrow、没有平台侧恢复**（B23 不承诺清单） |
+| 公开方式 | 公钥进注册表，供验签 | 公钥进注册表，供所有者加密；轮换对外发布新 `keyId`，旧 `keyId` 保持可查 |
+
+三条推论，写进实现与运营：
+
+1. **轮换不是"作废旧密钥"，是"新增密钥并保留旧私钥"。** 监管方换密钥时，若干年前加密给它的证据仍然只能用它三年前的私钥打开——这是无 escrow 的必然代价，不能在设计里假装消失。
+2. **接收方必须能按 `keyId` 找到历史私钥。** 证据记录里的 `recipientKeyRefs` 要带 `keyId`，否则轮换后无法判断该用哪把私钥。
+3. **删除密钥等于永久销毁对应证据的可读性。** 只有当所有引用该 `keyId` 的密文都到期删除后，销毁旧私钥才是安全的；这条要和 B20 的 retention 终态联动，不能各自为政。
 
 ### 不承诺清单
 

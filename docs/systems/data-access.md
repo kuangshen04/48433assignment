@@ -97,6 +97,28 @@ owner encrypts to: owner itself / regulator scope / named trading partners
 
 **不承诺：** 密钥恢复、平台侧取证、PRIVATE 内容的可用性进入 core RPO/RTO、删除的全局证明。详见 [B23](/decisions/catalog#b23)。
 
+### `availabilityStatus` 是两个独立事实的并集
+
+平台既不能读内容，也不能替所有者保证有货，所以"证据是否可用"压不成一个布尔值：
+
+| 状态 | 来源 | 含义 |
+|---|---|---|
+| `OBJECT_PRESENT` | 平台自动判断（仅零知识托管且对象存在） | 平台确实保管着密文；**不代表能解密** |
+| `OWNER_ASSERTED` | 所有者声明 | 所有者声称持有；平台无法核实 |
+| `UNKNOWN` | 初值（典型为参与方自托管且未声明） | 平台既无对象也无声明 |
+
+两条使用规则：**`OBJECT_PRESENT ≠ 可读`**、**`UNKNOWN ≠ 不存在`**。调查不能把"平台查不到"写成"对方没提供"，只能表述为"平台侧无法确认"并走 evidence request。
+
+### `ENCRYPTION` 密钥的生命周期与签名密钥相反
+
+| | `SIGNING` | `ENCRYPTION` |
+|---|---|---|
+| 撤销后果 | 阻止未来签署 | 只阻止"再加密给它"，已加密的密文仍可解 |
+| 轮换后旧私钥 | 保留以验证历史签名 | **保留到最后一份用它加密的密文被删除** |
+| 丢失后果 | 无法再签，走 recovery | 对应密文永久不可解，无 escrow |
+
+因此 `recipientKeyRefs` 必须带 `keyId`，否则轮换后无法判断该用哪把私钥；销毁旧私钥要与 retention 终态联动。
+
 ## Operational 与 canonical 数据
 
 ```text
@@ -118,7 +140,11 @@ Regulatory export objects
 
 ## Privacy 与数据最小化
 
+**Canonical trace 不含任何自然人引用。** `actorId` 已移出 signature envelope 与 immutable 历史（B5）：归因由 `signerOrganisationId` + `keyId` + `custodyMode` + `assuranceLevel` 承担，"谁操作了"只存在于可变 operational audit。
+
 Immutable trace 默认排除 employee name、email/phone、home address、credential、consumer identity、scan IP/geolocation 和 investigation notes。组织位置和小农场标识仍可能间接识别自然人，因此详细联系信息留在可更正的 operational registry。
+
+这样自然人维度的更正与删除可以完全在可变层完成，不需要和 WORM 保留期讨价还价。
 
 Public-chain commitment 不得直接包含个人字段，也不能公开短小个人字段的可字典匹配 hash。
 

@@ -53,9 +53,13 @@ anchor lag          archive -> public-chain finality
 ## 离线签名限制
 
 - Enterprise self-custody gateway 可以离线签名并排队。
-- 需要 external/device approval 或 platform custody 的 PWA event，只能离线保存 draft，联网后重新认证并签署。
+- **`DEVICE_BOUND_SELF_CUSTODY`（组织的设备密钥）在支持的载体上可以离线签名并排队**（B5）。它是组织密钥、私钥不可导出、绑定一条 delegation，不引入自然人身份；代价是只能证明"哪个组织"，不能证明"哪个自然人"。
+- **载体能力不足时退回草稿**：iOS 上 WebCrypto 非导出密钥持久化不可靠、passkey 也无法直接签任意 digest，因此不支持该能力的 PWA 仍只能离线保存 draft，联网后重新认证并签署。
+- 需要 external approval 或 platform custody 的 PWA event 同样只能离线保存 draft。
 - 事件到达时 key 已撤销/过期且没有可信撤销前时间证据，进入 `REVIEW_REQUIRED`。
 - 设备时钟和 `eventTime` 不决定全局顺序或撤销有效性。
+
+**不要把它说成"所有小农场都能离线签名"**：能承诺的是"支持的载体上可以，其余是草稿 + 联网补签"，而且离线签名产出的 assurance 档位低于 enterprise self-custody。
 
 ## 设备身份边界
 
