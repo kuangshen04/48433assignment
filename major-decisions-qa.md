@@ -631,6 +631,55 @@ ReceivingEvent 不是简单的 approve flag。它必须能够记录实际收到�
 
 **为什么可以接受：** 两份独立声明保留了不一致本身这一关键证据，也避免由接收方离线或拒绝配合而阻止发货方记录历史。复杂性集中在可重建的 transfer projection，而不是让任意一方修改另一方已经签署的事实声明。
 
+---
+
+## B10. 是否采用完整 Event Sourcing 和异步 CQRS？
+
+**决定：** 不采用全应用 Event Sourcing，也不在第一版引入独立 message broker、event store、read database 或 graph database。系统采用 `append-only trace core + ordinary transactional application + transactional outbox + targeted rebuildable projections`；第一版的 operational state、outbox 与 projections 位于同一个 managed PostgreSQL 中。
+
+### 数据职责
+
+不可原地覆盖、只能追加或通过 correction event 修正的内容包括：
+
+- canonical EPCIS events；
+- ShippingEvent、ReceivingEvent 与 correction events；
+- participant signatures；
+- archive receipts、batch manifests 和 chain inclusion proofs。
+
+用户、组织当前资料、membership、API credentials、signing request、relayer job、重试状态、UI 配置等使用普通事务模型。需要审计的配置可以版本化，但不要求从全量 domain events 回放整个应用。
+
+可从 canonical events 重建的 projections 包括 lineage、handover status、batch location、consumer view、recall graph 和 activity summaries。Projection 可以更新、删除后重建或更换存储技术，不构成权威历史。
+
+### 第一版异步机制
+
+```text
+PostgreSQL transaction
+├── signed event index / lifecycle transition
+└── durable outbox job
+
+Idempotent workers
+├── write independent archive
+├── issue acceptance receipt
+├── allocate Merkle batch / submit anchor
+└── update targeted projections
+```
+
+Outbox 与对应的本地状态变更在同一数据库事务中提交，worker 使用 event ID、operation ID 和 state precondition 实现幂等。Archive 和 public chain 无法加入同一个数据库事务，因此由 B6 的显式 lifecycle 和 retry/reconciliation 处理，而不假装存在跨系统 ACID transaction。
+
+第一版可以逻辑区分 command、worker 和 query responsibilities，但不需要为了使用 CQRS 术语部署两套数据库。只有在实测吞吐、独立消费者数量、projection rebuild 时间或故障隔离要求证明必要时，outbox 才发布到独立 broker，特定 read model 才迁移到专用存储。
+
+### 一致性边界
+
+以下操作要求同步事务约束：event ID/idempotency、签名与 organisation authority、合法 lifecycle transition、archive acknowledgement 与 receipt 的绑定、ReceivingEvent 消费唯一性，以及 Merkle leaf allocation。
+
+Consumer view、dashboard、lineage visualisation、handover summary 和 analytics 可以最终一致。Recall/food-safety 查询不得把 projection lag 当作“没有风险”：必须暴露 `data complete through` watermark 和 lag；超过安全阈值时等待追平、回查 confirmed event index，或明确返回 `STALE/INCOMPLETE`。
+
+**未采用完整 Event Sourcing：** EPCIS 是跨组织业务事件标准，不代表用户、权限、配置和作业状态都必须通过 event replay 产生。全量 Event Sourcing 会引入不必要的 replay、schema evolution、event-version compatibility、projection debugging 和个人信息删除冲突。
+
+**需要接受的代价：** PostgreSQL outbox 与 workers 仍然构成异步系统，需要幂等、重试、dead-letter/reconciliation 和 lag monitoring；单一 PostgreSQL 是第一版的共享运营故障域。
+
+**为什么可以接受：** 不可变性由 signed archive 与 public-chain commitment 提供，数据库只承担运营索引和可重建视图。该方案保留未来接入 broker 或专用 read store 的演进路径，却不在缺少 workload 证据时预付完整 CQRS/Event Sourcing 的复杂度。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -757,23 +806,9 @@ Consortium Key Service
 
 ---
 
-## C2. 是否采用完整 Event Sourcing 和异步 CQRS？
+## C2. PostgreSQL 的部署地区、恢复目标和拆分阈值是什么？
 
-**当前倾向：** 跨组织 trace events 保持 append-only；普通用户、权限、配置和运营状态使用常规事务模型。是否引入 broker 和异步 projection 由一致性和 workload 场景决定。
-
-**为什么尚未定案：** EPCIS 是事件共享模型，不等于整个应用必须 Event Sourcing。异步 projection 能加速谱系和消费者查询，但会引入 stale read、replay、schema migration 和恢复复杂度。
-
-**已否决：** 把所有应用状态都建模成事件；也否决普通查询直接遍历 blockchain，因为共识账本不适合作为低延迟、按受众裁剪的查询引擎。
-
-**需要接受的代价：** 如果先同步查询 PostgreSQL，未来高负载时可能需要重构；如果现在采用异步 projection，食品召回视图可能短暂落后，必须暴露 watermark 和 stale/unavailable 状态。
-
-**待回答：** 哪些查询必须同步强一致，哪些允许 eventual consistency；是否只有 archive/anchor publication 使用 outbox，还是所有 read models 都通过 broker 更新。
-
----
-
-## C3. 第一版是否固定为一个 PostgreSQL？
-
-**当前倾向：** 一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；independent trace archive、public chain 和 participant artifact stores 保持外部边界。
+**已确认的边界：** 第一版使用一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；independent trace archive、public chain 和 participant artifact stores 保持外部边界。PostgreSQL 不是 canonical history 的唯一恢复来源。
 
 **为什么尚未完全定案：** PostgreSQL 足以提供事务、约束、JSON 和递归遍历，但背景也要求多产品线和地区，未来可能出现数据驻留或跨区域写入限制。
 
@@ -785,7 +820,7 @@ Consortium Key Service
 
 ---
 
-## C4. Product Profile 能承担多少产品线差异？
+## C3. Product Profile 能承担多少产品线差异？
 
 **当前倾向：** 稳定 EPCIS core 加 versioned product profiles 是主要扩展机制，但不承诺所有新产品都只需配置、永远无需代码和数据模型变化。
 
@@ -799,7 +834,7 @@ Consortium Key Service
 
 ---
 
-## C5. Trustworthiness 与 scalability 如何排序？
+## C4. Trustworthiness 与 scalability 如何排序？
 
 **当前倾向：** Trustworthiness 决定核心信任边界，但 scalability 仍必须通过可测场景验证；不能用“不是主要问题”跳过 case brief 的多产品和多地区要求。
 
@@ -813,7 +848,7 @@ Consortium Key Service
 
 ---
 
-## C6. 独立控制域的恢复目标和具体运营安排是什么？
+## C5. 独立控制域的恢复目标和具体运营安排是什么？
 
 **已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
 
@@ -834,6 +869,8 @@ Consortium Key Service
 Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少一个平台控制域之外的 WORM archive；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的外部完整性证明。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台只有有限使用权而没有密钥管理权。
 
 跨组织实物交接由 sender-signed ShippingEvent 与 receiver-signed ReceivingEvent 两份独立声明组成；二者分别确认，平台只派生 handover status。缺少接收确认不会抹去发货声明，争议和未确认 edges 仍进入 recall/audit 查询并明确标记保证等级。
+
+应用不采用全量 Event Sourcing。不可变 trace core 保持 append-only；普通应用状态使用事务模型；archive、anchor 和针对性 projections 由 PostgreSQL transactional outbox 驱动。第一版不需要独立 broker 或多套读写数据库，projection lag 必须通过 watermark 暴露，安全查询不得把过期视图解释为完整结果。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
