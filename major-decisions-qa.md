@@ -1,6 +1,6 @@
 # 当前重大架构决策 Q&A
 
-> 更新时间：2026-10-16
+> 更新时间：2026-10-17
 >
 > 用途：记录会改变系统边界、信任模型、数据责任或部署方式的重大决定，并保留每项决定背后的 trade-off。
 >
@@ -14,7 +14,7 @@
 
 ## A1. 系统是完整农业 ERP 吗？
 
-**决定：** 不是。系统是跨组织农业供应链追溯层。ERP、WMS、TMS、MES、农场管理、POS、实验室、认证和监管系统仍在边界之外。
+**决定：** 不是。系统是跨组织农业供应链追溯层。ERP、WMS、TMS、MES、农场管理、POS、实验室、认证，以及监管机构现有的执法和完整 case-management systems 仍在边界之外；本平台自身包含 regulator-facing access/investigation portal，但不替代外部监管系统。
 
 **边界条件/假设：** 项目的核心问题是把不同组织分别产生的声明连接成端到端 trace，而不是统一各企业的内部运营流程。
 
@@ -64,7 +64,7 @@
 
 ## A4. 区块链能证明物理事实真实吗？
 
-**决定：** 不能。系统只承诺声明的 attribution、authorisation、content integrity、correction history 和 lineage consistency，不声称区块链能证明现实世界事实必然真实。
+**决定：** 不能。系统只承诺声明的 attribution、authorisation、content integrity、correction history，以及 lineage claims 的 provenance/reconstructability，不承诺跨组织声明彼此一致，也不声称区块链能证明现实世界事实必然真实。
 
 **边界条件/假设：** 软件不能直接观察货物、温度、实验过程或证书签发过程；它只能处理参与方、设备或证据提供者提交的声明。
 
@@ -82,7 +82,7 @@
 
 **决定：** 不把完整事件和文件写入公共链。公共链只保存 event commitment 或周期性 Merkle root；完整 canonical EPCIS shared trace 保存在平台控制域之外的独立不可变归档中，大型、高频或仅用于举证的内容继续作为 ProtectedResource 管理。
 
-**边界条件/假设：** 公共链负责不可篡改的时间和完整性证明，不负责业务数据权限、完整 trace 恢复、文件存储或运营查询。
+**边界条件/假设：** 公共链负责外部 existence/integrity checkpoint：证明某个 commitment 最迟在链上 inclusion 时已经存在且之后未被替换。它不证明业务 `eventTime`、不负责业务数据权限、完整 trace 恢复、文件存储或运营查询。
 
 **为什么这样定：** 明文 EPCIS trace 上公链会永久公开供应链关系；完整 ciphertext 上公链又会产生费用、永久保留和未来密钥泄露风险。把 payload 与 proof 分开，可以让联盟内恢复完整 trace，同时只向公共网络暴露最小 commitment。
 
@@ -101,6 +101,26 @@
 **决定：** 不静默覆盖或删除已确认事件。错误通过 Error Declaration、corrective event 或等价的追加版本表达。
 
 **原因：** 区块链和 EPCIS 纠错模型都不通过直接修改已经确认的历史来表达修正。原地更新还会使既有签名、hash 和账本承诺失效。因此系统追加错误声明和修正事件，并由查询视图显示当前有效解释；原始声明仍保留供审计。
+
+平台必须区分传输/存储身份与 EPCIS 业务身份：
+
+```text
+captureRecordId
+→ 每次 submission/archive record 唯一
+→ 平台 idempotency key
+
+epcisEventId
+→ EPCIS business event identifier
+→ Error Declaration 是允许重复 non-null eventID 的标准特例
+
+correctiveEventId
+→ corrective event 自己的新 EPCIS eventID
+→ 由 correctiveEventIDs 引用
+```
+
+同一 `captureRecordId` 对应不同 digest 必须拒绝。相同 non-null `epcisEventId` 默认也拒绝重复，但符合 EPCIS Error Declaration 的记录可以与原事件共享 eventID：除 `errorDeclaration` 和 repository-generated `recordTime` 外，其内容必须与原事件相同。Corrective event 使用新的 eventID。Network profile 若不支持这一标准特例，就不能继续声称完整支持 EPCIS Error Declaration。
+
+Normative basis: <https://ref.gs1.org/standards/epcis/2.0.1/#ErrorDeclaration>
 
 ---
 
@@ -126,6 +146,8 @@
 
 **边界条件/假设：** 平台可能发生内部滥用、管理员账号泄露、基础设施入侵、错误恢复、商业压力或停止运营。系统需要防止平台在事件确认后无痕修改历史，并在平台失效后恢复 canonical trace。
 
+该“不完全信任”主要针对 history integrity、availability、key control 和 censorship accountability，不代表向平台 runtime 隐藏 `CONSORTIUM` plaintext。平台作为获授权数据处理者具有运行查询/projection 所需的 decrypt 能力；应用或 service role 被攻破仍可能造成 consortium confidentiality breach，需以 least privilege、审计、限流和 breach response 缓解。若要求平台也不可读，需要另行采用 client-side decryption/confidential computing，不属于当前基线。
+
 **为什么这样定：** 如果事件 payload、commitment、查询结果和唯一副本都由平台控制，blockchain 只是平台内部的 append-only 实现，参与方仍然必须完全信任平台。
 
 **否决的方案一：完全信任平台数据库和备份。** 无法独立验证历史，也无法应对平台退出。
@@ -135,12 +157,12 @@
 **当前约束：**
 
 - 已 finalise 的 commitment 必须位于平台控制域之外的公共链；
-- 完整 canonical trace 必须至少有一个平台控制域之外的 immutable archive；
-- canonical payload 写入规定的独立 archive 后，平台签发 receipt，anchor finalise 后提供 inclusion proof；
+- 在 active retention/legal hold 内，完整 canonical trace 必须至少有一个平台控制域之外的 immutable archive；
+- canonical payload 获得规定的独立 archive acknowledgement 后，平台签发绑定该 acknowledgement 的 receipt，anchor finalise 后提供 inclusion proof；
 - 平台不能把自己的 acceptance receipt 当作 public-chain finality；
 - 平台仍可能在上链前拒绝或延迟事件，因此 censorship 与 tamper resistance 分开处理。
 
-**承受的代价：** 共识和时间证明依赖外部 public network；数据可用性依赖独立 archive；系统还要维护 relayer、gas、finality 和 chain migration。
+**承受的代价：** 外部 existence/integrity checkpoint 依赖 public network；数据可用性依赖独立 archive；系统还要维护 relayer、gas、finality 和 chain migration。
 
 **为什么可以接受：** 这些职责比组织和维护自己的 BFT validator consortium 更标准化。平台风险被拆成可分别验证的 integrity、availability 和 ingestion-censorship 问题，而不是假装由一个账本同时解决。
 
@@ -148,7 +170,7 @@
 
 ## B2. 平台失效后，哪些数据必须仍可恢复？
 
-**决定：** 必须恢复联盟 network profile 中的完整 canonical EPCIS shared trace，包括事件、对象关系和纠错历史。原始证据和企业内部资料不属于强制恢复范围。
+**决定：** 在适用 retention period 和 legal hold 内，必须恢复联盟 network profile 中的完整 canonical EPCIS shared trace，包括事件、对象关系和纠错历史。原始证据和企业内部资料不属于强制恢复范围；retention 到期后的保证按 B20 收窄为 commitment 与删除审计可验证，而非 payload 永久可恢复。
 
 **边界条件/假设：** 平台失效后，参与方或审计者至少需要判断产品经历了哪些阶段、数据由谁发布、在哪一环出现矛盾，以及应向哪一方索取证据。
 
@@ -164,7 +186,7 @@
 
 **强制恢复范围：**
 
-- event ID、type、time、publisher 和 profile version；
+- captureRecordId、EPCIS eventID/error-declaration relation、type、time、publisher 和 profile version；
 - batch、object、pallet 或 logistic-unit identifiers；
 - business step、disposition、source/destination；
 - aggregation、disaggregation、transformation 和 correction relationships；
@@ -198,6 +220,8 @@ Public Blockchain
 
 **边界条件/假设：** 加入联盟意味着同意其他有效联盟成员读取 network EPCIS profile 中的最小 trace facts，但联盟外用户只能看到 public projection 和不可反推 payload 的 commitment。
 
+这是必须由真实参与方通过 consortium agreement 验证的强商业披露假设，而不是技术自动成立的事实。若成员不能接受向所有 active consortium participants 披露 supplier/customer path、location、quantity 或 processing relationships，当前单一 KEK/固定三层模型必须改为 supply-chain-scoped authorisation、private collections 或 selective disclosure，整体复杂度会显著增加。
+
 **为什么这样定：** 固定分类保留清晰的业务权限；per-event DEK 与版本化 consortium KEK 只保护整个 canonical payload，不重新引入字段级权限。
 
 **否决的方案一：完整 EPCIS 明文对消费者公开。** 会泄露交易关系、精确地点、数量、设备和商业节奏。
@@ -225,7 +249,7 @@ Public Blockchain
 ```text
 ProtectedResource
 - resourceId
-- eventId
+- captureRecordId / epcisEventId reference
 - ownerOrganisationId
 - resourceType
 - schemaOrMediaType
@@ -444,7 +468,8 @@ Network profile 必须固定并版本化 canonicalisation。签名输入至少�
 ```text
 networkId
 profileVersion
-eventId
+captureRecordId
+epcisEventId (nullable; may repeat only for valid Error Declaration)
 canonicalEpcisPayloadHash
 signerOrganisationId
 ```
@@ -475,8 +500,9 @@ DRAFT
 └── QUEUED_OFFLINE → SYNCING ───┤
                               → RECEIVED
 → VALIDATED
-→ PENDING_SIGNATURE
-→ PENDING_ARCHIVE
+  ├── pre-signed/self-custody ───────────────┐
+  └── managed custody → PENDING_SIGNATURE ──┤
+                                            → PENDING_ARCHIVE
 → PENDING_ANCHOR
 → SUBMITTED_ON_CHAIN
 → INCLUDED
@@ -498,13 +524,13 @@ ANCHOR_RETRY
 
 - `DRAFT`：参与方本地意图，可以编辑或删除，不属于共享历史；
 - `QUEUED_OFFLINE/SYNCING`：事件仍位于 participant device/gateway 或正在传输，平台尚未接受，不得显示 acceptance receipt；
-- `RECEIVED/VALIDATED`：平台已经接收和验证，尚未形成外部证明；
-- `PENDING_SIGNATURE`：等待参与方或 signing provider 批准；
-- `PENDING_ARCHIVE`：等待 encrypted canonical payload 在独立归档中达到约定复制等级；
+- `RECEIVED/VALIDATED`：平台已经接收和验证，尚未形成外部证明；repository 在 capture 时生成可信 `recordTime`，忽略客户端提供的 EPCIS `recordTime`，并另存 participant-asserted `eventTime` 与平台 `receivedAt`；
+- `PENDING_SIGNATURE`：仅 managed/assisted custody 路径进入，等待参与方或 signing provider 批准；pre-signed self-custody submission 验证通过后直接进入 `PENDING_ARCHIVE`；
+- `PENDING_ARCHIVE`：等待 encrypted canonical payload 获得 qualified independent archive operator 的 signed acknowledgement；
 - `PENDING_ANCHOR`：archive object 已持久化，等待生成 event commitment 或进入 Merkle batch；
 - `SUBMITTED_ON_CHAIN/INCLUDED`：交易已广播或进入区块，但尚未满足最终性规则；
 - `FINALISED`：public network 已达到所选 finality；
-- `CONFIRMED`：finality、archive location 和 inclusion proof 已关联，正式进入 trace、projection、recall 与 consumer-view 输入。
+- `CONFIRMED`：finality、archive location 和 inclusion proof 已关联，正式进入标准 trace、projection、recall 与 consumer-view 输入。
 
 ### 权威关系
 
@@ -524,7 +550,9 @@ Participant/PWA storage
 
 完整权威记录是 `signed payload + archive copy + finalised commitment + inclusion proof` 的组合，而不是 PostgreSQL 行或单独一个 public-chain hash。
 
-canonical payload 完成签名并写入 independent archive 后，平台签发 acceptance receipt，其中包含 event ID、payload hash、archive reference、received time 和预期 anchor window。Finality 后再提供 chain transaction reference 与 inclusion proof。Receipt 能证明平台已经接受该归档记录并承诺纳入锚定，但不能替代 finality。
+canonical payload 完成签名并获得 independent archive acknowledgement 后，平台签发 acceptance receipt，其中包含 `captureRecordId`、`epcisEventId`、payload hash、archive reference、received time、预期 anchor window，以及 archive operator acknowledgement/signature。Finality 后再提供 chain transaction reference 与 inclusion proof。Receipt 能证明平台和 archive operator 已接受该归档记录并承诺纳入锚定，但不能替代 finality。
+
+食品安全公告是标准 consumer projection gate 的唯一明确例外：authorised regulator/responsible organisation 已签名且取得 archive acknowledgement 的 official Recall/Safety Notice 可以用 `VERIFIED_PENDING_ANCHOR` 状态立即发布，清楚标示尚未获得 chain finality，并在恢复后继续正常 anchoring。普通业务 event、ML finding 和 preliminary advisory 不获得此例外。
 
 Archive 已写入但 public-chain transaction 失败时，事件保持 `PENDING_ANCHOR` 并幂等重试；链上 commitment 已 finalise 但 PostgreSQL 更新失败时，根据 archive manifest 和 chain proof 修复运营数据库，不生成新事件。
 
@@ -543,7 +571,8 @@ Merkle batch manifest 必须随 canonical payload 一样保存在 independent ar
 ```text
 Signed canonical event
 → encrypted immutable archive object
-→ platform-signed acceptance receipt
+→ archive-operator-signed acknowledgement
+→ platform-signed acceptance receipt binding the acknowledgement
 → fixed anchor window
 → deterministic batch manifest + Merkle root
 → platform relayer submits root
@@ -555,7 +584,7 @@ Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、h
 
 第一版不设置 independent secondary relayer。平台漏提或延迟提交时，receipt、archive copy 和逾期的 expected anchor window 会留下可审计的不一致，但不会自动绕过平台的 censorship。若实际治理要求在平台失效时仍能继续提交，可在不改变 event、archive 和 proof 格式的前提下增加 archive operator 或 auditor relayer。
 
-**未采用逐事件上链：** 它的 proof 更直接、确认等待通常更短，但每个 event 都产生链上交易，成本、nonce 管理和故障恢复随业务量增长。Merkle batching 把链上职责压缩为定期发布少量 root，更符合“公链只负责不可篡改时间界标”的边界。
+**未采用逐事件上链：** 它的 proof 更直接、确认等待通常更短，但每个 event 都产生链上交易，成本、nonce 管理和故障恢复随业务量增长。Merkle batching 把链上职责压缩为定期发布少量 root，更符合“公链只负责外部 existence/integrity checkpoint”的边界；链上 inclusion time 不证明业务 `eventTime`。
 
 **需要接受的代价：** event 在所属窗口关闭并达到链上 finality 前只能保持 pending；manifest 和 inclusion-proof 服务成为必要组件；第一版只能检测平台未按承诺提交，不能保证在平台恶意停摆时自动完成提交。
 
@@ -570,6 +599,21 @@ Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、h
 ### Archive replication baseline
 
 每个 canonical event 在成为 `CONFIRMED` 前，至少获得一个签约的、非平台控制的 WORM archive operator 的持久化 acknowledgement。大型联盟成员、监管方或审计机构可以自愿运行额外只读 mirror，但系统不假设监管方一定愿意承担该职责，也不等待所有自愿 mirror 才确认事件。
+
+该 acknowledgement 必须可独立验证，而不是平台数据库中的布尔字段：
+
+```text
+ArchiveAck
+- archiveObjectId
+- captureRecordId / epcisEventId
+- payloadHash
+- retentionPolicyId
+- storedAt
+- archiveOperatorId
+- operatorSignature
+```
+
+Acceptance receipt 绑定 `ArchiveAck` 和 payload hash，使参与方可以证明平台是在获得外部持久化确认后才承诺接收。Archive operator 不负责判断业务内容，只证明按约定保存了对应 ciphertext object。
 
 ```text
 Platform operational copy
@@ -592,9 +636,24 @@ Mirror 接收标准化 archive bundle：encrypted canonical payload、wrapped DE
 
 平台作为获授权的数据处理者仍可能读取 `CONSORTIUM` payload；这里解决的是平台不能单方面销毁密钥、垄断恢复或使 archive 永久不可读，而不是向平台隐藏联盟共享数据。如果未来要求平台也不可见明文，需要 client-side decryption 或 confidential-computing 等另一套更复杂的威胁模型。
 
+这也意味着被攻破的平台 runtime/service role 可能在其正常 decrypt 权限范围内批量泄露 consortium plaintext。当前威胁模型不声称防止这一 confidentiality failure；它通过 least privilege、短期 credentials、audit、rate limits 和 incident response 降低风险，但核心保证仍是 platform-independent integrity/recovery。要求平台运行时也不可见将构成新的架构前提。
+
+### Platform-independent recovery path
+
+```text
+Trustee/consortium-controlled Recovery Client or Gateway
+→ discovers archive manifests without platform database
+→ verifies ArchiveAck, event signatures and public-chain proofs
+→ authenticates an authorised recovery organisation/regulator
+→ calls KMS using non-platform recovery identity
+→ unwraps DEKs and rebuilds profiles, registries and trace
+```
+
+Recovery identity、KMS policy、archive catalogue/export endpoint、profile/key/governance history 和 runbook 不能依赖平台 cloud account、IAM、DNS 或 PostgreSQL。第一版可以由 archive/KMS trustee 运营该 Recovery Gateway；具体签约主体留在 C3，但接口、权限和定期 restore drill 属于基线。没有成功恢复演练时，`logical RPO=0` 只能称目标，不能称已证明能力。
+
 ### 必须诚实保留的依赖
 
-外部 KMS 把信任从平台转移给专业服务与 KMS account governance，并没有消除信任。Archive 全部存在但 KEK 永久丢失时，trace 仍不可恢复。因此 key deletion protection、region/provider outage、rotation、emergency recovery 和管理员交接必须纳入恢复设计；是否增加第二 provider escrow 或 threshold recovery 留到 RPO/RTO 与监管要求明确后决定。
+外部 KMS 把信任从平台转移给专业服务与 KMS account governance，并没有消除信任。Archive 全部存在但 KEK 永久丢失时，trace 仍不可恢复。因此 key deletion protection、region/provider outage、rotation、emergency recovery、retention expiry 和管理员交接必须纳入恢复设计；是否增加第二 provider escrow 或 threshold recovery 留到 RPO/RTO 与监管要求明确后决定。
 
 **需要接受的代价：** 平台需要跨控制域调用 archive 与 KMS，处理权限故障和外部服务不可用；至少一个独立 archive operator 与 KMS account owner 需要合同、审计和交接安排。
 
@@ -604,7 +663,7 @@ Mirror 接收标准化 archive bundle：encrypted canonical payload、wrapped DE
 
 ## B9. Shipping 与 Receiving 如何形成双边确认？
 
-**决定：** 所有跨组织实物交接都要求 receiver 最终作出独立签名的 ReceivingEvent，但不要求双方共同签署或修改同一个 event。Sender 的 ShippingEvent 与 receiver 的 ReceivingEvent 分别进入 immutable history；平台通过稳定的 `handoverId` 和 event references 派生业务交接状态。
+**决定：** 所有跨组织实物交接都要求 receiver 最终作出独立签名的 receiving claim，但不要求双方共同签署或修改同一个 event。文档中的 `ShippingEvent/ReceivingEvent` 是领域简称；EPCIS 接口使用标准 `ObjectEvent`（或 profile 允许的相应标准 event）配合 `bizStep=shipping/receiving`、source/destination 和 disposition 表达。双方 claims 分别进入 immutable history；平台通过稳定的 `handoverId` 和 event references 派生业务交接状态。
 
 ```text
 Sender-signed ShippingEvent
@@ -671,15 +730,15 @@ Idempotent workers
 └── update targeted projections
 ```
 
-Outbox 与对应的本地状态变更在同一数据库事务中提交，worker 使用 event ID、operation ID 和 state precondition 实现幂等。Archive 和 public chain 无法加入同一个数据库事务，因此由 B6 的显式 lifecycle 和 retry/reconciliation 处理，而不假装存在跨系统 ACID transaction。
+Outbox 与对应的本地状态变更在同一数据库事务中提交，worker 使用 `captureRecordId`、operation ID 和 state precondition 实现幂等；EPCIS `eventID` 另按 A6 的 Error Declaration 特例验证。Archive 和 public chain 无法加入同一个数据库事务，因此由 B6 的显式 lifecycle 和 retry/reconciliation 处理，而不假装存在跨系统 ACID transaction。
 
 第一版可以逻辑区分 command、worker 和 query responsibilities，但不需要为了使用 CQRS 术语部署两套数据库。只有在实测吞吐、独立消费者数量、projection rebuild 时间或故障隔离要求证明必要时，outbox 才发布到独立 broker，特定 read model 才迁移到专用存储。
 
 ### 一致性边界
 
-以下操作要求同步事务约束：event ID/idempotency、签名与 organisation authority、合法 lifecycle transition、archive acknowledgement 与 receipt 的绑定、ReceivingEvent 消费唯一性，以及 Merkle leaf allocation。
+以下操作要求同步事务约束：`captureRecordId`/idempotency、签名与 organisation authority、合法 lifecycle transition、ArchiveAck 与 receipt 的绑定、每条 receiving claim 自身的唯一 capture identity，以及 Merkle leaf allocation。一个 handover 可以因 partial、split 或 correction 产生多条 receiving claims，不能误设为“每个 handover 只能消费一条 ReceivingEvent”。
 
-Consumer view、dashboard、lineage visualisation、handover summary 和 analytics 可以最终一致。Recall/food-safety 查询不得把 projection lag 当作“没有风险”：必须暴露 `data complete through` watermark 和 lag；超过安全阈值时等待追平、回查 confirmed event index，或明确返回 `STALE/INCOMPLETE`。
+Consumer view、dashboard、lineage visualisation、handover summary 和 analytics 可以最终一致。Recall/food-safety 查询不得把 projection lag 当作“没有风险”：必须暴露 `data complete through` watermark 和 lag；超过安全阈值时等待追平、回查 eligible source index（confirmed trace，加上 B18 authorised safety-notice fast path），或明确返回 `STALE/INCOMPLETE`。
 
 **未采用完整 Event Sourcing：** EPCIS 是跨组织业务事件标准，不代表用户、权限、配置和作业状态都必须通过 event replay 产生。全量 Event Sourcing 会引入不必要的 replay、schema evolution、event-version compatibility、projection debugging 和个人信息删除冲突。
 
@@ -773,7 +832,7 @@ Correction event 生成新的 projection version，再更新 current-version poi
 
 ### Rural/offline participant plane
 
-农村网络问题使用 offline-first submission 处理，而不是无限 HTTP retry。PWA 使用受保护的本地存储保存 draft、client-generated event ID、待提交 payload、必要 profile/vocabulary、dependency 和 sync status；成熟参与方可以由 local gateway 提供 durable queue。
+农村网络问题使用 offline-first submission 处理，而不是无限 HTTP retry。PWA 使用受保护的本地存储保存 draft、client-generated `captureRecordId`、可选 EPCIS eventID、待提交 payload、必要 profile/vocabulary、dependency 和 sync status；成熟参与方可以由 local gateway 提供 durable queue。
 
 必须区分三种延迟：
 
@@ -788,7 +847,7 @@ Anchor lag
 = archived event → Merkle batch public-chain finality
 ```
 
-农村连接主要影响 edge sync lag。`LOCAL_DRAFT`、`QUEUED_OFFLINE` 和 `SYNCING` 不属于平台已接受的共享历史，也不能生成 acceptance receipt。平台恢复连接后使用稳定 event ID、idempotency key 和 causal references 去重并处理依赖；participant `eventTime` 与平台 `receivedAt` 分开记录，不能信任设备时钟决定全局顺序。
+农村连接主要影响 edge sync lag。`LOCAL_DRAFT`、`QUEUED_OFFLINE` 和 `SYNCING` 不属于平台已接受的共享历史，也不能生成 acceptance receipt。平台恢复连接后使用稳定 `captureRecordId`、idempotency key 和 causal references 去重并处理依赖；participant `eventTime` 与 repository-generated `recordTime`、平台 `receivedAt` 分开记录，不能信任设备时钟决定全局顺序。
 
 离线能力遵守 B5 的 custody boundary：enterprise self-custody gateway 可以离线签名后排队；需要 external/device approval 或 platform custody 的 PWA event 只能离线保存 draft，联网并重新认证后完成签名。离线缓存不应长期保存整个 consortium trace，尤其不能在共享设备上复制不必要的敏感数据。
 
@@ -798,7 +857,7 @@ Anchor lag
 
 当前 workload assumptions 是：正常写入频率较低但必须承受离线设备恢复后的 burst；内部交互读取低并发但 export 可能覆盖大量事件；消费者读取具有高并发和活动/召回导致的突发峰值；设备可能离线数小时至数天；平台 processing lag 预计为秒级到几十秒，public-chain confirmation 为分钟级并由最后选择的 anchor window 决定。这些是可验证的设计假设，不声称是客户提供的事实。
 
-Projection 必须发布 `data complete through` watermark 和 lag。Consumer UI 可以容忍短暂 eventual consistency；recall/food-safety 查询超过安全 lag threshold 时必须等待追平、回查 confirmed event index，或明确返回 `STALE/INCOMPLETE`，不能把缺失结果解释为没有风险。
+Projection 必须发布 `data complete through` watermark 和 lag。Consumer UI 可以容忍短暂 eventual consistency；recall/food-safety 查询超过安全 lag threshold 时必须等待追平、回查 eligible source index，或明确返回 `STALE/INCOMPLETE`，不能把缺失结果解释为没有风险。Official Safety Notice 依 B18 fast path 单独标注 assurance，不与 confirmed trace watermark 混淆。
 
 **需要接受的代价：** 系统需要维护离线同步协议、public projection publication、cache invalidation、export jobs、workload resource limits 和 projection-lag monitoring，即使第一版仍是模块化单体和单一 PostgreSQL。
 
@@ -821,6 +880,7 @@ Consortium KMS or all qualified archives unavailable
 Public chain or relayer unavailable
 → PENDING_ANCHOR / SUBMITTED_ON_CHAIN
 → receipt may exist, but not CONFIRMED
+→ authorised official safety notice may be displayed as VERIFIED_PENDING_ANCHOR
 
 Transaction included but finality not reached
 → INCLUDED
@@ -836,11 +896,11 @@ Projection worker unavailable
 2. **Permanent validation/business failure：** 无效签名、无权限、非法 profile/schema 或明确拒签进入 `REJECTED`、`SIGNING_REJECTED` 或 `EXPIRED`，不无限重试。
 3. **Read-model failure：** 不改变 canonical event 的确认状态，只使相应 projection 落后；修复后从 confirmed event index/archive rebuild。
 
-所有 retry 使用稳定的 event ID、archive object ID、operation ID、batch ID 和 transaction intent。Worker 必须先检查当前 state 与已有外部结果，再执行下一步，以防重复归档、重复 leaf allocation、重复 receipt 或重复链上提交。
+所有 retry 使用稳定的 `captureRecordId`、archive object ID、operation ID、batch ID 和 transaction intent。Worker 必须先检查当前 state 与已有外部结果，再执行下一步，以防重复归档、重复 leaf allocation、重复 receipt 或重复链上提交。
 
 ### Read degradation boundary
 
-已有 consumer snapshots 继续由 cache/CDN 提供，已有 confirmed trace 和未受影响的 operational projections 继续读取。每个异步 read model 暴露 `data complete through` watermark、lag 和 health；普通 UI 可以显示 stale indicator，recall/food-safety 查询超过安全阈值时必须等待、回查 confirmed event index，或返回 `STALE/INCOMPLETE`。
+已有 consumer snapshots 继续由 cache/CDN 提供，已有 confirmed trace 和未受影响的 operational projections 继续读取。每个异步 read model 暴露 `data complete through` watermark、lag 和 health；普通 UI 可以显示 stale indicator，recall/food-safety 查询超过安全阈值时必须等待、回查 eligible source index，或返回 `STALE/INCOMPLETE`。
 
 “读继续”不代表所有依赖故障时所有数据都可读。KMS 不可用时，public projection 和已经合法物化的视图可以继续，但需要即时解密 archive payload 的查询会暂时不可用；PostgreSQL/平台整体失效时，CDN 可以继续提供已有 public snapshot，完整 consortium trace 则通过独立 recovery procedure 恢复，而不是承诺零中断切换。
 
@@ -848,7 +908,7 @@ Projection worker unavailable
 
 平台可以在 archive 暂时故障时有界保存 `RECEIVED/PENDING_ARCHIVE` submissions，但在获得至少一个 qualified independent archive acknowledgement 前不得签发 acceptance receipt。Pending queue 达到容量或最大等待时间后，停止接收并返回 retryable failure，由 participant offline queue 保留原 event。
 
-Public chain 故障时 payload 已在独立 archive 中，因此可以签发 receipt 并积累 `PENDING_ANCHOR` backlog；系统必须监控 oldest pending age 和 backlog size，但不能因超时自动提升为 `CONFIRMED`。
+Public chain 故障时 payload 已在独立 archive 中，因此可以签发 receipt 并积累 `PENDING_ANCHOR` backlog；系统必须监控 oldest pending age 和 backlog size，但不能因超时自动提升为 `CONFIRMED`。B18 official safety notice 可以按 `VERIFIED_PENDING_ANCHOR` 展示，但该 publication status 不改变 canonical event finality。
 
 **需要接受的代价：** 所有异步步骤都需要明确 state、idempotency、retry policy、dead-letter/reconciliation、backpressure 和可观测性；用户界面必须同时表达 submission progress 与 read freshness。
 
@@ -1026,6 +1086,22 @@ Public-chain commitment
 
 Membership/key/profile changes 使用签名的 `GovernanceRecord`，进入 independent archive 和 Merkle anchoring；PostgreSQL current registry 是可重建 projection。平台不能仅修改数据库就无痕激活虚假组织、授予 regulator role 或替换历史 public key。
 
+### Governance effective gate
+
+普通 organisation activation、key rotation/recovery、regulator-role grant、Product Profile publication 和其他扩权变更只有在 GovernanceRecord 完成签名、获得 independent ArchiveAck 并达到 public-chain finality 后才进入 current registry 的 `EFFECTIVE` projection。依赖该新身份、key 或 profile 的 business event 在此之前不得取得 receipt/CONFIRMED。
+
+```text
+PROPOSED
+→ APPROVED_AND_SIGNED
+→ ARCHIVED
+→ ANCHORED_AND_FINALISED
+→ EFFECTIVE
+```
+
+Emergency suspension/revocation 是唯一方向相反的例外：为 fail closed，可以在 authorised dual-control command 验证后立即阻止新的 submission/decrypt grant，并以 `EMERGENCY_PENDING_ANCHOR` 标记；随后必须归档、锚定和审计。若后续治理记录失败或被撤回，使用新的 signed governance record 恢复，不静默删除 emergency history。
+
+Event signature validity 按 event/capture time 与 key `validFrom/validTo/revokedAt` 判断。Key compromise 可以声明 `suspectedCompromiseFrom` 并触发调查，但不能在没有正式 assessment 的情况下自动使该时间之前的所有历史签名失效。
+
 ### Membership and key lifecycle
 
 ```text
@@ -1050,7 +1126,7 @@ APPLICANT → ACTIVE → SUSPENDED → ACTIVE / EXITED / REVOKED
 
 ### Admission validation only
 
-核心可以拒绝：无法解析的 EPCIS/profile payload、缺失 schema-required fields、非法数据类型或 vocabulary、无法 canonicalise 的内容、无效 signature、无权 publisher、event ID 对应不同 digest、损坏的 signature/archive envelope，以及非法 lifecycle transition。
+核心可以拒绝：无法解析的 EPCIS/profile payload、缺失 schema-required fields、非法数据类型或 vocabulary、无法 canonicalise 的内容、无效 signature、无权 publisher、同一 `captureRecordId` 对应不同 digest、违反 A6 Error Declaration 特例的重复 EPCIS eventID、损坏的 signature/archive envelope，以及非法 lifecycle transition。
 
 核心不判断：input 是否被重复消耗、output/yield 是否合理、损耗是否异常、时间地点是否可疑、同一对象是否被多个 transformation 声称、aggregation 是否冲突、关系是否形成业务上可疑的 cycle，或某组织 correction 是否过于频繁。EPCIS schema 明确禁止的结构仍不接收，但平台不添加超出 schema 的业务合理性门槛。
 
@@ -1136,6 +1212,20 @@ recentPendingClaims
 
 新事件、迟到事件或 correction 到达后可以在新 watermark 上重新运行并生成新 export/version，不能无提示覆盖先前范围。Disputed、partially accepted 和 unacknowledged handover relationships 仍属于 confirmed claims 时，应被保守遍历并带状态返回。
 
+### Safety publication fast path
+
+Authorised regulator/responsible organisation 的 official Recall/Safety Notice 与普通 trace event 的 finality gate 分开处理。Notice 在 organisation/regulator signature 验证通过并取得 independent ArchiveAck 后即可用 `VERIFIED_PENDING_ANCHOR` 状态进入 consumer/regulator view，不等待 15–60 分钟 anchor window 或 public-chain recovery；UI 必须显示 issuer、issuedAt、archive verification 和 pending-anchor status。
+
+```text
+SIGNED_OFFICIAL_NOTICE
+→ ARCHIVED / VERIFIED_PENDING_ANCHOR
+→ immediate safety publication
+→ ANCHORED_AND_FINALISED
+→ VERIFIED_CONFIRMED
+```
+
+该例外只解决紧急信息传播，不把 notice 当成链上已 finalise。普通 business event、heuristic/ML finding 和 preliminary advisory 仍按原生命周期处理。NSW Food Authority/FSANZ 的官方公告渠道继续是独立外部来源；平台展示不能成为现实 recall 执行的唯一渠道。
+
 ### Query implementation boundary
 
 第一版使用 PostgreSQL 中可重建的 lineage-edge projection 和 cycle-safe recursive traversal。查询必须使用 visited set、depth/result limits、cursor pagination、timeout 和 provenance-per-edge；超过同步结果阈值时复用 B12 的 asynchronous export path。Graph database 只在实测 traversal/rebuild 指标证明需要后引入。
@@ -1154,7 +1244,7 @@ recentPendingClaims
 
 优先复用 GTIN、GTIN+lot、SGTIN、SSCC、GLN、GRAI/GIAI 和 GS1 Digital Link 等现有标识。大型参与方继续使用其 ERP/WMS/serialisation 系统；平台不建立替代 GS1 的全局编码机构。没有标准标识的参与方使用由 `networkId + issuerOrganisationId + objectType + localId` 组成或等价表达的 network-scoped URI，确保联盟内部命名空间不冲突。
 
-平台可以检查 identifier scheme、格式/check digit、组织 namespace、profile 允许的 scheme、canonical representation 和同一 event ID 的 digest consistency。Organisation signature 表示发布方为“该 identifier 对应此对象/事件”的声明负责。平台不额外证明组织在现实中拥有某个 GTIN，也不证明 label、package 和 physical product 正确对应。
+平台可以检查 identifier scheme、格式/check digit、组织 namespace、profile 允许的 scheme、canonical representation 和同一 `captureRecordId` 的 digest consistency；EPCIS eventID 遵守 A6 的 Error Declaration 特例。Organisation signature 表示发布方为“该 identifier 对应此对象/事件”的声明负责。平台不额外证明组织在现实中拥有某个 GTIN，也不证明 label、package 和 physical product 正确对应。
 
 网络中从未出现过的 input/reference 不因未知而被拒绝或赋予官方 anomaly status。平台保留 publisher 对该 identifier 的签名引用；监管方或参与方以后可请求 invoice、supplier record 或其他 private evidence。Trace 的起点和缺失上游可以从 graph 中直接观察，不由核心系统推断欺诈。
 
@@ -1214,7 +1304,23 @@ Consumer scan/security logs
 
 ### Deletion and immutability
 
-Confirmed organisation-level business trace 不接受物理删除，错误通过 correction event 处理。Mutable user/account/contact data 支持 access、correction、deletion 或 de-identification；private evidence 到期后可以删除，并把引用状态更新为 `EXPIRED/DELETED/UNAVAILABLE`，但不回写或伪造原 canonical event。Legal hold 可以暂停删除，并记录 authority、case、scope、effective/expiry time 和 audit trail。
+在 active retention period 内，confirmed organisation-level business trace 不接受物理删除，错误通过 correction event 处理。Retention 到期不是静默改写历史，而是进入显式终态：
+
+```text
+ACTIVE_RETENTION
+├── LEGAL_HOLD → 保留 ciphertext、wrapped DEK 和验证依赖
+└── RETENTION_EXPIRED
+    → 删除 archive ciphertext 和对应 DEK envelope/object
+    → 删除可重建 operational payload/projection
+    → 保留 non-personal public-chain commitment
+    → 保留 signed minimal deletion audit
+```
+
+七年是 NSW pilot canonical trace 的默认 retention/capacity assumption；product/jurisdiction policy 可以设置更长期限，legal hold 暂停到期删除。平台外完整 payload recovery guarantee 只在 active retention/legal hold 内成立；到期后只能证明曾存在某 commitment 以及按何种 policy 完成删除，不能再恢复 payload。
+
+Profile、canonicalisation、organisation/public-key、revocation 和 governance history 至少保留到最后一个依赖它们的 canonical payload 到期。删除操作由 authorised retention worker 请求，Archive operator 执行并签署 deletion acknowledgement；该 minimal deletion record 进入后续 Merkle anchoring。平台不能单方面提前删除 WORM object。
+
+Mutable user/account/contact data 支持 access、correction、deletion 或 de-identification；private evidence 到期后可以删除，并把引用状态更新为 `EXPIRED/DELETED/UNAVAILABLE`，但不回写或伪造仍在 retention 内的原 canonical event。Legal hold 必须记录 authority、case、scope、effective/expiry time 和 audit trail。
 
 Public-chain commitment 永久存在，因此 commitment input 不得包含 plaintext personal identifier，也不能把短小个人字段直接当作可被字典匹配的公开 hash。减少不可变 PII 的主要手段是 schema allowlist 和 ingestion-time data minimisation，而不是承诺以后从 WORM/public chain 中擦除。
 
@@ -1347,7 +1453,7 @@ Regulator Portal/Access Module 仍是核心平台的一等业务入口，负责 
 | Normal projection lag | at most 30 seconds |
 | Safety-query stale threshold | 5 minutes |
 | Designed rural offline window | up to 72 hours |
-| Archive receipt latency after connected submission | p95 at most 5 seconds under healthy dependencies |
+| Archive receipt latency after signed, connected submission | p95 at most 5 seconds under healthy dependencies; excludes human signing approval |
 | Public-chain anchor/finality target | 15–60 minutes; exact value deferred to C1 |
 | Canonical trace capacity horizon | at least 7 years |
 | Receipted/CONFIRMED canonical trace logical RPO | 0 |
@@ -1357,13 +1463,13 @@ Regulator Portal/Access Module 仍是核心平台的一等业务入口，负责 
 
 10,000 events/day over seven years is approximately 25.6 million canonical events before growth and headroom。该数量仍适合以 managed PostgreSQL 保存 indexed operational metadata/projections，并把完整 payload 放在 object/WORM archive；consumer 5,000 requests/s 不进入 PostgreSQL/KMS 路径，而由 versioned snapshots 和 CDN 承担。
 
-Offline burst 明显高于日均写入，用于验证多个 rural gateways 恢复连接时的 idempotency、backpressure 和 outbox processing。50 events/s 持续 15 分钟约为 45,000 submissions；平台不要求全部在一个数据库事务中完成，而按 stable event ID 分批处理。
+Offline burst 明显高于日均写入，用于验证多个 rural gateways 恢复连接时的 idempotency、backpressure 和 outbox processing。50 events/s 持续 15 分钟约为 45,000 submissions；平台不要求全部在一个数据库事务中完成，而按 stable `captureRecordId` 分批处理。
 
 同步 lineage traversal 超过 10,000 edges，或预计结果接近 response/time limits 时，自动转 asynchronous export。一次最多约一百万 events 的监管 export 使用固定 watermark、streaming、独立 worker quota 和 temporary protected object，不形成长时间同步 database transaction。
 
-Projection 正常 lag 目标为 30 秒；达到五分钟 safety threshold 时，recall/food-safety query 等待追平、回查 confirmed event index 或返回 `STALE/INCOMPLETE`。Dashboard/consumer view 可以显示最新 watermark，不把缺失结果当成“没有风险”。
+Projection 正常 lag 目标为 30 秒；达到五分钟 safety threshold 时，recall/food-safety query 等待追平、回查 eligible source index 或返回 `STALE/INCOMPLETE`。这里的五分钟衡量“某记录达到其可发布 gate 后到 projection 可见”的延迟，不包含普通 event 的 15–60 分钟 anchor/finality 等待。Official Recall/Safety Notice 按 B18 的 `VERIFIED_PENDING_ANCHOR` fast path 计入 safety projection；Dashboard/consumer view 显示相应 watermark 和 assurance status，不把缺失结果当成“没有风险”。
 
-RPO=0 仅适用于已经获得 independent archive acknowledgement 并签发 receipt，或已经 `CONFIRMED` 的 canonical event。`LOCAL_DRAFT/QUEUED_OFFLINE/SYNCING` 由 participant device/gateway 负责；PostgreSQL 中可重建 operational state 使用五分钟 RPO 目标。Core RTO 四小时优先恢复 ingestion、trace query 和 regulatory access；大型 exports/analytics 可以在完整区域重建的二十四小时目标内后恢复。
+Logical RPO=0 是设计目标，仅适用于已经获得可验证 independent ArchiveAck 并签发 receipt，或已经 `CONFIRMED` 的 canonical event，并以 archive/KMS durability、retention 尚未到期和成功 restore drill 为前提。`LOCAL_DRAFT/QUEUED_OFFLINE/SYNCING` 由 participant device/gateway 负责；PostgreSQL 中可重建 operational state 使用五分钟 RPO 目标。Core RTO 四小时优先恢复 ingestion、trace query 和 regulatory access；大型 exports/analytics 可以在完整区域重建的二十四小时目标内后恢复。
 
 ### Scaling triggers
 
@@ -1470,7 +1576,7 @@ DRAFT
 - participant-owned ProtectedResource；
 - 平台外恢复完整 trace；
 - append-only correction；
-- acceptance receipt、幂等 event ID 和明确 finality；
+- acceptance receipt、幂等 `captureRecordId`、EPCIS Error Declaration 特例和明确 finality；
 - PostgreSQL hot query 与可重建 projection；
 - 不声称区块链证明物理事实真实。
 
@@ -1478,7 +1584,7 @@ DRAFT
 
 ```text
 Public Blockchain
-→ integrity and timestamp proof
+→ integrity and external existence checkpoint
 
 Independent Immutable Archive
 → full canonical trace availability
@@ -1527,11 +1633,11 @@ NSW pilot 采用 B22 假设：10,000 canonical events/day、50 events/s offline-
 
 NSW trial 的 mandatory archive 和 Consortium KMS 位于 Australian regions；恢复副本至少跨 Australian failure domain。Public chain 可以是 global network，因为链上只保存不直接识别个人的 commitment/Merkle root。
 
-已经获得 independent archive acknowledgement/receipt 的 canonical trace 采用 logical RPO=0；core service RTO 为四小时，完整 regional rebuild RTO 为二十四小时。该保证仍依赖选定 archive/KMS product、account governance 和恢复演练证明能够达到目标。
+已经获得可验证 independent ArchiveAck/receipt 且仍处于 active retention/legal hold 的 canonical trace 采用 logical RPO=0 target；core service RTO 为四小时，完整 regional rebuild RTO 为二十四小时。该目标仍依赖选定 archive/KMS product、account governance、KMS recovery identity 和恢复演练证明能够达到。
 
-故障语义也已经确定：write path 在失败步骤 fail closed 并可幂等续跑；既有 confirmed data 尽可能继续读取并暴露 freshness/degradation；archive acknowledgement 之前不签 receipt，public-chain finality 之前不进入 `CONFIRMED`。
+故障语义也已经确定：write path 在失败步骤 fail closed 并可幂等续跑；既有 confirmed data 尽可能继续读取并暴露 freshness/degradation；ArchiveAck 之前不签 receipt，public-chain finality 之前不进入 `CONFIRMED`。B18 authorised official Recall/Safety Notice 可以 `VERIFIED_PENDING_ANCHOR` 快速发布，但不得冒充链上 finality。
 
-**为什么部分内容尚未定案：** 权力边界已经确定，但背景没有给出愿意签约的 archive operator、联盟治理实体、部署地区、保留期限或恢复 SLA，不能虚构具体组织和供应商。
+**为什么部分内容尚未定案：** 权力边界、Australian residency、retention terminal state 和 target RPO/RTO 已经确定，但背景没有给出愿意签约的 archive operator、联盟治理实体或具体产品，不能虚构组织和供应商，也不能在恢复测试前把 targets 写成已实现 SLA。
 
 **已否决：** 仅罗列云服务品牌而不说明谁控制账号、密钥和恢复；也否决要求每个小型参与方部署完整基础设施。
 
@@ -1545,9 +1651,9 @@ NSW trial 的 mandatory archive 和 Consortium KMS 位于 Australian regions；�
 
 > 本系统是跨组织农业供应链追溯层，而不是农业 ERP。参与方通过 PWA 或既有系统发布联盟 profile 约束的 EPCIS events。消费者只读取公开 projection；联盟成员共享足以重建路径和定位潜在责任方的 canonical EPCIS trace core；商业详情和原始证据作为 participant-owned ProtectedResources，由参与方保存或选择平台托管。系统不声称区块链证明物理事实真实，但要求平台运营者不能单方面静默重写或垄断已经确认的历史。
 
-Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少一个平台控制域之外的 WORM archive；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的外部完整性证明。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台只有有限使用权而没有密钥管理权。
+Canonical shared trace 使用 per-event DEK 加密，并在确认前取得至少一个平台控制域之外 WORM archive operator 的 signed ArchiveAck；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的 external existence/integrity checkpoint。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台有运行所需的 decrypt 使用权但没有密钥管理权，因此本方案不声称防止被攻破的平台 runtime 泄露 consortium plaintext。
 
-跨组织实物交接由 sender-signed ShippingEvent 与 receiver-signed ReceivingEvent 两份独立声明组成；二者分别确认，平台只派生 handover status。缺少接收确认不会抹去发货声明，争议和未确认 edges 仍进入 recall/audit 查询并明确标记保证等级。
+跨组织实物交接由 sender-signed shipping claim 与 receiver-signed receiving claim 两份独立声明组成，在 EPCIS 中映射为标准 events 加 shipping/receiving bizStep；二者分别确认，平台只派生 handover status。缺少接收确认不会抹去发货声明，争议和未确认 edges 仍进入 recall/audit 查询并明确标记保证等级。
 
 应用不采用全量 Event Sourcing。不可变 trace core 保持 append-only；普通应用状态使用事务模型；archive、anchor 和针对性 projections 由 PostgreSQL transactional outbox 驱动。第一版不需要独立 broker 或多套读写数据库，projection lag 必须通过 watermark 暴露，安全查询不得把过期视图解释为完整结果。
 
@@ -1557,7 +1663,7 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 
 依赖故障时，写路径停留在最后一个持久化状态并幂等续跑，不绕过签名、archive acknowledgement 或 public-chain finality；读路径继续提供已有 confirmed data，并通过 watermark、stale status 和安全查询的 fail-closed 行为诚实表达降级。
 
-原始 IoT telemetry 默认作为 participant-controlled PRIVATE ProtectedResource，由参与方自管或选择平台托管；canonical trace 只保存 profile-required sensor summary、异常、provenance、reference 和 content commitment。一体化设备接入不改变数据分类和举证责任。
+原始 IoT telemetry 默认作为 participant-controlled PRIVATE ProtectedResource，由参与方自管或选择平台托管；canonical trace 只保存 profile-required sensor summary、source-reported alarm/exception、provenance、reference 和 content commitment。一体化设备接入不改变数据分类和举证责任。
 
 监管机构与其 Analytics/ML 工具使用不同身份和权限。监管方可以读取 confirmed consortium trace，并在具体案件中依据记录的法律或治理授权访问选定 private evidence、签署正式监管事件；Analytics 只读取最小化 projection，输出默认 regulator-private。监管方可以把选定 findings 作为 signed preliminary advisories 提供给平台转达，但 Analytics 不能访问任意 private resource、作出正式监管决定或直接写入 canonical trace。
 
@@ -1565,16 +1671,16 @@ Human 和 IoT fleet identity 由外部/参与方 IAM 管理；核心只保存 or
 
 核心只验证 EPCIS source assertion 的 schema、signature、authority、canonicalisation 和 idempotency，不判断 transformation、aggregation、quantity、timing 或 lineage 是否符合业务常识。监管方在独立 Regulatory Analytics System 中运行启发式规则、统计分析或可选 ML；输出默认 regulator-private，经签名 disclosure policy 才能作为平台可转达的 preliminary advisory，且在 authorised officer 人工签署前不构成正式结论。
 
-Recall 是对 shared consortium lineage projection 的保守、带 watermark 的查询，并可展示 authorised party 提交的 signed recall status。平台不执行实际下架、封存、退货或销毁；confirmed impact 与 recent pending claims 分开展示，private evidence 只在后续调查时单独授权。
+Recall 是对 shared consortium lineage projection 的保守、带 watermark 的查询，并可展示 authorised party 提交的 signed recall status。Official Recall/Safety Notice 在 signature + ArchiveAck 后可作为 `VERIFIED_PENDING_ANCHOR` 紧急发布，随后补 chain finality；平台不执行实际下架、封存、退货或销毁。Confirmed impact 与 recent pending claims 分开展示，private evidence 只在后续调查时单独授权。
 
 参与方负责分配标准 product/logistics identifiers，平台只为缺少外部 scheme 的参与方提供 network-scoped fallback，并验证 syntax、namespace、resolution 和 attribution。Consumer QR 只解析 public projection，不证明标签物理真实性或提供防伪保证。
 
-NSW 是首个 trial jurisdiction。非公开 operational data、independent archive 和 Consortium KMS 默认位于 Australian regions；immutable trace 排除自然人直接标识，retention 按 data class/product/jurisdiction policy 管理，并按至少七年 canonical capacity 规划。Mutable personal data 支持 correction/deletion/de-identification，public chain 永久保存的只有非个人 commitment。
+NSW 是首个 trial jurisdiction。非公开 operational data、independent archive 和 Consortium KMS 默认位于 Australian regions；immutable trace 排除自然人直接标识，canonical payload 默认保留至少七年并可由 product/jurisdiction policy 或 legal hold 延长。Retention 到期后删除 archive ciphertext/DEK envelope 和可重建 payload，只永久保留非个人 public-chain commitment 与 signed minimal deletion audit。Mutable personal data 支持 correction/deletion/de-identification。
 
-NSW pilot 的 reference workload 为 200 个初始组织、2,000 名内部用户和日均 10,000 canonical events；农村恢复峰值按 50 events/s、消费者 CDN 峰值按 5,000 requests/s 设计。Confirmed/receipted trace logical RPO=0，PostgreSQL RPO 五分钟，core RTO 四小时，regional rebuild 二十四小时；这些都是待测试验证的 architecture assumptions，而不是生产 SLA。
+NSW pilot 的 reference workload 为 200 个初始组织、2,000 名内部用户和日均 10,000 canonical events；农村恢复峰值按 50 events/s、消费者 CDN 峰值按 5,000 requests/s 设计。Active-retention 内已取得可验证 ArchiveAck 的 trace 以 logical RPO=0 为目标，PostgreSQL RPO 五分钟，core RTO 四小时，regional rebuild 二十四小时；这些都是待测试验证的 architecture assumptions，而不是生产 SLA。
 
-仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
+仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、产品级 restore validation、key recovery 和 chain migration，而不是 archive 权力边界、retention terminal、anchoring 粒度或自建 validator 数量。
 
 # 答辩时的一分钟版本
 
-> We are building a cross-organisation agricultural traceability layer rather than an ERP. Small participants may use the platform PWA, while mature organisations integrate through EPCIS or APIs. Before confirmation, the encrypted canonical trace is persisted in at least one independently controlled WORM archive; large members and regulators may maintain additional optional mirrors. The consortium encryption key is held by a professionally managed KMS account controlled by the consortium or an independent trustee, while the platform receives usage but not administrative authority. A public blockchain stores periodic Merkle roots, making post-confirmation replacement detectable without exposing supply-chain data. Consumers receive an allowlisted public projection, while detailed evidence remains participant-owned and may optionally be hosted by the platform. This design does not claim that blockchain proves the physical truth of source assertions.
+> We are building a cross-organisation agricultural traceability layer rather than an ERP. Small participants may use the platform PWA, while mature organisations integrate through EPCIS or APIs. Before confirmation, the encrypted canonical trace receives a signed acknowledgement from at least one independently controlled WORM archive; large members and regulators may maintain additional optional mirrors. The consortium encryption key is held by a professionally managed KMS account controlled by the consortium or an independent trustee, while the platform receives usage but not administrative authority. A public blockchain stores periodic Merkle roots, making post-confirmation replacement detectable without exposing supply-chain data. During the applicable retention or legal-hold period, an independent recovery path can rebuild the trace without the platform database. Consumers receive an allowlisted public projection, while detailed evidence remains participant-owned and may optionally be hosted by the platform. This design does not claim that blockchain proves the physical truth or consistency of source assertions.
