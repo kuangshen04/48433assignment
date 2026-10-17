@@ -1,6 +1,6 @@
 # Identity & Governance
 
-> 主要决策：[B5](/decisions/catalog#b5)、[B11](/decisions/catalog#b11)、[B16](/decisions/catalog#b16)、[B20](/decisions/catalog#b20)
+> 主要决策：[B5](/decisions/catalog#b5)、[B11](/decisions/catalog#b11)、[B16](/decisions/catalog#b16)、[B20](/decisions/catalog#b20)、[B24](/decisions/catalog#b24)
 
 ## 身份分层
 
@@ -11,6 +11,36 @@
 | Organisation Identity | Membership Governance | organisation status、public keys、roles、governance history |
 
 平台不复制企业员工目录、密码/MFA lifecycle，也不为每个低成本 sensor 建立平台账户。
+
+## 组织是唯一的身份与访问单元（B24）
+
+平台不以自然人为管理单元。组织承担签名归因、租户边界、KMS epoch 和治理记录，因此一个 `organisationId` 必须同时是这四件事的 key。
+
+**每请求显式绑定组织。** 一个 subject 可以代表多个组织（顾问、集团员工、合作社职员），所以 token 里的 subject 推不出以哪个组织身份行动：
+
+```text
+authenticated subject       由外部 IdP 断言
++ explicit actingOrganisationId
++ operation scope
+-> Delegation Registry 校验
+-> 决定归因、可见范围与 KMS epoch
+```
+
+缺少显式绑定时拒绝请求，**不能默认取第一个组织或最近使用的组织**——那会让归因取决于会话历史。
+
+**明确不管的部分：**
+
+| 不归平台管 | 归谁 |
+|---|---|
+| 员工名册、入离职、岗位、汇报线 | 组织自己的 HR/IAM |
+| 组织内部审批链、双人复核 | 组织自己的流程；平台只验证最终签名 |
+| 密码、MFA、会话 | 外部 IdP |
+| 合作社与成员农场、集团与子公司 | 商业安排：注册成多个 `organisationId` + delegation |
+| 多站点企业的站点结构 | 同上；站点写成不同 `bizLocation`，仍属同一 organisation |
+
+平台可以提供很简易的用户界面，但那是 delegation 注册表的编辑器，不是权威用户目录。
+
+**组织层级 out of scope。** 不建 `parentOrganisationId`：层级一旦存在，`CONSORTIUM` 可见范围、scope 计算、KMS epoch 和签名归因都要沿层级继承，复杂度立刻上升；而农业场景的层级形态（合作社、集团、代工、代销）差异太大，无法给出通用语义。若出现"父组织代为提交"的需求，先看 delegation 是否够用。
 
 ## Membership Governance 的有限权力
 

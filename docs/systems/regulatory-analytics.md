@@ -72,6 +72,16 @@ CONFIRMED consortium assertions at watermark W
 
 第一版不分析 pending assertions；其 freshness SLO 明确包含普通事件等待 public-chain finality 的时间。
 
+### 私有证据的唯一取用通道
+
+Analytics **不能任意追取** ProtectedResource。唯一例外来自 B23：所有者提交时已把内容加密给监管 scope，Analytics 用自有密钥解密并对照 `plaintextCommitment` 校验。
+
+这条通道的性质要写清：
+
+- 授权来自**所有者**，不是平台或 Analytics 的权限扩张；
+- 平台全程无法解密，因此也无法审计"谁真的解开了"，只能审计"谁被授权持有 key"；
+- 没有被加密授予的证据只能按案件向所有者索取，平台负责转达，不负责取证。
+
 ## 输出与披露
 
 ```text

@@ -13,7 +13,7 @@ Small participant
   -> summary generation -> EPCIS submission
 ```
 
-一体化接入不表示平台取得原始 telemetry 所有权，也不表示 telemetry 自动成为联盟共享数据。
+一体化接入不表示平台取得原始 telemetry 所有权，也不表示 telemetry 自动成为联盟共享数据。平台提供的 private storage 按 B23 是**零知识托管**：平台只有密文，没有解密能力，也不能用它做训练或二次分析。
 
 ## 数据分类
 

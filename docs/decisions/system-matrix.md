@@ -9,8 +9,8 @@
 | Scope & Context | A1、A2、A7、A8 | B1、B20 | 追溯层边界、参与方集成方式、首版复杂度 |
 | Traceability Core | A3、A6、B6、B9、B10、B11 | A4、B13、B17、B18、B19 | EPCIS 写模型、状态机、handover、correction、lineage |
 | Trust & Recovery | A5、B1、B2、B4、B7、B8 | B3、B6、B20、B22、C1、C3 | Archive envelope/Ack、Merkle leaf、KMS 与 recovery |
-| Identity & Governance | B5、B16 | B6、B11、B20 | Organisation/key/delegation、签名 assurance、治理生效 |
-| Data & Access | B3、B10、B20 | A5、B2、B12、B14、B15 | PUBLIC/CONSORTIUM/PRIVATE、ProtectedResource、retention |
+| Identity & Governance | B5、B16、B24 | B6、B11、B20 | Organisation/key/delegation、签名 assurance、治理生效、acting organisation 绑定 |
+| Data & Access | B3、B10、B20、B23 | A5、B2、B12、B14、B15 | PUBLIC/CONSORTIUM/PRIVATE、零知识 ProtectedResource、承诺与分享、retention |
 | IoT & Edge | B14 | A8、B12、B16 | Telemetry ownership、summary/evidence、offline queue |
 | Regulatory Analytics（系统边界内、监管方运行时域） | B15、B17、B21 | B13、B18、B20 | 最小化输入、signature 绑定的 rule/model 版本、finding、disclosure、freshness |
 | Query & Experience | B12、B18、B19 | B9、B10、B13、B21 | Consumer/participant/regulator reads、recall、watermark |
@@ -31,6 +31,8 @@
 | Recall query 不等于物理下架 | Traceability/Regulator Portal | Participant ERP/WMS/POS |
 | QR 不等于防伪证明 | Consumer projection | Consumer UI/Analytics |
 | PRIVATE hosting 不改变 ownership | Data Access | IoT、Evidence、Regulator access |
+| 平台从不持有 PRIVATE 明文（零知识托管除外，且无 escrow） | Data Access / B23 | Core、Analytics、Regulator access |
+| 组织是唯一身份与租户单元，每请求显式绑定 acting organisation | Identity/Governance | Core、KMS、Projections |
 
 ## 两个反误读测试
 
@@ -66,4 +68,12 @@ Archive 保存可验证 canonical bytes；PostgreSQL 提供热状态和索引。
 
 ### Participant Evidence vs Platform-hosted Evidence
 
-Hosting mode 是运营选择；classification、ownership、purpose 和 access grant 不随托管位置改变。
+托管位置是运营选择，但**平台在任何一种模式下都不持有 PRIVATE 明文**（B23）。`PLATFORM_HOSTED_ZERO_KNOWLEDGE` 只意味着平台代为保存密文，不意味着平台能读、能查、能取证或能恢复：没有 key escrow、没有平台侧调取，也没有进入 core RPO/RTO 的可用性承诺。
+
+### PRIVATE vs CONSORTIUM
+
+没有中间地带。需要按字段查询、需要被联盟重建路径使用的数据必须进 `CONSORTIUM`；不想让联盟读的内容只能留在平台外，用加盐承诺锚定。两者之间不存在"平台可读但成员不可读"的第三档——除非将来启用事件级受众（B3 已说明其代价）。
+
+### 组织 vs 用户
+
+组织是唯一的身份、租户与签名单元；平台不管理组织内部人员。一个 subject 可代表多个组织，所以每个请求必须显式绑定 `actingOrganisationId`，不能从登录身份推断（B24）。

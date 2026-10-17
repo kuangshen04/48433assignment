@@ -11,6 +11,8 @@
 > 2026-10-18 修订：B17 改为“记录断言 / 签署判定”两分，并补上 non-collapsing 表示义务；B21 明确 Regulatory Analytics 位于系统边界内、但属监管方独立运行时域，因此承担 C4 分解责任。B15、B18 相应补充。
 >
 > 2026-10-18 修订（第二次）：B3 增加“验证与重建分开”的保证范围，并明确 KEK epoch 的历史访问语义；B2、B17、B18、B7 相应收窄。原因见日志 B3 的“保证范围”一节。
+>
+> 2026-10-18 修订（第三次）：新增 **B23**（PRIVATE 零知识模型与证据层分享）与 **B24**（组织作为身份与租户单元）；B3、B14、B15、B16、B18、B20 中与“平台可读私有证据”“用户管理”相关的表述已同步。
 
 ## 第一层：背景充分支持的决定
 
@@ -71,7 +73,7 @@
 <a id="b3"></a>
 ### B3 · PUBLIC / CONSORTIUM / PRIVATE 三层数据模型
 
-**Conditional baseline.** Active consortium participants 共享 canonical trace core；消费者只读 allowlisted public projection；敏感证据是 owner-controlled ProtectedResource。联盟内广泛共享是假设，需利益相关方验证。
+**Conditional baseline.** Active consortium participants 共享 canonical trace core；消费者只读 allowlisted public projection；敏感证据不上平台，只在 canonical event 留加盐承诺（B23）。联盟内广泛共享是假设，需利益相关方验证。
 
 **保证范围（验证 ≠ 重建）：** 任一成员可独立验证"历史是一条 append-only 日志、自己的记录已被纳入"（inclusion + consistency proof），并可重建自己 scope 内的历史；完整历史的重建与语义验证由全 scope 方执行。这是对**能力声明**的收窄，不影响 B1 的完整性保证——完整性验证不需要明文。
 
@@ -130,17 +132,17 @@
 <a id="b14"></a>
 ### B14 · Raw IoT 是 participant-controlled PRIVATE evidence
 
-**Baseline.** Core 保存 profile-required summary、source-reported exception、reference、provenance 和 commitment。Evidence status 是客观状态，是否构成风险由 Analytics/监管人员判断。
+**Baseline.** Core 保存 profile-required summary、source-reported exception、reference、provenance 和 commitment。Evidence status 是客观状态，是否构成风险由 Analytics/监管人员判断。平台托管 raw telemetry 时按 B23 采用零知识托管，平台没有解密能力。
 
 <a id="b15"></a>
 ### B15 · Regulator 与 Analytics 使用不同身份权限
 
-**Baseline.** Analytics 只读 purpose-minimised confirmed projection，无任意 archive/KMS/private-evidence 权限，不能继承监管人员法定能力。该子系统位于系统边界内但属监管方运行时域（B21）：边界内不代表平台可获得它的规则、模型或 finding 数据。
+**Baseline.** Analytics 只读 purpose-minimised confirmed projection，无任意 archive/KMS/private-evidence 权限，不能继承监管人员法定能力。该子系统位于系统边界内但属监管方运行时域（B21）：边界内不代表平台可获得它的规则、模型或 finding 数据。**唯一例外**是 B23 的窄通道——所有者提交时已把内容加密给监管 scope，Analytics 可用自有密钥解密并对照 commitment 校验；授权来自所有者，不是权限扩张。
 
 <a id="b16"></a>
 ### B16 · Human/Device IAM 在外围，Organisation Governance 在核心
 
-**Baseline.** 企业/IoT vendor 管理账号与设备 fleet；核心保存 organisation membership、public keys、delegations 和 signed GovernanceRecords。扩权变更在 archive/anchor finality 后生效，紧急撤销可先 fail closed。
+**Baseline.** 企业/IoT vendor 管理账号与设备 fleet；核心保存 organisation membership、public keys、delegations 和 signed GovernanceRecords。扩权变更在 archive/anchor finality 后生效，紧急撤销可先 fail closed。**组织是唯一身份与租户单元，每请求显式绑定 acting organisation，不建组织层级**（见 B24）。
 
 <a id="b17"></a>
 ### B17 · Core 记录断言，不裁决真伪
@@ -179,6 +181,22 @@
 ### B22 · 使用显式、可测试的 NSW pilot 数量假设
 
 **Conditional baseline.** 200 初始组织、10k events/day、50 events/s offline burst、5k consumer RPS、logical RPO=0 target、PostgreSQL RPO 5m、core RTO 4h、regional rebuild 24h；均需测试验证。
+
+<a id="b23"></a>
+### B23 · PRIVATE 不上平台，只留加盐承诺；分享由所有者授予
+
+**Baseline.** `PRIVATE` 内容默认保存在参与方一侧，平台只保存 `plaintextCommitment`（加盐摘要）与资源引用。可选的平台托管是**零知识**的：平台只有密文，无解密能力、无 key escrow。分享通过**所有者**把内容加密给指定接收方（含监管 scope）实现，不使用平台计算的 `accessScope`，也不引入事件级受众。
+
+**收益而非限制：** commitment 随事件锚定后，参与方事后无法替换证据而不被发现；加盐使低熵内容不可被字典穷举；retention 到期后 commitment 仍在但无 nonce 无法反推内容。平台在提交时无法验证 commitment 对应真实材料——这正是“举证义务在参与方”的准确含义。
+
+**明确不承诺：** 密钥恢复、平台侧取证、PRIVATE 内容的可用性进入 core RPO/RTO、删除的全局证明、元数据保密。详见日志 B23 的不承诺清单。
+
+<a id="b24"></a>
+### B24 · 平台以组织为身份、访问与租户单元
+
+**Baseline.** 不建设用户目录、岗位、审批流程或人员生命周期；组织内部授权由组织自己决定并声明为 delegation 断言。角色只保留少量固定值（OrgAdmin、EventPublisher、EvidenceManager、Viewer）。**每个请求必须显式携带 acting organisation**——因为一个 subject 可代表多个组织，不能从 token 推断，缺失时拒绝而不是取默认值。
+
+**组织层级 out of scope：** 不建 `parentOrganisationId`。合作社、集团、多站点企业一律注册为多个 `organisationId`，用 delegation 表达代理关系；层级会污染 scope 计算、KMS epoch、签名归因与召回范围。触发条件：出现“父组织代为提交”的需求时先看 delegation 是否够用，不够再作为新架构前提评估。
 
 ## 第三层：仍需关闭的决定
 

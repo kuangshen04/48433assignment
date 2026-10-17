@@ -99,4 +99,6 @@ Recovery Client 必须验证整条关系，不能只检查链上 inclusion proof
 
 关键验收场景是 ArchiveAck 已签发、尚未进入 Merkle batch 时平台 PostgreSQL 与运行账户全部丢失。系统必须能恢复 receipt/outbox/anchor intent 并继续 anchoring。
 
+**`logical RPO=0` 只覆盖 canonical trace，不覆盖 PRIVATE 内容。** 按 B23，私有证据保存在所有者一侧或由平台以零知识方式托管：前者不在平台恢复范围内，后者没有 escrow、无法代表所有者解密。恢复包里能还原的是那些 evidence 的 reference 与 commitment，不是内容本身。
+
 完整过程见[平台失效与恢复](/flows/platform-recovery)。

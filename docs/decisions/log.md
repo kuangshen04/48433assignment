@@ -13,6 +13,8 @@ outline: false
 > 阅读方式：第一层是背景直接支持的决定；第二层是已经接受的额外假设；第三层是仍待讨论的选择。
 >
 > 2026-10-18 修订说明：B17 改为“记录断言 / 签署判定”两分，并补上 non-collapsing 表示性质；B21 明确 Regulatory Analytics 位于系统边界内但属监管方独立运行时域，因此需要承担 C4 分解责任。受影响的下游表述已在总体结论、一分钟版本、B11、B15、B18、C3 同步，并已落入[决策目录](/decisions/catalog)、[系统地图](/architecture/system-map)与相关系统页。
+>
+> 2026-10-18 第二次修订：新增 **B23（PRIVATE 零知识模型与证据层分享）** 与 **B24（平台以组织为身份与访问单元）**；B3 的 `PRIVATE` 数据层、ProtectedResource 模型与访问矩阵，以及 B14、B15、B18、B20、B16 中与“平台可读私有证据”相关的表述一并修正。
 
 本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
 
@@ -261,38 +263,38 @@ Public Blockchain
 |---|---|---|---|
 | `PUBLIC` | 产品、来源地区、主要阶段、公开认证摘要、温控摘要、recall status | Consumer 及其他用户 | 从 shared trace 生成 allowlisted projection |
 | `CONSORTIUM` | 联盟批准的 canonical EPCIS trace core | 已认证参与方、Auditor/Regulator、必要运维人员 | Encrypted immutable archive + application projection |
-| `PRIVATE` | 精确商业详情、完整 sensor data、文件、企业私有扩展 | Owner、直接交易方、明确授权的调查者 | Participant-hosted 或可选 platform-hosted `ProtectedResource` |
+| `PRIVATE` | 精确商业详情、完整 sensor data、文件、企业私有扩展 | Owner；所有者显式加密授予的接收方 | 默认不上平台，只在 canonical event 留 reference + salted commitment；可选 zero-knowledge 托管（平台不可解密）。见 B23 |
 
 ### ProtectedResource 统一模型
 
-结构化 private detail 与 PDF、照片、证书和原始 telemetry 使用同一个逻辑资源模型：
+结构化 private detail 与 PDF、照片、证书和原始 telemetry 使用同一个逻辑资源模型。**平台侧只有记录，没有内容**（B23）：
 
 ```text
-ProtectedResource
+ProtectedResource (platform-side record)
 - resourceId
 - captureRecordId / epcisEventId reference
 - ownerOrganisationId
-- resourceType
-- schemaOrMediaType
-- contentHash
-- storageMode: PLATFORM_HOSTED | PARTICIPANT_HOSTED
+- resourceType / mediaType
+- plaintextCommitment       参与方计算、加盐
+- ciphertextDigest          仅 PLATFORM_HOSTED_ZERO_KNOWLEDGE 存在
+- storageMode: PARTICIPANT_HOSTED | PLATFORM_HOSTED_ZERO_KNOWLEDGE
 - externalLocator
-- accessScope
+- recipientKeyRefs          所有者选择的接收方
 - retentionMetadata
 - availabilityStatus
 ```
 
-底层可以分别使用 PostgreSQL JSONB、object storage 或外部 IoT store，但权限、引用、commitment 和 availability 状态由同一个 Protected Resource Service 管理。
+三点与早期设计不同：平台**没有 `accessScope` 可执行**（没有明文，无法做内容级授权）；**没有结构化 JSONB 存 private detail 这条路**（要按字段查询就必须进 `CONSORTIUM`）；平台**不能验证 commitment 与内容一致**，只能证明自己保存的密文未被替换。分享通过所有者加密给接收方实现，细节见 B23。
 
 ### 固定访问矩阵
 
 | 角色 | Public Projection | Shared Trace Core | ProtectedResource |
 |---|---:|---:|---:|
 | Consumer | 可读 | 不可读 | 不可读，除非另有公开摘要 |
-| Consortium Participant | 可读 | 可读 | 仅自有、直接交易相关或明确共享的资源 |
-| Auditor/Regulator | 可读 | 可读 | 在批准的 investigation scope 和期限内可读 |
-| Platform Operator | 托管 | 托管 | 仅为托管/运维技术访问，并记录审计日志 |
-| Archive Operator | 不因运行归档获得消费者身份 | 保存 ciphertext，不因运维自动获得明文权限 | 仅保存平台托管的资源时按审计流程访问 |
+| Consortium Participant | 可读 | 可读 | 仅自有的资源可解；他方资源需所有者加密授予 |
+| Auditor/Regulator | 可读 | 可读 | 仅当所有者已把内容加密给监管 scope，或按案件向所有者索取；平台无法代为解密 |
+| Platform Operator | 托管 | 托管 | **无明文访问**；零知识托管只能做 blob 级运维，不能解密、不能响应内容调取 |
+| Archive Operator | 不因运行归档获得消费者身份 | 保存 ciphertext，不因运维自动获得明文权限 | 若代为存放 PRIVATE 密文，同样不获得明文 |
 
 ### 保证范围：验证与重建分开
 
@@ -1049,7 +1051,7 @@ PLATFORM_HOSTED
 → still participant-owned PRIVATE ProtectedResource
 ```
 
-小型参与方可以使用平台提供的一体化 device binding、telemetry ingestion、private storage、summary generation 和 EPCIS submission；大型参与方可以继续使用自己的 IoT platform。平台托管只改变 storage/operator，不授予平台将 raw telemetry 公开给其他成员、消费者或用于 ML training 的权利。
+小型参与方可以使用平台提供的一体化 device binding、telemetry ingestion、private storage、summary generation 和 EPCIS submission；大型参与方可以继续使用自己的 IoT platform。平台托管只改变 storage/operator **，且按 B23 采用零知识托管——平台只有密文，没有解密能力**；它当然也不能把 raw telemetry 公开给其他成员、消费者或用于 ML training。
 
 ### Evidence responsibility
 
@@ -1078,7 +1080,7 @@ IoT vendor/参与方负责完整 device fleet identity、certificate provisionin
 | Read `PUBLIC` data | Yes | Only when included in its dataset |
 | Read confirmed `CONSORTIUM` trace | Yes, through regulator role | Only purpose-minimised analytics projection |
 | Read complete canonical archive | Through authorised regulator query/recovery path when required | No direct archive/KMS access |
-| Read participant `PRIVATE` evidence | Only for a specific case with recorded legal/governance basis | No in routine screening |
+| Read participant `PRIVATE` evidence | Only if the owner already encrypted it to the regulator scope, or via a case-specific request to the owner（平台无法代为解密，见 B23） | No in routine screening |
 | Request evidence or exercise legal authority | Yes | No; may only recommend investigation |
 | Create internal risk alert | Yes | Yes, regulator-private by default; separately approved findings may be disclosed as advisory |
 | Sign Inspection/Assessment event | Yes, using regulator organisation key | No |
@@ -1098,7 +1100,9 @@ Confirmed CONSORTIUM trace
 → regulator-private RiskAlert
 ```
 
-Regulatory Analytics Projection 可以包含 confirmed event relationships、handover claims、sensor summaries、missing/delayed evidence status、correction history 和必要 organisation/location identifiers。它不包含 raw IoT telemetry、合同、完整实验室文件、device credentials、signing material 或其他 participant-private resources。Analytics service 无权通过 reference 自动追取对应 ProtectedResource。
+Regulatory Analytics Projection 可以包含 confirmed event relationships、handover claims、sensor summaries、missing/delayed evidence status、correction history 和必要 organisation/location identifiers。它不包含 raw IoT telemetry、合同、完整实验室文件、device credentials、signing material 或其他 participant-private resources。
+
+Analytics service **不能任意追取** ProtectedResource；唯一例外是 B23 的窄通道：所有者提交时已把内容加密给监管 scope，Analytics 可用自有密钥解密并对照 commitment 校验。授权来自所有者，不是来自平台或 Analytics 的权限扩张。
 
 Export 记录 dataset/schema version、confirmed-data watermark、purpose、recipient service identity、retention/expiry 和 audit ID。Model output 记录 `alertId`、`modelId/modelVersion`、`runId`、关联 event IDs、reason codes、risk score、data watermark 和生成时间。
 
@@ -1128,6 +1132,8 @@ Analytics alert 默认属于 regulator-owned `PRIVATE` data，不能直接进入
 
 **决定：** 核心系统不建设完整 Human IAM 或 IoT device-fleet IAM。Human identities 由企业 IdP 或 managed customer identity provider 认证；IoT/device identities 由参与方或 IoT provider 管理。追溯核心只管理 `Organisation Registry`、`Organisation Key Registry`、进入本系统的 scoped delegations，以及不可覆盖的 governance-change history。
 
+组织是唯一的身份、访问和租户单元；平台不管理组织内部的用户、岗位与审批流程，也不维护组织层级。每个请求必须显式携带 acting organisation。完整边界见 B24。
+
 ```text
 External/participant Human IAM
 → authenticated subject claim
@@ -1153,6 +1159,7 @@ Organisation Registry
 
 Organisation Key Registry
 - keyId / publicKey
+- keyPurpose: SIGNING | ENCRYPTION   ← ENCRYPTION 供 B23 的内容加密接收方使用
 - custodyMode
 - validFrom / validTo
 - revocationStatus
@@ -1325,7 +1332,7 @@ Regulator/responsible organisation decides recall externally
 
 ### No new access model
 
-Recall impact query 只遍历所有 active consortium members 原本可读的 canonical trace fields，因此不引入单独权限层。Raw IoT、完整 laboratory reports、contracts 和 investigation notes 仍是 `PRIVATE` ProtectedResources；只有调查确实需要时，才通过已有 case-specific regulator/participant access path 获取。
+Recall impact query 只遍历所有 active consortium members 原本可读的 canonical trace fields，因此不引入单独权限层。Raw IoT、完整 laboratory reports、contracts 和 investigation notes 仍是 `PRIVATE`，且按 B23 默认不在平台上：调查需要时，或由所有者把内容加密给监管 scope，或由平台向所有者转达索取请求——平台无法代为解密。
 
 查询本身可以由普通联盟成员运行；但发布正式 recall status、改变 consumer projection 或签署监管结论仍要求 responsible-organisation 或 regulator authority。按 B3，成员自行运行的遍历只覆盖其 scope，结果必须标注 `scope-limited`，不能作为权威影响范围；权威的保守遍历由全 scope 方执行，两者使用同一 watermark 和同一遍历规则。Regulatory Analytics/ML alert 不能自动成为 recall。
 
@@ -1465,7 +1472,7 @@ ACTIVE_RETENTION
 
 Profile、canonicalisation、organisation/public-key、revocation 和 governance history 至少保留到最后一个依赖它们的 canonical payload 到期。删除操作由 authorised retention worker 请求，Archive operator 执行并签署 deletion acknowledgement；该 minimal deletion record 进入后续 Merkle anchoring。平台不能单方面提前删除 WORM object。
 
-Mutable user/account/contact data 支持 access、correction、deletion 或 de-identification；private evidence 到期后可以删除，并把引用状态更新为 `EXPIRED/DELETED/UNAVAILABLE`，但不回写或伪造仍在 retention 内的原 canonical event。Legal hold 必须记录 authority、case、scope、effective/expiry time 和 audit trail。
+Mutable user/account/contact data 支持 access、correction、deletion 或 de-identification；private evidence 到期后可以删除，并把引用状态更新为 `EXPIRED/DELETED/UNAVAILABLE`，但不回写或伪造仍在 retention 内的原 canonical event。按 B23，平台能删的只是自己名下的密文对象；所有者自己的副本不在范围内，删除也无法证明内容在其他位置已消失。Legal hold 必须记录 authority、case、scope、effective/expiry time 和 audit trail。
 
 Public-chain commitment 永久存在，因此 commitment input 不得包含 plaintext personal identifier，也不能把短小个人字段直接当作可被字典匹配的公开 hash。减少不可变 PII 的主要手段是 schema allowlist 和 ingestion-time data minimisation，而不是承诺以后从 WORM/public chain 中擦除。
 
@@ -1692,6 +1699,147 @@ Logical RPO=0 的必测场景是：event 已取得 independent ArchiveAck 并向
 
 **为什么可以接受：** 可量化假设使 PostgreSQL、CDN、outbox、archive、offline queue 和 async export 的设计能够被验证，同时保留基于实际证据调整的空间。相比虚构极端 TPS 或完全不写容量，它更符合试点阶段的现实决策方式。
 
+---
+
+## B23. PRIVATE 数据保存在哪里、如何分享？
+
+**决定：** `PRIVATE` 默认**不在平台上**。平台侧只保存 canonical event 里的 commitment（加盐摘要）和资源引用（owner、类型、commitment、可选 blob 位置、保留策略）；内容的实际保存与举证责任属于发布方。平台可以提供**可选的零知识托管**：只保存参与方加密后的密文，平台自身没有解密能力，也没有 key escrow。
+
+**边界条件/假设：** 参与方有能力（或通过 IoT provider、农业软件供应商）保管自己的证据。平台不承担通用证据仓库、通用 IoT 时序库或内容取证的角色。
+
+**为什么这样定：**
+
+- 平台看不到内容，就不需要为它设计字段级权限、租户隔离、KMS 策略和争议裁定；
+- 举证义务本来就在发布方（A4/B19），把内容收进平台反而让责任变模糊；
+- commitment 进入锚定历史后，"参与方事后替换证据"从免责声明变成**可被检测**（见"承诺的可执行性"）。
+
+### 平台侧记录
+
+```text
+ProtectedResource (platform-side record)
+- resourceId
+- captureRecordId / epcisEventId reference
+- ownerOrganisationId
+- resourceType / mediaType
+- plaintextCommitment       参与方计算、加盐；平台无法验证内容
+- ciphertextDigest          平台对托管密文计算；仅托管模式存在
+- storageMode: PARTICIPANT_HOSTED | PLATFORM_HOSTED_ZERO_KNOWLEDGE
+- externalLocator           自托管时由所有者提供
+- recipientKeyRefs          所有者选择的内容接收方（见下）
+- retentionMetadata
+- availabilityStatus        OWNER_ASSERTED | OBJECT_PRESENT | UNKNOWN
+```
+
+与早期模型的两点差别：
+
+1. **不再有由平台执行的 `accessScope`。** 平台没有明文，无法执行内容级授权；访问权只能由所有者通过"加密给谁"来表达。
+2. **没有"结构化 private detail 存 PostgreSQL JSONB"这条路。** 一旦平台需要按结构化字段查询，它就必须是 `CONSORTIUM`，没有中间地带。
+
+### 承诺的可执行性（这是收益，不是限制）
+
+- commitment 随 canonical event 一起锚定 → 参与方**事后无法替换证据而不被发现**。
+- 低熵内容（是否有机、是否检出某菌、固定模板报告）会被字典穷举，所以 commitment 必须加盐：`commitment = H(content ‖ nonce)`，nonce 由参与方持有，只在举证时与内容一并出示。
+- 平台在提交时**无法验证** commitment 对应任何真实材料。这正是"举证义务在参与方"的准确含义：调查时拿不出可匹配材料，该承诺即为未支持。
+- Retention 到期后，锚定的 commitment 仍在，但没有 nonce 无法反推内容——"永久 commitment"与"数据删除"因此可以共存。
+
+### 所有者选择的内容接收方（不做事件级受众）
+
+需要"只有监管方看得到"的证据时，不需要给事件加第三类受众，而是让**所有者**把内容加密给额外接收方：
+
+```text
+owner encrypts evidence to:
+  - owner itself（找回用）
+  - optional: regulator encryption key
+  - optional: named trading partners
+→ platform stores ciphertext (zero-knowledge) or owner hosts it
+→ CONSORTIUM event 只带 reference + salted commitment
+→ regulator / Analytics 用自有密钥解密，并用 commitment 校验
+```
+
+与"事件级受众"的关键区别：**接收方由所有者决定，不是平台计算的 scope。** 因此平台不需要新增策略权威角色、不需要第二套 KEK、也不需要在写入时推导"谁有权看什么"。
+
+配套条件：
+
+- `Organisation Key Registry` 必须区分密钥用途：`SIGNING | ENCRYPTION`；
+- B15 需要一条窄例外：Analytics 可以取用**所有者已加密给监管 scope** 的资源；这不是任意追取 ProtectedResource；
+- 同一内容可有多个接收方，平台无法审计"谁真的解开了"，只能审计"谁被授权持有 key"。
+
+### 不承诺清单
+
+| 项 | 不承诺 |
+|---|---|
+| 密钥恢复 | 无 escrow、无平台侧恢复。参与方丢失私钥即内容永久不可用，平台无法协助举证 |
+| 取证 | 平台不能响应针对内容的调取要求，只能转达给所有者；监管方的法定取数权对所有者和平台的作用不同 |
+| 可用性 | 零知识托管按 best effort 或商用对象存储的可用性承诺，**不进入 core RTO/RPO**；`logical RPO=0` 不覆盖 PRIVATE 内容 |
+| 删除 | 平台删的是密文对象；所有者自己的副本不在范围内，平台侧删除无法证明内容在其他地方也已消失 |
+| 元数据 | 平台仍可见"谁、何时、多大、关联哪个 event、下载频率"。需要最小化与保留期，不能被"零知识"掩盖 |
+| 完整性 | 平台不能验证 commitment 与内容一致；它只能证明自己保存的密文未被替换（`ciphertextDigest`） |
+
+**承受的代价：** 平台失去对私有证据的检索、比对和自动取证能力；调查依赖参与方配合；零知识托管仍带元数据泄漏面。
+
+**为什么可以接受：** 这类数据（原始 telemetry、化验报告、合同、照片）的容量、商业敏感性和法域差异远高于共享 trace。把它们收进平台会把架构从"追溯层"扩张成"通用证据仓库 + IoT 时序库"，并引入整套字段级权限与租户隔离问题。把内容留在所有者一侧、用承诺锚定，可以在不扩张边界的前提下保住可验证性。
+
+---
+
+## B24. 平台如何管理“用户”？
+
+**决定：** 平台不以自然人为管理单元，以**组织**为唯一的身份、访问和租户单元。平台不建设用户目录、岗位、审批流程或人员生命周期；组织内部谁在何时可以做什么，由组织自行决定并向平台声明为 delegation 断言。
+
+**边界条件/假设：** 一个 subject 可以同时代表多个组织（顾问、集团员工、合作社职员）；组织之间不存在平台维护的层级关系（合作社不是其成员农场的父组织）。
+
+**为什么这样定：**
+
+- 平台要保证的是"这条声明由哪个组织负责"，不是"哪个员工点了一下"（B5/B16）；
+- 员工入离职、岗位调整、审批链属于企业 HR/IAM 职责，复制进追溯平台只会产生第二份会过期的真相；
+- 把组织当唯一单元后，租户边界、签名归因、archive/KMS epoch 和治理记录共用同一个 key。
+
+### 平台侧最小模型
+
+```text
+Organisation Registry      组织身份、类型、membership 状态
+Organisation Key Registry  签名/加密公钥、用途、有效期、撤销状态
+Delegation Registry        subjectOrIntegrationPrincipal → organisation + allowedScopes + 有效期
+Governance Record History  membership/key/delegation 变更的签署历史
+```
+
+角色只保留少量固定值（OrgAdmin、EventPublisher、EvidenceManager、Viewer），用于划分权限范围；**不建模组织内部组织架构**。
+
+### 每请求显式绑定组织
+
+由于一个 subject 可以代表多个组织，**token 里的 subject 不足以决定以哪个组织身份行动**。每个请求必须显式携带 acting organisation，并由平台按 Delegation Registry 校验：
+
+```text
+authenticated subject       由外部 IdP 断言
++ explicit actingOrganisationId
++ operation scope
+→ Delegation Registry 校验
+→ 决定归因、可见范围与 KMS epoch
+```
+
+缺少显式绑定时必须拒绝，**不能默认取"该 subject 的第一个组织"或"最近使用的组织"**——那会让归因和可见范围取决于会话历史。
+
+### 明确不管的部分
+
+| 不归平台管 | 归谁 |
+|---|---|
+| 员工名册、入离职、岗位、汇报线 | 组织自己的 HR/IAM |
+| 组织内部审批链、双人复核 | 组织自己的流程；平台只验证最终签名 |
+| 密码、MFA、会话 | 外部 IdP |
+| 合作社与成员农场的关系 | 参与方之间的商业安排：写成多个 `organisationId` + delegation，不建组织层级 |
+| 多站点企业的站点结构 | 同上；站点可写成不同 `bizLocation`，但仍属同一 organisation |
+
+平台可以提供一个**很简易的用户界面**（查看/编辑本组织的 delegation 列表），但那个界面是 delegation 注册表的编辑器，不是权威用户目录；组织更换 HR 系统时平台不感知，也不需要同步。
+
+### 组织层级显式 out of scope
+
+不建 `parentOrganisationId`。一旦层级存在，`CONSORTIUM` 可见范围、scope 计算、KMS epoch 和签名归因都要沿层级继承，复杂度和治理成本立刻上升；而农业场景中的层级关系（合作社、集团、代工、代销）差异太大，平台无法给出通用语义。
+
+**触发条件：** 若出现"父组织以自身名义代为提交成员事件"的需求，用 delegation 表达（父组织作为 agent，签名仍归实际申报主体），而不是引入层级。若确实需要层级，作为新的架构前提重新评估。
+
+**承受的代价：** 合作社/集团要在平台上注册多个组织，onboarding 成本上升；参与方内部权限变更需走 delegation 更新，不会随 HR 系统自动生效。
+
+**为什么可以接受：** 组织数量增加是一次性 onboarding 成本，而组织层级会污染每一个下游决策（scope、epoch、归因、召回范围）。宁可多注册几个组织。
+
 <a id="layer-d"></a>
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
@@ -1863,7 +2011,7 @@ Q&A 阶段可以保留产品选型待定，但最终 deployment/infrastructure v
 
 当前已经确定的最短表述是：
 
-> 本系统是跨组织农业供应链追溯层，而不是农业 ERP。参与方通过 PWA 或既有系统发布联盟 profile 约束的 EPCIS events。消费者只读取公开 projection；联盟成员共享足以重建路径和定位潜在责任方的 canonical EPCIS trace core；商业详情和原始证据作为 participant-owned ProtectedResources，由参与方保存或选择平台托管。系统不声称区块链证明物理事实真实，但要求平台运营者不能单方面静默重写或垄断已经确认的历史。
+> 本系统是跨组织农业供应链追溯层，而不是农业 ERP。参与方通过 PWA 或既有系统发布联盟 profile 约束的 EPCIS events。消费者只读取公开 projection；联盟成员共享足以重建路径和定位潜在责任方的 canonical EPCIS trace core；商业详情和原始证据保存在参与方一侧，平台只持有加盐承诺，或提供平台不可解密的零知识托管。平台以组织为身份与访问单元，不管理组织内部用户。系统不声称区块链证明物理事实真实，但要求平台运营者不能单方面静默重写或垄断已经确认的历史。
 
 其中有两个不能在报告压缩时省略的成立前提。第一，B1 是为了让题目明确要求的 blockchain 承担真实的外部完整性职责；如果参与方完全信任平台，数据库加 WORM backup 已足够，区块链会退化为 theatre。第二，B17/B21 不是取消领域校验，而是把“记录断言”和“签署判定”分开：Traceability Core 只记录断言，判定只能由有权主体以签署声明进入历史；普通领域启发式与高级分析在**系统边界内**的 Regulatory Analytics 子系统中执行，该系统与 Traceability Core 对等但拥有独立运行时与治理域，规则和模型所有权属于监管方。投影层不得把竞争断言折叠成单一路径。只有 ML 算法本身是可选的。
 

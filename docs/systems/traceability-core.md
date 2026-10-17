@@ -30,6 +30,8 @@ SignatureEnvelope            attribution and custody assurance
 optional evidence references protected resources, not embedded files
 ```
 
+证据引用一律是**平台侧记录**：reference、owner、加盐 `plaintextCommitment`、可选密文位置（B23）。平台不接收、不解析、不解密私有内容；需要按字段查询的内容必须进 `CONSORTIUM`，没有中间地带。
+
 相同 `captureRecordId` 重试必须具有相同 digest，否则拒绝。相同非空 `epcisEventId` 通常也拒绝重复，唯一标准例外是合法的 EPCIS Error Declaration。
 
 ## 记录断言，不裁决真伪

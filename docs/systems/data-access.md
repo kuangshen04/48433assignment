@@ -1,14 +1,14 @@
 # Data & Access
 
-> 主要决策：[A5–A6](/decisions/catalog#a5)、[B2–B3](/decisions/catalog#b2)、[B10–B12](/decisions/catalog#b10)、[B20](/decisions/catalog#b20)
+> 主要决策：[A5–A6](/decisions/catalog#a5)、[B2–B3](/decisions/catalog#b2)、[B10–B12](/decisions/catalog#b10)、[B20](/decisions/catalog#b20)、[B23](/decisions/catalog#b23)
 
 ## 三类可见性
 
-| 分类 | 内容示例 | 默认读者 |
-|---|---|---|
-| `PUBLIC` | consumer allowlisted product/trace projection、signed safety notice | 消费者和公众 |
-| `CONSORTIUM` | canonical EPCIS trace core、handover/lineage、sensor summary | active consortium participants |
-| `PRIVATE` | raw IoT、报告、合同、调查记录、业务附件 | owner；案件授权后监管方 |
+| 分类 | 内容示例 | 默认读者 | 平台能否读明文 |
+|---|---|---|---|
+| `PUBLIC` | consumer allowlisted product/trace projection、signed safety notice | 消费者和公众 | 能（它就是生成者） |
+| `CONSORTIUM` | canonical EPCIS trace core、handover/lineage、sensor summary | active consortium participants | 能（运行时被授权解密） |
+| `PRIVATE` | raw IoT、报告、合同、调查记录、业务附件 | owner；所有者加密授予的接收方 | **不能**（B23） |
 
 “所有 active consortium participants 可读取 canonical trace core”是试点共享协议的强业务假设，不是密码学必然结果。若利益相关方拒绝该假设，需要重新引入 scoped ABAC、private collections 或 selective disclosure。
 
@@ -28,19 +28,37 @@ KEK epoch 同时构成时间边界：新成员默认只拿到当前及之后的 
 
 ## ProtectedResource
 
-不能进入共享 trace 的大型或敏感内容使用统一 ProtectedResource 模型：
+不能进入共享 trace 的大型或敏感内容使用统一的**平台侧记录**模型。平台只持有记录，不持有内容（B23）：
 
 ```text
-ProtectedResource
+ProtectedResource (platform-side record)
   ownerOrganisationId
-  classification=PRIVATE
-  storageMode=PARTICIPANT_HOSTED | PLATFORM_HOSTED
-  contentCommitment
-  reference / mediaType / retention policy
-  access grants and audit
+  resourceId / reference
+  mediaType
+  plaintextCommitment        参与方计算、加盐
+  ciphertextDigest           仅零知识托管存在
+  storageMode=PARTICIPANT_HOSTED | PLATFORM_HOSTED_ZERO_KNOWLEDGE
+  recipientKeyRefs           所有者选择的接收方
+  retention policy
+  availabilityStatus=OWNER_ASSERTED | OBJECT_PRESENT | UNKNOWN
 ```
 
-平台托管只改变 storage/operator，不改变所有权和分类。参与方自管证据可能在调查时不可用；content hash 只能在材料实际提供时验证其是否匹配当时承诺。
+三点必须记住：
+
+1. **没有平台可执行的 `accessScope`。** 平台没有明文，内容级授权无法由它执行；访问权只能由所有者“加密给谁”来表达。
+2. **没有结构化 JSONB 存 private detail。** 需要按字段查询的内容必须进 `CONSORTIUM`，没有中间地带。
+3. **平台无法验证 commitment 与内容一致。** 它只能证明自己保存的密文未被替换；参与方自管内容在调查时可能无法提供，而“无法提供”本身就是有意义的结论。
+
+分享路径：
+
+```text
+owner encrypts to: owner itself / regulator scope / named trading partners
+  -> platform stores ciphertext (zero-knowledge) or owner hosts it
+  -> CONSORTIUM event 只带 reference + salted commitment
+  -> 接收方用自有密钥解密并按 commitment 校验
+```
+
+**不承诺：** 密钥恢复、平台侧取证、PRIVATE 内容的可用性进入 core RPO/RTO、删除的全局证明。详见 [B23](/decisions/catalog#b23)。
 
 ## Operational 与 canonical 数据
 

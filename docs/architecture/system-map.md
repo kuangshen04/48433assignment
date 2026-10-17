@@ -50,7 +50,8 @@ Boundary 之外（外部系统与独立基础设施）
 |---|---|---|
 | Participant Environment | 产生业务声明、企业签名、离线排队、私有证据保存 | 全网查询、公共链 finality |
 | Traceability Core | EPCIS 接收、结构验证、幂等、生命周期、handover 和 lineage projection；如实并存呈现竞争断言 | 判断物理事实真假、裁决冲突声明哪条为真、库存核算、违法结论 |
-| Identity & Governance | 组织资格、public key、delegation、profile/高权限变更历史 | 企业员工目录、设备 fleet IAM、替参与方签名 |
+| Identity & Governance | 组织资格、public key、delegation、profile/高权限变更历史；组织是唯一身份与租户单元 | 组织内部的员工目录、岗位、审批链；组织层级；设备 fleet IAM；替参与方签名 |
+| Evidence (PRIVATE) | 所有者一侧保存内容；平台只持加盐承诺；可选零知识托管 | 解密、检索、比对私有内容；密钥恢复；代为取证 |
 | Operational PostgreSQL | 热查询、状态机、outbox、可重建投影 | 作为唯一权威历史或唯一恢复副本 |
 | Independent Archive | 保存可验证的 encrypted archive envelope 并签发 ArchiveAck | 解密业务数据、判断内容真实性 |
 | Consortium KMS | 保护 consortium KEK，向获授权 runtime/recovery identity 提供密码操作 | 参与业务审批或替组织签名 |
@@ -92,14 +93,14 @@ Traceability Core 保存可归责的 source assertions；Regulatory Analytics �
 
 ## 主要数据类别
 
-| 数据类别 | 默认位置 | 默认访问 |
-|---|---|---|
-| Canonical EPCIS trace | 加密独立归档；PostgreSQL 索引/投影 | `CONSORTIUM` |
-| Consumer projection | 版本化对象/CDN | `PUBLIC` |
-| Raw IoT、报告、合同等证据 | 参与方或可选平台托管 ProtectedResource | `PRIVATE` |
-| Membership/profile/key history | 独立归档并锚定；数据库 current projection | 受治理访问 |
-| Analytics dataset/findings | Regulatory Analytics runtime（监管方运行时域，边界内） | 目的受限；默认 regulator-private |
-| Public-chain commitment | 外部公共链 | 公开，但不得含可字典匹配的个人字段 |
+| 数据类别 | 默认位置 | 默认访问 | 平台能否读明文 |
+|---|---|---|---|
+| Canonical EPCIS trace | 加密独立归档；PostgreSQL 索引/投影 | `CONSORTIUM` | 能（运行时被授权） |
+| Consumer projection | 版本化对象/CDN | `PUBLIC` | 能（它就是生成者） |
+| Raw IoT、报告、合同等证据 | 参与方一侧；可选零知识托管（只有密文） | `PRIVATE` | **不能**（B23） |
+| Membership/profile/key history | 独立归档并锚定；数据库 current projection | 受治理访问 | 能 |
+| Analytics dataset/findings | Regulatory Analytics runtime（监管方运行时域，边界内） | 目的受限；默认 regulator-private | 不在平台侧 |
+| Public-chain commitment | 外部公共链 | 公开，但不得含可字典匹配的个人字段 | 不适用 |
 
 ## 继续阅读
 

@@ -41,7 +41,7 @@ Shipping/Receiving object -> all claimed destinations/custodians
 |---|---|---|
 | `confirmedImpact` | watermark W 之前的 confirmed assertions | 可复现的主要结果 |
 | `recentPendingClaims` | receipted/pending-anchor claims | 单独显示，不混入 confirmed result |
-| private evidence | raw IoT、报告、合同等 | 具体调查中单独授权 |
+| private evidence | raw IoT、报告、合同等 | 平台不持有明文（B23）；或由所有者预先加密给监管 scope，或按案件向所有者索取 |
 
 超过 10,000 edges 或接近响应限制时转为异步 export。Export 固定 watermark、记录 dataset version、purpose、recipient、expiry 和审计 ID。
 
