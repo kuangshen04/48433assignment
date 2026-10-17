@@ -1,4 +1,8 @@
-# 当前重大架构决策 Q&A
+---
+outline: false
+---
+
+# 完整决策日志
 
 > 更新时间：2026-10-17（B17、B21 于 2026-10-18 修订）
 >
@@ -8,10 +12,22 @@
 >
 > 阅读方式：第一层是背景直接支持的决定；第二层是已经接受的额外假设；第三层是仍待讨论的选择。
 >
-> 2026-10-18 修订说明：B17 改为"记录断言 / 签署判定"两分，并补上 non-collapsing 表示性质；B21 明确 Regulatory Analytics 位于系统边界内但属监管方独立运行时域，因此需要承担 C4 分解责任。受影响的下游表述已在总体结论、一分钟版本、B11、B15、B18、C3 同步。
+> 2026-10-18 修订说明：B17 改为“记录断言 / 签署判定”两分，并补上 non-collapsing 表示性质；B21 明确 Regulatory Analytics 位于系统边界内但属监管方独立运行时域，因此需要承担 C4 分解责任。受影响的下游表述已在总体结论、一分钟版本、B11、B15、B18、C3 同步，并已落入[决策目录](/decisions/catalog)、[系统地图](/architecture/system-map)与相关系统页。
+
+本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
+
+## 本页结构
+
+- [第一层：背景充分支持的决定](#layer-a) — A1–A8
+- [第二层：已经接受的额外前提](#layer-b) — B1–B22
+- [已舍弃但保留的完整替代方案](#layer-d) — D1–D7
+- [第三层：仍需讨论的决定](#layer-c) — C1–C3
+- [当前总体结论](#summary)
+- [答辩时的一分钟版本](#one-minute)
 
 每项决定都会说明必要的边界和理由。只有当真实存在竞争方案、责任转移或显著负面后果时，才进一步记录被否决方案、代价及其可接受性；不为了形式完整而人为制造 trade-off。
 
+<a id="layer-a"></a>
 # 第一层：背景充分支持的决定
 
 ## A1. 系统是完整农业 ERP 吗？
@@ -140,6 +156,7 @@ Normative basis: <https://ref.gs1.org/standards/epcis/2.0.1/#ErrorDeclaration>
 
 **原因：** Case brief 明确要求 IoT 实时采集，因此 canonical event 可以保存必要的 sensor summary、异常和原始数据 commitment，而高频原始数据仍由 IoT 平台或参与方管理。AI 只帮助发现风险，不能决定事件是否有效、参与账本共识或代替食品安全与监管判断；关闭 AI 不影响基本追溯。
 
+<a id="layer-b"></a>
 # 第二层：已经接受的额外前提
 
 ## B1. 参与方是否完全信任平台运营者？
@@ -1647,6 +1664,7 @@ Logical RPO=0 的必测场景是：event 已取得 independent ArchiveAck 并向
 
 **为什么可以接受：** 可量化假设使 PostgreSQL、CDN、outbox、archive、offline queue 和 async export 的设计能够被验证，同时保留基于实际证据调整的空间。相比虚构极端 TPS 或完全不写容量，它更符合试点阶段的现实决策方式。
 
+<a id="layer-d"></a>
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -1755,6 +1773,7 @@ Consortium Key Service
 → consortium-only access
 ```
 
+<a id="layer-c"></a>
 # 第三层：仍需讨论的决定
 
 以下项目保留当前倾向和 trade-off，但尚未提升为架构基线。
@@ -1811,6 +1830,7 @@ NSW trial 的 mandatory archive 和 Consortium KMS 位于 Australian regions；�
 
 Q&A 阶段可以保留产品选型待定，但最终 deployment/infrastructure view 不能全部保留为 TBD。提交前至少选定一套可实施的 reference deployment：具体 public network 与 anchor window、Australian cloud region/managed PostgreSQL 配置、WORM archive 产品及账户归属、KMS/recovery identity/跨故障域配置，以及对应恢复路径和验证方法。这是开发团队可执行的参考方案，不声称产品已签约或生产 SLA 已获得证明。
 
+<a id="summary"></a>
 # 当前总体结论
 
 当前已经确定的最短表述是：
@@ -1849,6 +1869,7 @@ NSW pilot 的 reference workload 为 200 个初始组织、2,000 名内部用户
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、产品级 restore validation、key recovery 和 chain migration，而不是 archive 权力边界、retention terminal、anchoring 粒度或自建 validator 数量。
 
+<a id="one-minute"></a>
 # 答辩时的一分钟版本
 
 > We are building a cross-organisation agricultural traceability layer rather than an ERP. Because the assignment explicitly requires blockchain, we make platform-operator distrust an explicit scenario: otherwise a managed database and WORM backup would be sufficient and blockchain would be theatre. Before confirmation, the encrypted canonical trace receives a signed acknowledgement from an independently controlled WORM archive, the consortium key is administered outside the platform account, and a public blockchain stores periodic Merkle roots so post-confirmation replacement is externally detectable. The Traceability Core records assertions and never adjudicates reality: verdicts enter history only as signed declarations, and lineage or recall views must keep competing claims side by side instead of collapsing them into one path. Deterministic heuristics, statistics and optional ML run in a Regulatory Analytics peer subsystem that sits inside the system boundary but in the regulator's own runtime and governance domain; it owns the rules and models, can authorise selected signed findings for platform reminders, and never decides which claim is true. Consumers receive an allowlisted public projection, detailed evidence remains participant-owned, and an independent recovery path can rebuild retained trace data without the platform database. Neither blockchain nor analytics is presented as proof of physical truth.

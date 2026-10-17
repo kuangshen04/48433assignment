@@ -12,7 +12,7 @@
 | Identity & Governance | B5、B16 | B6、B11、B20 | Organisation/key/delegation、签名 assurance、治理生效 |
 | Data & Access | B3、B10、B20 | A5、B2、B12、B14、B15 | PUBLIC/CONSORTIUM/PRIVATE、ProtectedResource、retention |
 | IoT & Edge | B14 | A8、B12、B16 | Telemetry ownership、summary/evidence、offline queue |
-| Regulatory Analytics | B15、B17、B21 | B13、B18、B20 | 最小化输入、finding、disclosure、freshness |
+| Regulatory Analytics（系统边界内、监管方运行时域） | B15、B17、B21 | B13、B18、B20 | 最小化输入、signature 绑定的 rule/model 版本、finding、disclosure、freshness |
 | Query & Experience | B12、B18、B19 | B9、B10、B13、B21 | Consumer/participant/regulator reads、recall、watermark |
 | Operations & Deployment | B13、B22、C1、C2、C3 | A7、B7、B8、B12、B20 | 部署、扩展、故障恢复、reference configuration |
 
@@ -21,6 +21,8 @@
 | 不变量 | 负责建立 | 负责消费/展示 |
 |---|---|---|
 | `CONFIRMED` 只表示 signed + archived + finalised | Core + Archive/Anchor | 所有 projections、Analytics |
+| 判定只能以签署声明进入历史（Error Declaration / signed notice / signed assessment） | Core + Identity/Governance | 所有 projections、Analytics |
+| 竞争断言必须并存显示，不得折叠为单一路径 | Traceability Core projections | Query、Recall、Consumer、Analytics |
 | Participant time 不是可信签署时间 | Identity/Signature validation | Core、Governance、offline UI |
 | Platform DB 不是唯一历史 | Archive/Recovery | Core rebuild、Operations |
 | Profile 不产生合规结论 | Profile/Core | IoT、Analytics、UI |
@@ -39,11 +41,19 @@
 
 如果答案是“是”，说明错误地把 Regulatory Analytics 当成可选 AI 工具。即使完全不用 ML，产品/地区/监管特定的 deterministic heuristics、规则版本、risk finding、controlled disclosure 和 freshness 仍属于这个核心 peer subsystem；平台只消费被监管方授权的基础提醒结果。
 
+### B17：把两条冲突断言合成一条路径显示，是否越权？
+
+是。核心无法判断哪条为真，所以用视图“挑选一条”等于平台在无授权的情况下作出裁决。合格实现必须让竞争边并存、带 provenance，并让 impact 结论可追溯到依赖的断言集合与 watermark。
+
+### B21：把 Regulatory Analytics 画在系统边界外，还能自圆其说吗？
+
+不能。平台的基础审查能力、模型/规则版本、训练数据快照和 human-in-the-loop 都会失去架构位置，合规就只能用“平台不判”回答。代价是必须为它提供 C4 三层视图，并注明它由监管方运营、平台只提供 runtime 与 registry。
+
 ## 容易混淆的边界
 
 ### Traceability Core vs Regulatory Analytics
 
-Core 判断结构、签名、权限和可重建关系；Analytics 判断 plausibility、risk 和 compliance relevance。机械派生的 handover status 不算异常判断。
+Core 判断结构、签名、权限和可重建关系，并负责让冲突可见；Analytics 判断 plausibility、risk 和 compliance relevance，但不决定哪条冲突声明为真。两者同属系统边界内，但运行在各自的控制域。机械派生的 handover status 不算异常判断。
 
 ### Identity Governance vs Public Blockchain
 

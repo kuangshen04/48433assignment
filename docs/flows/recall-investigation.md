@@ -27,6 +27,8 @@ Shipping/Receiving object -> all claimed destinations/custodians
 
 查询保留 edge provenance，并包含 `AWAITING_RECEIPT`、`PARTIALLY_ACCEPTED`、`DISPUTED`、`UNACKNOWLEDGED` 和 `EXTERNAL_COUNTERPARTY`。平台不选择哪条冲突路径真实，也不推断某种加工是否消除污染。
 
+结果按 B17 的 non-collapsing 规则呈现：竞争边并存显示，不排序、不打分、不选代表路径。任何 impact 结论都必须能追溯回它依赖的断言集合与 watermark。
+
 输出语义始终是：
 
 > possibly affected based on available claims at watermark W

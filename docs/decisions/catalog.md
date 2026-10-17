@@ -1,12 +1,14 @@
 # 决策目录
 
-本页是 `major-decisions-qa.md` 的展示索引。完整边界条件、否决方案和 trade-off 仍保留在项目根目录原文件；这里提供稳定编号、状态和当前结论，供系统页引用。
+本页是[完整决策日志](/decisions/log)的展示索引。完整边界条件、否决方案和 trade-off 保留在日志原页；这里提供稳定编号、状态和当前结论，供系统页引用。
 
 状态含义：
 
 - **Baseline**：背景直接支持或已经接受，后续设计应遵守；
 - **Conditional baseline**：依赖显式业务/治理假设，报告必须写明；
 - **Open**：边界已确定，但产品、参数或运营主体仍需关闭。
+
+> 2026-10-18 修订：B17 改为“记录断言 / 签署判定”两分，并补上 non-collapsing 表示义务；B21 明确 Regulatory Analytics 位于系统边界内、但属监管方独立运行时域，因此承担 C4 分解责任。B15、B18 相应补充。
 
 ## 第一层：背景充分支持的决定
 
@@ -127,7 +129,7 @@
 <a id="b15"></a>
 ### B15 · Regulator 与 Analytics 使用不同身份权限
 
-**Baseline.** Analytics 只读 purpose-minimised confirmed projection，无任意 archive/KMS/private-evidence 权限，不能继承监管人员法定能力。
+**Baseline.** Analytics 只读 purpose-minimised confirmed projection，无任意 archive/KMS/private-evidence 权限，不能继承监管人员法定能力。该子系统位于系统边界内但属监管方运行时域（B21）：边界内不代表平台可获得它的规则、模型或 finding 数据。
 
 <a id="b16"></a>
 ### B16 · Human/Device IAM 在外围，Organisation Governance 在核心
@@ -135,16 +137,18 @@
 **Baseline.** 企业/IoT vendor 管理账号与设备 fleet；核心保存 organisation membership、public keys、delegations 和 signed GovernanceRecords。扩权变更在 archive/anchor finality 后生效，紧急撤销可先 fail closed。
 
 <a id="b17"></a>
-### B17 · Core 不判断跨事件业务异常
+### B17 · Core 记录断言，不裁决真伪
 
-**Baseline.** 冲突、数量、mass balance、timing/location 和 fraud heuristic 属于 regulator-controlled analytics；Core 保留相互冲突的 signed source assertions。
+**Baseline.** Core 只做 admission/protocol validation，并原样保留相互冲突的 signed assertions；它不判定哪一条冲突声明为真（例如同一序列化对象被两项 transformation 分别声称消耗时，核心无从观察现实），也不产生 anomaly、mass balance、fraud 或 compliance verdict。判定只能由有权主体以签署声明进入历史：EPCIS Error Declaration、signed Recall/Safety Notice，或 regulator-signed Assessment/Inspection。
 
-**为什么是项目成立前提：** 平台不知道不同产品、地区和监管制度下的权威领域规则，也无权自行发明。普通 deterministic heuristics 与高级 statistics/optional ML 因而统一放在 Regulatory Analytics 中，由监管方配置、版本化、审计并承担规则责任。Optional 的是 ML 技术，不是该核心业务子系统。
+**必须配对的表示义务（non-collapsing）：** lineage、recall、handover 和 audit 的默认视图不得把竞争断言折叠成一条路径，必须多边并存并保留 provenance，不排序、不打分、不选代表路径。平台不得创建 `UNRESOLVED_INPUT` 这类 verdict；但“该对象存在两条由不同组织发布、无法相互衔接的已确认断言”属于 provenance fact，必须可见。
+
+**为什么是项目成立前提：** 平台不知道不同产品、地区和监管制度下的权威领域规则，无权自行发明；它同时无法观察现实，因此连“哪条冲突声明为真”都不能判断。普通 deterministic heuristics 与高级 statistics/optional ML 因而统一放在 Regulatory Analytics 中，由监管方配置、版本化、审计并承担规则责任。Optional 的是 ML 技术，不是该核心业务子系统。
 
 <a id="b18"></a>
 ### B18 · Recall 是保守 lineage query，不是物理下架
 
-**Baseline.** 平台查询可能受影响对象、展示授权 notice 和记录后续 claims；ERP/WMS/POS 与人员执行封存、下架、退货和销毁。
+**Baseline.** 平台查询可能受影响对象、展示授权 notice 和记录后续 claims；ERP/WMS/POS 与人员执行封存、下架、退货和销毁。结果按 B17 的 non-collapsing 规则呈现：竞争边并存，不选代表路径、不打分；`confirmedImpact` 与 `recentPendingClaims` 分开展示，不静默混入。
 
 <a id="b19"></a>
 ### B19 · 标识符由参与方分配，QR 不是防伪证明
@@ -157,9 +161,13 @@
 **Conditional baseline.** 非公开数据、archive 和 KMS 默认位于 Australian regions。Canonical trace 默认按七年 capacity/retention assumption 设计，可由 product/jurisdiction/legal hold 调整；到期后删除 payload/DEK 并保留最小删除审计和非个人 commitment。
 
 <a id="b21"></a>
-### B21 · Regulatory Analytics 是 peer subsystem
+### B21 · Regulatory Analytics 是边界内的 peer subsystem
 
-**Baseline.** Findings 默认 regulator-private；监管方可把指定基础 `ruleId/ruleVersion` 的输出授权为受限 signed AdvisoryFinding，由平台用于基础提醒。规则仍在监管控制域执行，平台不取得修改或扩大规则的权力。Analytics 有独立 watermark/health，规则未运行不能展示为“无风险”。行业协会当前不是 Regulatory Advisory issuer。
+**Baseline.** 它与 Traceability Core 同属系统边界内的两个 peer core subsystems，但拥有独立运行时域、独立 service identity，以及由监管方持有的规则和模型所有权。Findings 默认 regulator-private；监管方可把指定基础 `ruleId/ruleVersion` 的输出授权为受限 signed AdvisoryFinding，由平台用于基础提醒。`RuleVersion` 由监管方密钥签署，平台不取得修改或扩大规则的权力。Analytics 有独立 watermark/health，规则未运行不能展示为“无风险”。行业协会当前不是 Regulatory Advisory issuer。
+
+**为什么不当成外部黑盒：** 平台自身的基础审查能力（缺证据、跨断言冲突、handover 异常、recall 辅助范围）由该子系统提供；若画在系统边界之外，合规只能靠“平台不判”回答，AI/ML 的模型版本、训练数据快照、评估与 human-in-the-loop 也没有可描述的架构位置。
+
+**由此产生的义务：** C4 3.2–3.10 必须覆盖该子系统（container / component / code 三层都要有），并把 Traceability Core ↔ Regulatory Analytics 标注为主要信任边界。关闭 Analytics 属于**系统内**降级：追溯、查询与人工调查照常，但 risk assessment 必须显示 `DELAYED/UNAVAILABLE`。
 
 <a id="b22"></a>
 ### B22 · 使用显式、可测试的 NSW pilot 数量假设

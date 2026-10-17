@@ -34,6 +34,8 @@ Recall 是对共享 consortium lineage 的保守、可复现遍历，不是实�
 - handover：对象到所有 claimed destination/custodian；
 - disputed、partial、unacknowledged 和 external edges 都保留 provenance。
 
+视图必须 non-collapsing：同一对象的竞争断言并存显示，不排序、不打分、不选代表路径。任何“受影响 / 未受影响”的结论都要能追溯回它依赖的断言集合与 watermark；依赖集合含竞争边时必须显示该竞争关系。折叠成单一路径等于用界面替平台裁决了真伪。
+
 结果语义是 `possibly affected based on available claims`，不是污染或责任结论。超过同步 10,000 edges 或接近响应限制时转为固定 watermark 的异步 export。
 
 ## Freshness 契约

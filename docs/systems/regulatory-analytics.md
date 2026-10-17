@@ -4,11 +4,48 @@
 
 ## 系统定位
 
-Regulatory Analytics 与 Traceability Core 是 peer core subsystems。Core 保留可归责的 source assertions；Analytics 在 regulator-controlled environment 中运行普通领域启发式规则、统计分析或 optional ML，并把结果用于风险筛查、平台基础提醒和监管调查。
+Regulatory Analytics 与 Traceability Core 是本系统的两个 peer core subsystems，**都在系统边界之内**。Core 保留可归责的 source assertions；Analytics 在监管方的独立运行时域中执行普通领域启发式规则、统计分析和 optional ML，并把结果用于风险筛查、平台基础提醒和监管调查。
 
 它不是只供监管人员“查东西”的附加报表工具，也不是 Traceability Core 的内部规则引擎。平台运营者不知道不同产品、地区和监管制度下的权威领域规则，因此 deterministic heuristics 与高级分析统一由监管方配置、版本化和审计。这里 optional 的是 ML 技术，而不是 Regulatory Analytics 这一核心业务能力。
 
-它也不是平台用来自动决定违法、召回或事件有效性的组件：规则执行结果必须保留来源、版本、watermark 和保证等级，正式监管结论仍需 authorised officer 签署。
+它也不是边界外的第三方黑盒：平台自身的基础审查能力（缺证据、跨断言冲突、handover 异常、recall 辅助范围）由它提供，否则合规只能靠“平台不判”来回答。因此 C4 的 container / component / code 三层都必须覆盖它。它的运行时、数据边界和治理权属于监管方；平台只实现并运维 runtime、registry 接口、export 入口和 advisory 接收端。
+
+它也不是平台用来自动决定违法、召回或事件有效性的组件：规则执行结果必须保留来源、版本、watermark 和保证等级，正式监管结论仍需 authorised officer 签署；它同样不判断哪条冲突声明为真。
+
+## 控制域与 C4 分解责任
+
+```text
+System boundary
+├── Platform control domain   -> Traceability Core
+└── Regulator control domain  -> Regulatory Analytics
+        ^  minimised projection
+        |  signed AdvisoryFinding
+        `-- 这条线即主要 trust boundary
+```
+
+| C4 层 | 最少需要出现 |
+|---|---|
+| Container | Analytics Input/Export Gate、Rule & Model Registry、Screening Scheduler + Runner pool、Finding & Advisory Store、Disclosure & Advisory Publisher；ML 侧 Training Snapshot、Model Evaluation/Registry、Human Review Queue |
+| Component | 每 container 2–3 个：Watermark Verifier、Dataset Packager、Rule Version Loader、Rule Validator、Finding Evaluator、Dedup/Expiry、Audience Resolver、Advisory Signer |
+| Code | `Rule`、`RuleVersion`、`ScreeningRun`、`DatasetSnapshot`、`Finding`、`AdvisoryFinding`、`DisclosurePolicy`、`ModelVersion`、`ReviewDecision` |
+
+规模控制在这个量级：再细会与“避免 feature concentration / dense structure”冲突，再粗则无法说明 rule 版本、watermark 和披露控制究竟落在哪个组件上。
+
+## 规则所有权
+
+`RuleVersion` 由监管方密钥签署后进入 Registry；平台只提供 runtime 与 registry，不 author、不改规则、不扩大适用范围。这与“平台跑账本、但由组织签交易”是同一个模式，用来回答“平台团队实现了规则引擎，是否等于平台在定义规则”。
+
+关闭 Analytics 属于**系统内**降级，而不是外部依赖故障：ingestion、trace query、consumer view 和监管人员手工调查继续运行，但 risk assessment 必须显示 `DELAYED/UNAVAILABLE`，过期 finding 停止当前态展示。这同时是可用性战术的正面例证——异步解耦、可选依赖、advisory 不参与写入路径。
+
+## 合规能力的三层分工
+
+| 层 | 机制 | 权威来源 | 是否阻断写入 |
+|---|---|---|---|
+| 准入层 | regulation profile 的 mandatory evidence requirements、EPCIS 结构与 vocabulary | 联盟治理发布的 profile | 是 |
+| 筛查层 | deterministic rules / statistics / optional ML → `AdvisoryFinding` | 监管方持有并签署的 `RuleVersion` | 否 |
+| 结论层 | Assessment/Inspection、Recall/Safety Notice | 监管方或责任组织的组织密钥 | 否（追加记录） |
+
+三层共同的前提是 Traceability Core 提供可核验、不可静默改写的证据链。判定权始终留在第二层（规则 owner）和第三层（签署者），平台不自行添加业务门槛。
 
 ## 身份与权限分离
 
@@ -53,7 +90,7 @@ approved rule/finding
 
 ### 基础规则如何授权给平台
 
-监管方可以把部分基础 `ruleId/ruleVersion` 的输出标为 `SUBJECT_ORGANISATION` 或 `CONSORTIUM_ADVISORY`。第一版仍由规则在 regulator-controlled environment 中运行，再向平台返回 signed `AdvisoryFinding`；平台据此生成基础提醒，但不能修改规则、重新解释 severity 或扩大 audience。
+监管方可以把部分基础 `ruleId/ruleVersion` 的输出标为 `SUBJECT_ORGANISATION` 或 `CONSORTIUM_ADVISORY`。第一版仍由规则在监管方运行时域（系统边界内、监管方控制）中运行，再向平台返回 signed `AdvisoryFinding`；平台据此生成基础提醒，但不能修改规则、重新解释 severity 或扩大 audience。
 
 这实现了“监管方把基础规则能力授权给平台使用”，同时避免平台维护一套未经授权的领域规则副本。未来若低延迟确实要求平台本地执行，可以单独设计 signed declarative rule package 与 sandbox；它不能悄悄进入 Core write validation。
 

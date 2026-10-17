@@ -11,7 +11,7 @@ Traceability Core 是跨组织 source assertion 的接收和查询系统，不�
 - append-only correction 与 EPCIS Error Declaration；
 - event confirmation lifecycle；
 - Shipping/Receiving claim correlation；
-- lineage、recall、consumer 和 investigation projections；
+- lineage、recall、consumer 和 investigation projections，且必须 non-collapsing 地并存呈现竞争断言；
 - transactional outbox 与失败后幂等续跑。
 
 它不负责企业库存、订单、支付、生产计划、设备 fleet management、物理召回执行或自动合规结论。
@@ -32,22 +32,36 @@ optional evidence references protected resources, not embedded files
 
 相同 `captureRecordId` 重试必须具有相同 digest，否则拒绝。相同非空 `epcisEventId` 通常也拒绝重复，唯一标准例外是合法的 EPCIS Error Declaration。
 
-## 验证边界
+## 记录断言，不裁决真伪
 
-Core 只做 admission/protocol validation，不是因为领域校验不重要，而是因为平台既不知道也无权决定跨产品、地区和监管制度的权威业务规则。这些规则必须由 [Regulatory Analytics](/systems/regulatory-analytics) 的监管主体管理。
+Core 只做 admission/protocol validation，有两条独立理由：平台既不知道也无权决定跨产品、地区和监管制度的权威业务规则；平台也无法观察现实，因此不能判断两条冲突声明中哪一条为真（同一序列化对象被两项 transformation 分别声称消耗即属此类）。
 
-| Core 验证 | Core 不判断 |
+由此得到本系统的判定规则：
+
+> 平台记录断言；判定只能由有权主体以签署声明的方式进入历史。
+
+判定进入历史的通道只有三条：EPCIS `ErrorDeclaration`、signed Recall/Safety Notice、regulator-signed Assessment/Inspection。平台推断得出的“错误”或“违规”结论不得写入历史。
+
+### 两类校验必须分开
+
+| 类别 | 典型内容 | 是否阻断写入 |
+|---|---|---|
+| Admission validation | EPCIS/schema/profile 结构、canonical digest、签名、organisation authority/delegation、key/profile/governance 状态、idempotency、合法状态转换、correction relationship | 是 |
+| In-domain structural representability | 同一对象被多项 transformation 声称消耗、存在竞争 parent、引用网络内未知标识、lineage 关系在时间上成环 | 否，只决定投影如何呈现 |
+
+第二类不是业务合理性判断，而是关于已提交断言集合的、无需领域知识的事实：可计算、可复现、不含价值判断。它不阻塞归档与锚定，也不生成 verdict 状态，但必须被如实呈现。
+
+| Core 不判断的问题 | 归属 |
 |---|---|
-| EPCIS/schema/profile 结构 | 数量或 yield 是否合理 |
-| canonical digest 与签名 | 货物是否真实存在 |
-| organisation authority/delegation | 传感器是否真的安装在声明位置 |
-| key、profile 和 governance 状态 | transformation 是否构成欺诈 |
-| idempotency 和合法状态转换 | 某一冲突声明哪一方真实 |
-| correction relationship | 是否违反具体食品法规 |
+| 数量、yield、损耗是否合理 | [Regulatory Analytics](/systems/regulatory-analytics) |
+| 传感器是否真的安装在声明位置 | Regulatory Analytics 与现场调查 |
+| transformation 是否构成欺诈 | Regulatory Analytics |
+| 某一冲突声明哪一方真实 | 只能以签署声明表达 |
+| 是否违反具体食品法规 | Regulatory Analytics 与官方结论 |
 
 `CONFIRMED` 只能解释为“声明已签名、独立归档并锚定”，不能显示为“平台已验证业务真实或合规”。
 
-将规则放入 Regulatory Analytics 不会把它降为外围系统：deterministic heuristics 是平台整体的核心领域能力，只有 ML 算法本身是可选的。Core 与 Analytics 使用异步 peer integration，是为了隔离规则故障并保留原始冲突证据，而不是让平台忽略领域风险。
+将规则放入 Regulatory Analytics 不会把它降为外围系统：它与 Core 同属系统边界内，只是处在监管方的独立运行时域（见[系统地图](/architecture/system-map)）。deterministic heuristics 是平台整体的核心领域能力，只有 ML 算法本身是可选的。Core 与 Analytics 使用异步 peer integration，是为了隔离规则故障并保留原始冲突证据，而不是让平台忽略领域风险。
 
 ## 不可变历史与纠错
 
@@ -57,6 +71,19 @@ Core 只做 admission/protocol validation，不是因为领域校验不重要，
 - 符合 EPCIS 2.0 Error Declaration 约束的同 eventID 声明。
 
 Core 保留原声明、纠错声明、发布方、时间、profile 和签名。查询可以给出当前解释，但审计和恢复必须能重建完整更正历史。
+
+## 竞争断言的表示义务（non-collapsing）
+
+保留冲突断言只有在视图里也保留才有意义：
+
+- lineage、recall impact、handover 和 audit 的**默认视图不得折叠为一条路径**；
+- 对同一对象的所有已确认断言必须多边并存，每条边保留 `fromObjectId`、`toObjectId`、`edgeType`、`sourceEventId`、publisher、event time、effective interval、confirmation status 和 handover status；
+- 平台不排序、不打分、不选“代表路径”，也不产生置信度；
+- recall/food-safety 结论必须能追溯回它所依赖的断言集合与 watermark；依赖集合含竞争边时必须显示该竞争关系，而不是取其一。
+
+`UNRESOLVED_INPUT`、`MASS_BALANCE_WARNING` 这类 platform verdict 是禁止的；“该对象存在两条由不同组织发布、无法相互衔接的已确认断言”属于 provenance fact，必须可见。两类的区别是：前者是平台对现实的判断，后者是对已提交断言的陈述。
+
+Consumer projection 受 `PUBLIC` allowlist 约束，但同样不得在存在竞争断言时呈现为单一路径；具体措辞可与消费者视图的合规审查一并确定。
 
 ## Handover 模型
 

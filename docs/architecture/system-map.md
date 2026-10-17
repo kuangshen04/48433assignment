@@ -2,7 +2,7 @@
 
 ## 一句话架构
 
-本系统是跨组织农业供应链追溯层：参与方发布可归责的 EPCIS source assertions；平台负责接收、查询和投影；独立归档、联盟控制的 KMS 与公共链共同限制平台运营者单方面改写或垄断历史的能力；监管分析在独立控制域中判断领域风险。
+本系统是跨组织农业供应链追溯层：参与方发布可归责的 EPCIS source assertions；平台负责接收、查询和投影；独立归档、联盟控制的 KMS 与公共链共同限制平台运营者单方面改写或垄断历史的能力；监管分析在与平台并行的独立运行时域中判断领域风险，但同属一个系统边界，且不改写追溯历史。
 
 ## 两个有意选择的成立前提
 
@@ -12,29 +12,36 @@
 
 ### B17/B21 不是把领域功能移出核心
 
-Traceability Core 不掌握产品、地区和监管制度下的权威领域规则，因此只做 admission/protocol validation。普通领域启发式、统计分析和 optional ML 一起由 regulator-controlled Regulatory Analytics 管理；监管方可授权一部分基础 rule findings 给平台用于提醒。它是平台整体的一等核心业务子系统，只是不是 canonical write path 的同步依赖。
+Traceability Core 只做 admission/protocol validation 并原样保留断言：它既不掌握产品、地区和监管制度下的权威规则，也无法观察现实，因此连“哪条冲突声明为真”都不判断。判定只能由持钥主体以签署声明进入历史——EPCIS Error Declaration、signed Recall/Safety Notice 或 regulator-signed Assessment。
+
+普通领域启发式、统计分析和 optional ML 由 Regulatory Analytics 执行。该子系统与 Core 同属系统边界内，但拥有独立运行时域和监管方的规则/模型所有权；它同时为平台提供基础审查能力，因此不能被画成边界外的第三方黑盒。代价是 C4 3.2–3.10 必须为它给出 container / component / code 三层视图，并把 Core ↔ Analytics 标为主要信任边界。ML 可选，子系统本身不可选。
+
+投影层的配套义务是 non-collapsing：竞争断言必须并存显示，不选代表路径、不排序、不打分。
 
 ## 控制域与系统
 
 ```text
-Participant Environment
-  PWA / ERP / WMS / TMS / IoT Platform / Enterprise Gateway
-                      |
-                      | signed EPCIS submissions / evidence references
-                      v
-Shared SaaS Application Plane
-  Traceability Core -- Operational PostgreSQL -- Projections
-       |          |                  |                 |
-       |          |                  |                 +--> Public CDN / Consumer UI
-       |          |                  +--------------------> Regulator Portal / Exports
-       |          +---------------------------------------> Regulatory Analytics Projection
-       |
-       +--> Independent WORM Archive <--> Consortium-controlled KMS
-       |
-       +--> Merkle Batch / Relayer --> External Public Blockchain
+System boundary
+├── Platform control domain（平台运行时域）
+│     Traceability Core
+│       ├── Operational PostgreSQL / Projections
+│       ├── Public Delivery (CDN) 与 Regulator Portal / Exports
+│       ├── Advisory Ingestion
+│       └── Merkle Batch / Relayer
+│
+└── Regulator control domain（监管方运行时域）
+      Regulatory Analytics
+        Rule & Model Registry / Screening / Finding & Advisory Publisher
 
-Regulator-controlled Environment
-  Regulatory Analytics / optional ML --> signed AdvisoryFinding
+      Core --minimised projection--> Analytics
+      Core <--signed AdvisoryFinding-- Analytics
+      ^ 这条线即主要 trust boundary
+
+Boundary 之外（外部系统与独立基础设施）
+  Participant Environment：PWA / ERP / WMS / TMS / IoT Platform / Gateway
+  Independent WORM Archive  <-->  Consortium-controlled KMS
+  Public Blockchain（由平台 relayer 提交 Merkle root）
+  External IdP / 监管方既有公告渠道
 ```
 
 ## 系统职责总表
@@ -42,13 +49,13 @@ Regulator-controlled Environment
 | 系统或控制域 | 主要职责 | 明确不负责 |
 |---|---|---|
 | Participant Environment | 产生业务声明、企业签名、离线排队、私有证据保存 | 全网查询、公共链 finality |
-| Traceability Core | EPCIS 接收、结构验证、幂等、生命周期、handover 和 lineage projection | 判断物理事实真假、库存核算、违法结论 |
+| Traceability Core | EPCIS 接收、结构验证、幂等、生命周期、handover 和 lineage projection；如实并存呈现竞争断言 | 判断物理事实真假、裁决冲突声明哪条为真、库存核算、违法结论 |
 | Identity & Governance | 组织资格、public key、delegation、profile/高权限变更历史 | 企业员工目录、设备 fleet IAM、替参与方签名 |
 | Operational PostgreSQL | 热查询、状态机、outbox、可重建投影 | 作为唯一权威历史或唯一恢复副本 |
 | Independent Archive | 保存可验证的 encrypted archive envelope 并签发 ArchiveAck | 解密业务数据、判断内容真实性 |
 | Consortium KMS | 保护 consortium KEK，向获授权 runtime/recovery identity 提供密码操作 | 参与业务审批或替组织签名 |
 | Public Blockchain | 保存 Merkle commitment，提供外部 existence/integrity checkpoint | 保存完整 EPCIS、证明 eventTime 或物理事实 |
-| Regulatory Analytics | 运行启发式、统计或可选 ML，输出私有 finding 或获准 advisory | 改写 trace、继承监管人员全部权限、自动执法 |
+| Regulatory Analytics（边界内、监管方运行时域） | 运行启发式、统计或可选 ML，输出私有 finding 或获准 advisory；为平台提供基础审查能力 | 改写 trace、继承监管人员全部权限、自动执法、决定哪条冲突声明为真 |
 | Public Delivery Plane | 发布版本化消费者 projection，使用 CDN 承担高并发 | 直接读取 archive/KMS 或展示联盟私有数据 |
 
 ## 核心信任边界
@@ -61,9 +68,15 @@ Regulator-controlled Environment
 
 签名、ArchiveAck 和公共链 finality 可以证明“谁发布了什么、保存了什么、之后是否被替换”，不能证明货物真的存在、传感器真的安装在声明位置，或参与方没有串谋。
 
-### Regulatory Analytics 是 peer subsystem
+### 记录断言不等于作出判断
 
-Traceability Core 保存可归责的 source assertions；Regulatory Analytics 维护监管方拥有的 deterministic heuristics、statistics 和 optional ML，并解释领域风险。监管方可以授权指定 rule/version 的 signed findings 给平台形成基础提醒。关闭 Analytics 不应阻止追溯写入、查询、召回遍历或监管人员手工调查，但必须显式显示分析结果过期或不可用；这种故障隔离不降低它作为核心业务子系统的地位。
+Core 的职责边界可以压缩成一句规则：**平台记录断言，判定只能由有权主体以签署声明进入历史。** 同一个序列化对象被两项 transformation 分别声称消耗时，核心既无观察现实的能力，也无裁决权，因此它保留双方，而不是挑一个或标一个 verdict。投影层必须让这种冲突可见（竞争边并存、带 provenance、不排序、不选代表路径）；隐藏冲突或用单一路径呈现，等于用界面替平台作了裁决。
+
+### Regulatory Analytics 是边界内的 peer subsystem
+
+Traceability Core 保存可归责的 source assertions；Regulatory Analytics 维护监管方拥有的 deterministic heuristics、statistics 和 optional ML，并解释领域风险。监管方可以授权指定 rule/version 的 signed findings 给平台形成基础提醒。
+
+两者同属系统边界内，但 Analytics 处在监管方的独立运行时域，规则和模型归监管方所有：`RuleVersion` 由监管方密钥签署，平台只提供 runtime 与 registry，不 author、不改规则、不扩大适用范围。正因为它在边界内并为平台提供基础审查能力，C4 的 container / component / code 三层都必须覆盖它；关闭它时的行为属于系统内降级，而非外部依赖故障——追溯写入、查询、召回遍历或监管人员手工调查继续，但必须显式显示分析结果过期或不可用。
 
 ## 主要数据类别
 
@@ -73,7 +86,7 @@ Traceability Core 保存可归责的 source assertions；Regulatory Analytics �
 | Consumer projection | 版本化对象/CDN | `PUBLIC` |
 | Raw IoT、报告、合同等证据 | 参与方或可选平台托管 ProtectedResource | `PRIVATE` |
 | Membership/profile/key history | 独立归档并锚定；数据库 current projection | 受治理访问 |
-| Analytics dataset/findings | regulator-controlled environment | 目的受限；默认 regulator-private |
+| Analytics dataset/findings | Regulatory Analytics runtime（监管方运行时域，边界内） | 目的受限；默认 regulator-private |
 | Public-chain commitment | 外部公共链 | 公开，但不得含可字典匹配的个人字段 |
 
 ## 继续阅读

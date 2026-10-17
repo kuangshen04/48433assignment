@@ -57,6 +57,7 @@ export default defineConfig({
           text: '决策管理',
           items: [
             { text: '决策目录', link: '/decisions/catalog' },
+            { text: '完整决策日志', link: '/decisions/log' },
             { text: '系统—决策矩阵', link: '/decisions/system-matrix' },
             { text: '待定事项', link: '/decisions/open-items' },
           ],
