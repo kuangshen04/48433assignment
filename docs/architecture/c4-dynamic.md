@@ -54,3 +54,14 @@
 | 离线提交 | 先 `QUEUED_OFFLINE` / `SYNCING`，签名可能已提前完成 | [IoT & Edge](/systems/iot-edge) |
 | 官方召回/安全公告 | 拿到自己的 `ArchiveAck` 后即以 `VERIFIED_PENDING_ANCHOR` 发布，不等 finality | [召回与监管调查](/flows/recall-investigation) |
 | 撤回、纠错、竞争对手方 | 不改变本流程，作为新的签署事件走同一条写路径 | [Traceability Core](/systems/traceability-core) |
+
+## 第二个场景：召回与调查
+
+上面那条是写入路径。这条是读取与监管路径，也是报告里数据流与信任边界的主要证据。
+
+<img src="/diagrams/c4-dynamic-recall.svg" alt="C4 dynamic view: recall investigation from scope to signed notice">
+
+1. **范围先固定 watermark（步骤 1–3）。** confirmedImpact 与 provisionalImpact 分开返回，后者带标注、不合并——最近一窗的货不会因为还没 finality 就从视野里消失。
+2. **平台在取证环节只做转达（步骤 6–9）。** 证据请求是一条审计记录；内容由所有者加密给监管方的密钥，平台只看到引用与承诺，永远看不到明文。
+3. **正式通知不等 finality，但也不冒充 CONFIRMED（步骤 10–13）。** 拿到 ArchiveAck 即可以 VERIFIED_PENDING_ANCHOR 发布，链上确认后转 VERIFIED_CONFIRMED。这个例外只对官方公告成立。
+4. **召回起始于外部决定。** 图的第一步就是监管 officer 发起查询；平台不判断是否该召回，也不执行下架。

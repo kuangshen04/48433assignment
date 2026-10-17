@@ -24,6 +24,7 @@ export default defineConfig({
           text: '架构总览',
           items: [
             { text: '系统地图', link: '/architecture/system-map' },
+            { text: 'C4 视图 · 上下文与部署', link: '/architecture/c4-system' },
             { text: 'C4 视图 · Core', link: '/architecture/c4-core' },
             { text: 'C4 视图 · Analytics', link: '/architecture/c4-analytics' },
             { text: 'C4 视图 · 动态', link: '/architecture/c4-dynamic' },

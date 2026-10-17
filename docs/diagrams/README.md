@@ -1,6 +1,6 @@
 # C4 图源
 
-`src/*.puml` 是 [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) 源文件，`../public/diagrams/*.svg` 是渲染产物，被 [C4 视图 · Core](/architecture/c4-core)、[C4 视图 · Analytics](/architecture/c4-analytics) 与 [C4 视图 · 动态](/architecture/c4-dynamic) 引用。
+`src/*.puml` 是 [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML) 源文件，`../public/diagrams/*.svg` 是渲染产物，被 [上下文与部署](/architecture/c4-system)、[Core](/architecture/c4-core)、[Analytics](/architecture/c4-analytics) 与 [动态](/architecture/c4-dynamic) 引用。
 
 **图内文字用英文**，因为这些图要直接进报告；页面说明用中文。
 

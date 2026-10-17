@@ -1,0 +1,37 @@
+@startuml c4-context
+!include ../vendor/C4_Context.puml
+
+title System context — Agricultural Supply Chain Tracker
+LAYOUT_LEFT_RIGHT()
+
+Person(participantUser, "Participant staff", "Farm to retail")
+Person(consumer, "Consumer", "Scans a QR code")
+Person(regulatorOfficer, "Regulator officer", "Food authority")
+Person(governance, "Consortium governance", "Membership and keys")
+
+System(tracker, "Agricultural Supply Chain Tracker", "Shared attributable claims, verifiable history, scoped views")
+
+System_Ext(devices, "IoT devices and gateways", "Sensors, scales, scanners")
+System_Ext(participantSystems, "Participant business systems", "ERP / WMS / TMS / IoT")
+System_Ext(archive, "External archive", "WORM copy, off-platform")
+System_Ext(kms, "Consortium KMS", "Trustee-held keys")
+System_Ext(chain, "Public blockchain", "Merkle roots")
+System_Ext(idp, "Identity provider", "Authentication")
+System_Ext(entityRegistry, "Business registry", "Entity verification")
+System_Ext(regSystems, "Regulator systems", "Cases, publication")
+
+Rel_Down(participantSystems, tracker, "EPCIS events")
+Rel_Right(devices, participantSystems, "Readings")
+Rel_Down(participantUser, tracker, "Captures, queries")
+Rel_Down(consumer, tracker, "Reads trace page")
+Rel_Down(regulatorOfficer, tracker, "Investigates, signs")
+Rel_Down(governance, tracker, "Governs membership")
+Rel_Left(tracker, archive, "Envelope, Ack")
+Rel_Left(tracker, kms, "Wrap / unwrap DEK")
+Rel_Down(tracker, chain, "Merkle roots")
+Rel_Down(tracker, idp, "OIDC")
+Rel_Down(tracker, entityRegistry, "Entity verification")
+Rel_Right(tracker, regSystems, "Notices, exports")
+
+SHOW_LEGEND()
+@enduml

@@ -1,0 +1,34 @@
+@startuml relayer-component
+!include ../vendor/C4_Component.puml
+
+title Component view — Batch Builder & Relayer
+
+Container_Boundary(relayer, "Batch Builder & Relayer") {
+  Component(intents, "Anchor Intent Reader", "Outbox consumer", "Claims receipted events waiting for a leaf")
+  Component(alloc, "Leaf Allocator", "Deterministic", "Assigns leaf index and leaf hash from event identity and digests")
+  Component(builder, "Batch Builder", "Windowed", "Closes a window into a Merkle batch and computes the root")
+  Component(submitter, "Chain Submitter", "Wallet holder", "Submits the root; manages nonce and retry")
+  Component(watcher, "Finality Watcher", "Chain reader", "Observes finality and records the transaction reference")
+  Component(proofs, "Proof Service", "Read-only", "Serves inclusion proofs for a leaf and a batch")
+  Component(manifest, "Manifest Writer", "Archive client", "Writes the batch manifest next to the payload in the archive")
+}
+
+ContainerDb_Ext(db, "Operational PostgreSQL", "Platform", "Anchor intents, leaves, batches")
+Container_Ext(archive, "External Archive", "Outside platform control", "Stores the batch manifest")
+System_Ext(chain, "Public Blockchain", "External utility", "Merkle root only")
+
+Rel_Right(db, intents, "Standing intents")
+Rel_Right(intents, alloc, "Events to place")
+Rel_Down(alloc, db, "Leaf index and hash")
+Rel_Down(alloc, builder, "Ordered leaves")
+Rel_Right(builder, submitter, "Batch root")
+Rel_Down(builder, manifest, "Batch manifest")
+Rel_Down(manifest, archive, "Manifest bytes")
+Rel_Right(submitter, chain, "Submit root", "tx")
+Rel_Down(chain, watcher, "Finality")
+Rel_Down(watcher, db, "Transaction reference")
+Rel_Right(proofs, chain, "Read batches")
+Rel_Down(proofs, db, "Proof material")
+
+SHOW_LEGEND()
+@enduml

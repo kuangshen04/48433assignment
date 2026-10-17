@@ -4,6 +4,8 @@
 
 ## 第一版部署形态
 
+账户与区域的图形化版本见 [C4 视图 · 上下文与部署](/architecture/c4-system)。
+
 ```text
 Australian primary region
   stateless application instances

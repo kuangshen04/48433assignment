@@ -53,20 +53,29 @@ Two trimming decisions will need a call from the group:
 
 ## Figure sources
 
-Six C4 figures are already produced and are the ones Section 3 will embed:
+Eleven C4 figures are produced. Together they cover rows 3.1–3.10 and 4.14–4.17.
 
-| Figure | Marks | File |
+| Figure | Serves rows | File |
 |---|---|---|
-| Container view (whole system) | 3.2–3.4 | `docs/public/diagrams/core-container.svg` |
+| System context | 3.1 | `docs/public/diagrams/c4-context.svg` |
+| Container view (whole system) | 3.2–3.4, 4.6 | `docs/public/diagrams/core-container.svg` |
 | Component view (Traceability Core) | 3.5–3.7 | `docs/public/diagrams/core-component.svg` |
+| Component view (Batch Builder & Relayer) | 3.5–3.7 | `docs/public/diagrams/relayer-component.svg` |
+| Code view (Core classes and interfaces) | 3.8–3.10, 4.8–4.9 | `docs/public/diagrams/core-code.svg` |
 | Container view (Regulatory Analytics) | 3.2–3.4, 4.6 | `docs/public/diagrams/analytics-container.svg` |
 | Component view (Analytics Workspace) | 3.5–3.7 | `docs/public/diagrams/analytics-component.svg` |
-| Code view (8 major classes) | 3.8–3.10 | `docs/public/diagrams/analytics-code.svg` |
-| Dynamic view (event acceptance) | 4.16–4.17 | `docs/public/diagrams/c4-dynamic.svg` |
+| Code view (Analytics classes) | 3.8–3.10, 4.9 | `docs/public/diagrams/analytics-code.svg` |
+| Dynamic view — event acceptance | 4.16–4.17 | `docs/public/diagrams/c4-dynamic.svg` |
+| Dynamic view — recall investigation | 4.17–4.18 | `docs/public/diagrams/c4-dynamic-recall.svg` |
+| Deployment view | 4.14–4.15 | `docs/public/diagrams/c4-deployment.svg` |
 
-Still missing for Section 3/4: **system context diagram** (3.1) and **deployment diagram** (4.14–4.15). The
-deployment diagram depends on the C1–C3 product selections, which are not closed yet.
+Two caveats to keep in the report text:
 
+1. **The deployment figure fixes control domains and regions, not products.** Managed database, container
+   runtime and KMS products are closed as C1–C3; the figure says so in its own title so a marker does not
+   read the abstraction as an omission.
+2. **Cross-view consistency (3.10) needs one paragraph in Section 3**, not just the figures: map each
+   component to the classes it produces or consumes. The mapping is written up in the Core code-view page.
 ## Regenerating figures
 
 ```powershell

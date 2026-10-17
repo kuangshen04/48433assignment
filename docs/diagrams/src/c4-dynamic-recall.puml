@@ -1,0 +1,56 @@
+@startuml c4-dynamic-recall
+title Dynamic view — recall investigation, from scope to signed notice
+
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 240
+skinparam BoxPadding 8
+skinparam participant {
+  BackgroundColor #438DD5
+  FontColor #FFFFFF
+  BorderColor #2E6DA4
+}
+skinparam sequence {
+  ArrowColor #444444
+  LifeLineBorderColor #999999
+  GroupBorderColor #999999
+  GroupHeaderFontColor #444444
+}
+
+participant "Regulator officer" as officer
+participant "Traceability App" as app
+participant "Analytics Workspace" as analytics #999999
+participant "Evidence owner" as owner #999999
+participant "External Archive" as archive #999999
+participant "Public Blockchain" as chain #999999
+
+== Phase 1 · Scope at a fixed watermark ==
+officer -> app: Recall scope for lot L at watermark W
+app -> app: Traverse transformation, aggregation and handover edges;\nkeep competing edges side by side
+app --> officer: confirmedImpact + provisionalImpact, with provenance
+note right of app: provisionalImpact covers receipted but\nunconfirmed claims; it is labelled and never merged
+
+== Phase 2 · Risk review and evidence ==
+officer -> analytics: Review the affected set
+analytics --> officer: Private finding (rule version, input watermark)
+officer -> app: Evidence request for resource R
+app -> owner: Evidence request recorded as an audit record
+owner -> app: Content encrypted to the regulator key
+app --> officer: Reference and commitment only;\nthe platform cannot read the content
+note right of owner: The platform never sees plaintext.\nThe officer checks the content against\nthe salted commitment.
+
+== Phase 3 · Formal notice ==
+officer -> app: Submit signed Recall Notice
+app -> archive: Write notice, obtain ArchiveAck
+archive --> app: Signed ArchiveAck
+app --> officer: Published as VERIFIED_PENDING_ANCHOR
+note right of app: Publication does not wait for finality,\nbut it is not presented as CONFIRMED.
+
+== Phase 4 · Anchor and confirm ==
+app -> chain: Commit notice in the next Merkle batch
+chain --> app: Finality and inclusion proof
+app --> officer: VERIFIED_CONFIRMED
+
+note over officer, chain: Recall starts from an external decision, not from the platform.\nThe platform produces the scope and carries the signed notice;\nit does not withdraw stock, and it does not decide who is at fault.
+
+@enduml

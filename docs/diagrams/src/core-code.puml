@@ -1,0 +1,147 @@
+@startuml core-code
+title Code view (major classes and interfaces) — Traceability Core
+
+hide empty members
+skinparam classAttributeIconSize 0
+
+package "Admission and confirmation" {
+  class CaptureSubmission {
+    captureRecordId : UUID
+    epcisEventId : URI
+    profileId / profileVersion
+    canonicalisationVersion
+  }
+  class CanonicalEvent {
+    eventType
+    eventTime / eventTimeZoneOffset
+    bizStep / disposition
+    bizLocation / readPoint
+    sourceList / destinationList
+    epcList / quantityList
+  }
+  class SignatureEnvelope {
+    signerOrganisationId
+    keyId
+    algorithm
+    payloadDigest
+    signature
+    custodyMode / assuranceLevel
+  }
+  class ProfileVersion {
+    profileId
+    version
+    granularity
+    requiresFields
+    consumerAllowlist
+  }
+  class AcceptanceReceipt {
+    captureRecordId
+    payloadDigest
+    archiveAckDigest
+    anchorWindow
+  }
+}
+
+package "Archive and anchoring" {
+  class ArchiveEnvelope {
+    envelopeVersion
+    networkId
+    ciphertextDigest
+    wrappedDEK
+    keyId / keyEpoch
+  }
+  class ArchiveAck {
+    archiveObjectId
+    envelopeDigest
+    ciphertextDigest
+    retentionPolicyId
+    operatorSignature
+  }
+  class MerkleLeaf {
+    leafIndex
+    payloadDigest
+    signatureDigest
+    ackDigest
+  }
+  class AnchorBatch {
+    batchId
+    windowStart / windowEnd
+    root
+    previousRoot
+    txRef / finalisedAt
+  }
+}
+
+package "Evidence and query" {
+  class EvidenceEdge {
+    fromObjectId / toObjectId
+    edgeType
+    sourceEventId
+    publisher
+    effectiveInterval
+    confirmationStatus
+  }
+  class EdgeGroup {
+    fromObjectId / toObjectId
+    edgeType
+    edges
+  }
+  class EdgeQuery {
+    subjectRef
+    edgeTypes
+    timeWindow
+    watermark
+  }
+  interface QueryPort {
+    edges(EdgeQuery) : EdgeGroup[]
+  }
+  class ProtectedResourceRef {
+    resourceId
+    ownerOrganisationId
+    plaintextCommitment
+    storageMode
+    availabilityStatus
+  }
+}
+
+package "Enumerations" {
+  enum ConfirmationStatus {
+    PENDING_ARCHIVE
+    PENDING_ANCHOR
+    FINALISED
+    CONFIRMED
+    REVIEW_REQUIRED
+  }
+  enum CustodyMode {
+    ENTERPRISE_SELF
+    DEVICE_BOUND
+    ASSISTED_EXTERNAL
+    DELEGATED_PLATFORM
+  }
+  enum EdgeType {
+    TRANSFORMATION
+    AGGREGATION
+    HANDOVER
+    CORRECTION
+  }
+}
+
+CaptureSubmission --> SignatureEnvelope : carries
+CaptureSubmission --> ProtectedResourceRef : references
+CaptureSubmission --> CanonicalEvent : materialises
+CanonicalEvent ..> ProfileVersion : validated against
+CanonicalEvent --> ArchiveEnvelope : encrypted as
+ArchiveEnvelope --> ArchiveAck : acknowledged by
+CanonicalEvent --> MerkleLeaf : committed as
+MerkleLeaf --> AnchorBatch : batched into
+CanonicalEvent --> EvidenceEdge : derives
+EvidenceEdge --> EdgeGroup : grouped into
+QueryPort ..> EdgeQuery : accepts
+QueryPort ..> EdgeGroup : returns
+AcceptanceReceipt ..> ArchiveAck : binds digest
+AcceptanceReceipt ..> CanonicalEvent : promises
+CanonicalEvent --> ConfirmationStatus
+EvidenceEdge --> EdgeType
+SignatureEnvelope --> CustodyMode
+
+@enduml

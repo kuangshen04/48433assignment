@@ -39,3 +39,27 @@
 | 类与接口（code 层） | [Traceability Core](/systems/traceability-core) 的组件边界与写入契约 |
 
 一张 container 图塞进部署细节，读者就分不清哪些是逻辑边界、哪些是产品选型——这两件事在本项目里被刻意分开：C1–C3 的产品参数仍在[待定事项](/decisions/open-items)里。
+
+## Code 视图
+
+<img src="/diagrams/core-code.svg" alt="C4 code view: major classes and interfaces of Traceability Core">
+
+四组、13 个类型，够说清数据形状而不变成实现文档：
+
+1. **CanonicalEvent 是枢纽。** 它由 CaptureSubmission 物化而来，被 ProfileVersion 校验，加密成 ArchiveEnvelope、承诺成 MerkleLeaf、并派生出 EvidenceEdge。所有其他类型要么描述它的来路（签名、提交、证据引用），要么描述它的去处（归档、锚定、查询）。
+2. **SignatureEnvelope 里没有自然人字段。** 只有组织、密钥、算法、摘要和 custody 档位——这条在类型层面就堵住了"把员工写进不可变历史"。
+3. **ArchiveAck 是持有方签的，不是平台签的。** 它的 operatorSignature 覆盖对象身份与密文字节，AcceptanceReceipt 只绑定它的 digest。因此"回执"证明的是外部持久化，而不是平台的态度。
+4. **读取只有一个接口。** QueryPort.edges(EdgeQuery) 返回 EdgeGroup[]；没有 getHandoverStatus() 这类方法，所以 scope、non-collapsing 和 watermark 无法被某个调用方绕过。
+
+三个枚举（ConfirmationStatus、CustodyMode、EdgeType）刻意列全：它们是跨系统契约的一部分，值一旦发布就不能悄悄增减。
+
+**与 component 图怎么对上：** Capture API 接收 CaptureSubmission；Canonicalisation & Profile Validator 产出规范化后的 CanonicalEvent 并比对 ProfileVersion；Signature / Authority Validator 处理 SignatureEnvelope；Archive & Anchor Orchestrator 负责 ArchiveEnvelope → ArchiveAck → MerkleLeaf → AnchorBatch；Evidence Graph Builder 产出 EvidenceEdge；QueryPort 返回 EdgeGroup。这张表就是 3.10（跨视图一致性）的证据。
+
+## Relayer 组件视图
+
+<img src="/diagrams/relayer-component.svg" alt="C4 component view: batch builder and relayer">
+
+1. **只有 Chain Submitter 持有钱包。** 批次的构造、证明的生成、manifest 的写入都不需要私钥，只有提交那一步需要——所以私钥的暴露面被压到一个组件。
+2. **Leaf Allocator 是确定性的。** 叶子索引与哈希由事件身份和摘要推出，重试不会产生第二个叶子；这是幂等性在锚定这一步的落点。
+3. **Manifest Writer 把批次清单写进外部归档，而不是只写数据库。** 因此恢复时可以只凭归档与链上数据重建"某个事件在哪个批次里"，不需要平台的库。
+4. **Proof Service 只读。** 它读链上批次、读数据库里的叶子，返回 inclusion proof；不参与写入，也不改变任何状态。
