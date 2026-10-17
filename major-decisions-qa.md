@@ -680,6 +680,60 @@ Consumer view、dashboard、lineage visualisation、handover summary 和 analyti
 
 **为什么可以接受：** 不可变性由 signed archive 与 public-chain commitment 提供，数据库只承担运营索引和可重建视图。该方案保留未来接入 broker 或专用 read store 的演进路径，却不在缺少 workload 证据时预付完整 CQRS/Event Sourcing 的复杂度。
 
+---
+
+## B11. Product Profile 是否采用可配置 Schema 和版本管理？
+
+**决定：** 采用受治理的 `Versioned Product Validation Profiles`，而不是通用动态 schema、rule engine 或 no-code workflow platform。Profile 负责产品特有的数据约束和简单展示元数据；稳定的 EPCIS core、信任边界和跨事件业务语义继续由领域代码实现。
+
+### 可配置范围
+
+第一版 profile 可以定义：
+
+- required/optional EPCIS extension fields；
+- primitive types、formats、enumerations 和合理数值范围；
+- permitted units 和 product vocabulary；
+- required/optional evidence types；
+- 有限的字段内或简单条件校验；
+- consumer projection 的显式字段 allowlist；
+- 通用表单控件所需的 label、help text 和 display metadata。
+
+以下内容不能由任意 profile 重写：EPCIS event core semantics、Shipping/Receiving handover、correction/append-only rules、canonical digest、signature assurance、archive/anchor lifecycle、organisation authorization、recall traversal 以及复杂 cross-event constraints。
+
+Profile 不引入任意 field-level access policy。Profile 中的 shared trace fields 默认属于 `CONSORTIUM`；消费者只能读取 allowlisted `PUBLIC` projection；不能向联盟公开的文件或数据继续作为 `PRIVATE` ProtectedResource。
+
+### 不可变版本模型
+
+```text
+DRAFT
+→ PUBLISHED
+→ DEPRECATED
+→ RETIRED
+```
+
+`PUBLISHED` version 不可原地修改。每个 canonical event 固定记录 `profileId`、`profileVersion` 和 `canonicalisationVersion`，并将其绑定到签名 digest。旧事件始终按原 version 解释和验证，不因新版本发布而重新判为无效，也不批量改写已确认历史。
+
+新增 optional field 等兼容变化仍通过新的 version 发布；新增 required field、改变单位语义、删除字段或改变 validation meaning 视为 breaking version，只适用于其 effective policy 下的新事件。跨版本 query projection 可以归一化到稳定核心字段，但必须保留原始 profile/version provenance。
+
+### Validation split
+
+```text
+Profile/schema validation
+→ fields, types, formats, enumerations, units, simple conditions
+
+Domain validators in code
+→ identity, authority, handover, correction,
+  transformation, recall and cross-event invariants
+```
+
+通用 UI 可以根据 profile 生成 string、number、date、enumeration 和 unit fields；需要特殊交互、复杂计算或新业务 lifecycle 的产品必须提供经过评审的代码扩展，不能承诺所有产品永远只靠 JSON 配置上线。
+
+最小 profile artifact 包含 `profileId`、`version`、`status`、`effectiveFrom`、`baseEpcisVersion`、`validationSchema`、`valueLists`、`evidenceRequirements` 和 `consumerProjectionAllowlist`。Profile 的发布、弃用和 breaking-change approval 属于联盟治理操作。
+
+**需要接受的代价：** 系统必须长期保留旧 profile、测试跨版本 projection、管理 vocabulary/unit 演进，并防止 schema validation 与领域代码产生冲突。动态字段的查询索引和复杂 UI 仍可能需要专门实现。
+
+**为什么可以接受：** 多数“新增字段、枚举、单位和证据要求”的产品差异可以低成本扩展，而会改变交接、转换或召回语义的差异仍通过显式代码接受审查。这个边界提供实际可扩展性，同时避免把项目变成通用规则平台。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -820,21 +874,7 @@ Consortium Key Service
 
 ---
 
-## C3. Product Profile 能承担多少产品线差异？
-
-**当前倾向：** 稳定 EPCIS core 加 versioned product profiles 是主要扩展机制，但不承诺所有新产品都只需配置、永远无需代码和数据模型变化。
-
-**为什么尚未定案：** Profile 可以约束字段、单位、证据和业务词汇，但不同产品还可能改变召回、加工、温控、生物安全、保留期和 UI 工作流。
-
-**已否决：** 为每个产品线复制一套服务和数据库；也否决“新增任何产品只需要一个 JSON schema”的过度承诺。
-
-**需要接受的代价：** Profile engine 和版本兼容本身增加复杂度；某些产品仍可能需要经过评审的代码扩展。
-
-**待回答：** 哪些规则可配置，哪些必须由领域代码实现；profile 的批准、弃用和兼容流程由谁治理。
-
----
-
-## C4. Trustworthiness 与 scalability 如何排序？
+## C3. Trustworthiness 与 scalability 如何排序？
 
 **当前倾向：** Trustworthiness 决定核心信任边界，但 scalability 仍必须通过可测场景验证；不能用“不是主要问题”跳过 case brief 的多产品和多地区要求。
 
@@ -848,7 +888,7 @@ Consortium Key Service
 
 ---
 
-## C5. 独立控制域的恢复目标和具体运营安排是什么？
+## C4. 独立控制域的恢复目标和具体运营安排是什么？
 
 **已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
 
@@ -871,6 +911,8 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 跨组织实物交接由 sender-signed ShippingEvent 与 receiver-signed ReceivingEvent 两份独立声明组成；二者分别确认，平台只派生 handover status。缺少接收确认不会抹去发货声明，争议和未确认 edges 仍进入 recall/audit 查询并明确标记保证等级。
 
 应用不采用全量 Event Sourcing。不可变 trace core 保持 append-only；普通应用状态使用事务模型；archive、anchor 和针对性 projections 由 PostgreSQL transactional outbox 驱动。第一版不需要独立 broker 或多套读写数据库，projection lag 必须通过 watermark 暴露，安全查询不得把过期视图解释为完整结果。
+
+产品扩展采用不可变、版本化并由联盟治理的 Product Validation Profiles。Profile 只配置字段、枚举、单位、简单校验、证据要求和 consumer allowlist；交接、纠错、转换、授权、签名和召回等跨事件语义保留在领域代码中，不承诺用配置取代所有产品代码扩展。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
