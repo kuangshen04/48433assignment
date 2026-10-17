@@ -1,6 +1,6 @@
 # 事件接收与确认
 
-这条流程把 Identity、Traceability Core、KMS、Archive、PostgreSQL 和 Public Chain 的契约串起来。单看某一个系统不能推出 `CONFIRMED` 的完整保证。
+这条流程把 Identity、Traceability Core、KMS、Archive、PostgreSQL 和 Public Chain 的契约串起来。单看某一个系统不能推出 `CONFIRMED` 的完整保证。 一张图看完整路径：[C4 视图 · 动态](/architecture/c4-dynamic)。
 
 ## 正常路径
 

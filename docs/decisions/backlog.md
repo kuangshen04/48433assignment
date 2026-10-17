@@ -21,7 +21,7 @@
 | B15 · evidence request | 只做 `AuditRecord(type=EVIDENCE_REQUEST)`，`outcome` 由参与方行动推导、超时为 `NO_RESPONSE`；不建工作流/portal/催办/SLA，不进 canonical trace |
 | B17 · 重述 | 改为「记录断言 / 签署判定」两分，补上 non-collapsing 表示义务（相对 scope） |
 | B21 · 重述 | Regulatory Analytics 明确为系统边界内的 peer subsystem、监管方独立运行时域，并承担 C4 分解责任 |
-| B21 · C4 最小覆盖 | 取**最小覆盖**（3 container / 4 component / 8 类），并框定 Insights 与 AnalyticsInput 共用的 `DatasetSnapshot` 数据平面；两者合并为 T2+T3，扩展条件写在系统页 |
+| B21 · C4 最小覆盖 | 取**最小覆盖**（3 container / 4 component / 8 类），并框定 Insights 与 AnalyticsInput 共用的 `DatasetSnapshot` 数据平面；两者合并为同一条数据平面（已出图），扩展条件写在系统页 |
 | B21 · `RuleVersion` 锚定 | 规则正文留监管域，只把 `RuleVersionManifest`（含 `ruleBodyDigest`）进 archive + Merkle；撤回发新版本、不回溯已签发 finding |
 | B21 · 租户归属 | 软件平台构建、**运行在监管方账户**；判据是"谁掌握控制平面"（掌握 ⇒ 可读明文），因此同集群 + 无 DB key 不算隔离。整个 Analytics 一起搬（拆开会让规则正文外泄）；平台不持运行时凭据、不能远程推送 |
 | B21 · `RegulationRequirement` | 独立签署 artifact，只能绑定已有字段或用同一 primitive 类型新声明；地板 = 模块 manifest ∪ 适用辖区要求 |
@@ -33,6 +33,7 @@
 | B25 · 新增 | Core 收缩为机制（含强制 scope / non-collapsing / watermark 的 `QueryPort`）；handover、召回遍历、合规重建、分析输入、洞察改为同进程语义模块；字段地板改由模块 manifest 编译 |
 | B25 · Insights 边界 | 主要服务监管问责与召回；允许无归属的跨组织聚合，**禁止点名排名与绩效画像**；不接外部业务数据、不预测、不写回 |
 | 文档 | `major-decisions-qa.md` 移入本站为[完整决策日志](/decisions/log) |
+| 文档 · C4 图 | Core 与 Analytics 的 container / component / code 图 + 动态视图；图源在 `docs/diagrams/src`，页面见 [Core](/architecture/c4-core)、[Analytics](/architecture/c4-analytics)、[动态](/architecture/c4-dynamic) |
 
 ---
 
@@ -43,7 +44,6 @@
 | 编号 | 事项 | 动作 | 影响 |
 |---|---|---|---|
 | T1 | **Profile conformance check 与模板**（决策已于 2026-10-18 完成，剩下工程化） | 把 B11 的失败条件做成 profile 发布前的校验组件，并提供 profile 模板（粒度声明 + 核心字段 + allowlist + evidence requirements） | 3.5–3.7；也是「profile 不能弱化追溯」的可执行证据 |
-| T2+T3 | **数据平面最小覆盖设计**（两者合并） | **已完成范围框定**：Insights 与 AnalyticsInput 共用一条 `DatasetSnapshot` 路径，见 [Semantic Modules](/systems/semantic-modules)；Analytics 侧只做 3 container / 4 component / 8 类，见 [Regulatory Analytics](/systems/regulatory-analytics)。剩余：把它画进 container 与 component 图 | 4.6–4.9、3.2–3.7；4.B 主要靠 IoT 叙事，不依赖这里做深 |
 | T4 | **运营数据的租户隔离** | registry / job / outbox / export 的 `organisationId` 谓词 + RLS 兜底；export 绑定 tenant 或 case scope；运维访问 break-glass | 2.7 / 4.18（B23 只解决了内容，没解决运维数据） |
 
 **T2/T3 的扩展条件**（当前不触发，写在系统页里）：4.B 需要 ML 深度才够分、出现第二个监管域、或 deterministic rules 的容量/时延被实测证明不足。三条都不成立就维持最小覆盖。
@@ -83,7 +83,7 @@
 
 | 编号 | 事项 | 说明 |
 |---|---|---|
-| R1 | Dynamic diagram 选型 | 建议用 event capture → archive → anchor → confirm 作主场景；18 个状态折叠成 5 段 |
+| R1 | Dynamic diagram 选型 | **已完成**：[C4 视图 · 动态](/architecture/c4-dynamic)。主场景 capture → archive → anchor → confirm，18 个状态折成 5 段；用 sequence 形式（协作图会摊成 2500px 横幅，竖版页面读不出字） |
 | R2 | SOLID / 设计味道映射 | A7 的 ports/adapters、B5 的单一 `EventSignatureVerifier`、B11 的 profile 与 core 分层已是现成证据（4.4 / 4.5） |
 | R3 | ATAM / HAZOP | 日志里的「承受的代价」「否决的方案」直接就是风险与 trade-off 素材（5.3） |
 | R4 | C1–C3 reference deployment | 云部署策略按要求暂缓，但提交前必须选定一套可实施的配置，否则 4.14 / 4.15 没有内容 |
@@ -93,6 +93,6 @@
 
 ## 建议顺序
 
-1. **T1 → T2+T3 → T4**：一口气做完，因为它们共同决定容器图。
+1. **T1 → T4**：先把容器图的两处空白补完（conformance 组件、运维数据隔离）。
 2. **T5 → T10 → T14 → T16**：论证类，材料都在日志里，写成文即可。
 3. **R1 → R7**：进入写报告阶段。

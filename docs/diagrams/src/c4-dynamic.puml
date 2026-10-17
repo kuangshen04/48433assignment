@@ -1,0 +1,60 @@
+@startuml c4-dynamic
+title Dynamic view — one event from submission to CONFIRMED
+
+autonumber
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 210
+skinparam participant {
+  BackgroundColor #438DD5
+  FontColor #FFFFFF
+  BorderColor #2E6DA4
+}
+skinparam sequence {
+  ArrowColor #444444
+  LifeLineBorderColor #999999
+  GroupBorderColor #999999
+  GroupHeaderFontColor #444444
+}
+
+participant "Portal / ERP" as client
+participant "Traceability App" as app
+participant "Operational DB" as db
+participant "Workers" as workers
+participant "KMS" as kms #999999
+participant "External Archive" as archive #999999
+participant "Relayer" as relayer
+participant "Blockchain" as chain #999999
+participant "Public CDN" as cdn
+
+== Phase 1 · Receive and validate (DRAFT → VALIDATED) ==
+client -> app: Submit EPCIS event, SignatureEnvelope,\ncaptureRecordId, profile reference
+app -> db: Validate; persist VALIDATED;\nenqueue archive intent in one transaction
+note right of db: Idempotent on captureRecordId + digest;\nno receipt is issued yet
+
+== Phase 2 · Encrypt and archive (→ PENDING_ARCHIVE) ==
+workers -> db: Poll and claim the outbox intent
+workers -> kms: Wrap the event DEK under the KEK epoch
+kms --> workers: Wrapped DEK
+workers -> archive: Put EncryptedArchiveEnvelope
+archive --> workers: Signed ArchiveAck\nfor the bytes actually stored
+note over kms, archive: Dedicated DEK per event.\nThe archive holder cannot decrypt;\nit only signs what it stored.
+
+== Phase 3 · Acceptance receipt (receipt issued) ==
+workers -> db: Record Ack; issue acceptance receipt
+app --> client: Acceptance receipt\n(binds ArchiveAckDigest + payload digest)
+note right of client: The platform has now committed\nto an anchor window. It cannot\nsilently drop the event.
+
+== Phase 4 · Anchor and finality (PENDING_ANCHOR → FINALISED) ==
+relayer -> db: Claim anchor intent; allocate\ndeterministic Merkle leaf
+relayer -> chain: Submit batch Merkle root
+chain --> relayer: Finality; transaction reference
+relayer -> db: Record inclusion proof and leaf
+
+== Phase 5 · Confirm and project (CONFIRMED) ==
+workers -> db: Mark CONFIRMED
+workers -> cdn: Publish versioned consumer projection
+app --> client: Trace query now returns the confirmed event
+
+note over workers, chain: Failure suspends the event in the state it reached and retries\nidempotently; a timeout never promotes it to CONFIRMED.
+
+@enduml
