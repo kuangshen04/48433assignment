@@ -1168,6 +1168,79 @@ Consumer scan logs 是 platform-private operational/analytics data，不进入 c
 
 **为什么可以接受：** 当前系统的保证是 attribution、stable trace reference 和 post-confirmation integrity，而不是物理防伪。复用外部标准保持企业互操作性，为小参与方提供 scoped fallback 保持可访问性，同时把现实 ownership/authenticity 审查留给责任组织和监管方。
 
+---
+
+## B20. NSW trial 的 privacy、retention 和 data residency 基线是什么？
+
+**决定：** NSW 作为首个 trial jurisdiction。Primary application/PostgreSQL、participant/private evidence、independent archive 和 Consortium KMS 默认部署在 Australian regions；至少一个恢复副本位于不同 Australian failure domain。Public chain 只保存不直接识别个人的 commitment/Merkle root，`PUBLIC` consumer projection 可以通过全球 CDN 分发。
+
+选择 Australian residency 是降低 APP 8/cross-border、regulator procurement 和 incident-coordination 风险的架构政策，不声称澳大利亚法律绝对禁止所有海外处理。海外复制、support access 或 analytics 默认关闭；未来启用时必须单独完成 privacy、contractual 和 jurisdiction assessment。
+
+### Applicable responsibility baseline
+
+平台和参与企业在适用时按 Australian Privacy Principles 处理个人信息；为避免按企业规模反复分叉，系统把 APP-style minimisation、purpose limitation、security、access/correction 和 deletion/de-identification 作为所有 tenants 的统一最低标准。NSW public-sector regulator 对其取得的数据还按 PPIP/IPPs、NSW Mandatory Notification of Data Breach 和 NSW government cloud/procurement policy 管理。
+
+该划分不替代法律意见。Platform operator、participant、consortium governance 和 regulator 对 shared/private data 的法律 controller/processor 角色需要在 production agreement 中确认；architecture 只明确技术控制与审计责任。
+
+### Keep natural-person data out of immutable history
+
+Canonical `CONSORTIUM` trace 默认只保存 organisation/business location、product/lot/logistic-unit IDs、pseudonymous actor reference、event relationships、sensor summary、evidence reference 和 commitment。Employee name、personal email/phone、home address、authentication credential、consumer identity、scan IP/geolocation 和 regulator investigation notes 不得进入 immutable trace schema。
+
+Small-farm business identifiers/location 仍可能间接识别个人，因此详细 contact data 保存在受控、可更正的 operational organisation registry。Pseudonymous `actorId` 也按可能重新识别个人的数据保护；consortium/public views 不需要展开真实员工身份。
+
+### Retention is data-class and policy based
+
+```text
+Confirmed canonical trace
+→ product/jurisdiction retention policy
+→ capacity planning assumption: at least seven years
+
+Profile/key/governance/canonicalisation history
+→ retained at least as long as dependent trace
+
+Platform-hosted PRIVATE evidence / raw IoT
+→ owner + product/regulatory policy
+
+Regulatory export / analytics dataset
+→ short-lived, purpose-bound, automatic expiry
+→ extend only for recorded investigation/legal hold
+
+Consumer scan/security logs
+→ minimum collection and short retention
+→ aggregate/de-identify or delete
+```
+
+“至少七年”是 storage capacity 和 trial policy assumption，不是对所有 NSW food records 的法定最低期限声明。实际 retention policy 由 data class、product profile、jurisdiction 和 legal hold 共同决定，发布前需由联盟/法律与监管代表批准。
+
+### Deletion and immutability
+
+Confirmed organisation-level business trace 不接受物理删除，错误通过 correction event 处理。Mutable user/account/contact data 支持 access、correction、deletion 或 de-identification；private evidence 到期后可以删除，并把引用状态更新为 `EXPIRED/DELETED/UNAVAILABLE`，但不回写或伪造原 canonical event。Legal hold 可以暂停删除，并记录 authority、case、scope、effective/expiry time 和 audit trail。
+
+Public-chain commitment 永久存在，因此 commitment input 不得包含 plaintext personal identifier，也不能把短小个人字段直接当作可被字典匹配的公开 hash。减少不可变 PII 的主要手段是 schema allowlist 和 ingestion-time data minimisation，而不是承诺以后从 WORM/public chain 中擦除。
+
+### Consumer and analytics privacy
+
+Consumer lookup 默认不要求登录，不收集精确 geolocation，不建立个人 scan history；IP/user-agent 只用于短期 security/rate-limiting，并在期限后删除或聚合。Duplicate-scan analytics 使用最小化或去标识数据，不能转为消费者画像。
+
+Regulatory exports 和 analytics inputs 必须记录 purpose、recipient service identity、schema/dataset version、confirmed watermark、expiry 和 legal-hold status。ML/rule outputs 保持 regulator-private；数据访问权不隐含训练、长期留存或其他目的再利用权。
+
+### Breach responsibility
+
+Platform、participant 和 regulator 分别保留适用于自身控制数据的数据泄露 detection、containment、assessment、audit 和 notification 流程。跨主体合同必须定义通知时限和协作责任；区块链 commitment 只能帮助检测历史篡改，不能满足 privacy breach response。
+
+**需要接受的代价：** Australian-only non-public deployment 限制供应商/region 选择并增加跨控制域灾备成本；严格排除 PII 需要 schema review、log minimisation 和 evidence-retention automation；七年容量规划高于部分数据的实际法律保留期。
+
+**为什么可以接受：** NSW trial 获得清楚、可审计且较低跨境风险的初始边界。将长期 immutable trace 限制为组织级供应链事实，使 correction/anchoring 与个人数据删除原则能够共存；按数据类别配置 retention 又避免虚构一个适用于所有产品和记录的统一法定期限。
+
+### Official basis used for the trial assumption
+
+- OAIC Australian Privacy Principles: <https://www.oaic.gov.au/privacy/australian-privacy-principles/read-the-australian-privacy-principles>
+- NSW IPC Information Protection Principles: <https://www.ipc.nsw.gov.au/resources/fact-sheet-information-protection-principles-ipps>
+- NSW Mandatory Notification of Data Breach guidance: <https://www.ipc.nsw.gov.au/resources/guideline-guidelines-assessment-data-breaches-under-part-6a-ppip-act>
+- NSW Government Cloud Policy: <https://digital.nsw.gov.au/policy/cloud-policy>
+- NSW Food Authority recall guidance: <https://www.foodauthority.nsw.gov.au/help/recalls>
+- FSANZ food traceability guidance: <https://www.foodstandards.gov.au/business/food-safety/food-traceability>
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -1296,7 +1369,7 @@ Consortium Key Service
 
 ## C2. PostgreSQL 的部署地区、恢复目标和拆分阈值是什么？
 
-**已确认的边界：** 第一版使用一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；independent trace archive、public chain 和 participant artifact stores 保持外部边界。PostgreSQL 不是 canonical history 的唯一恢复来源。
+**已确认的边界：** 第一版使用一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；independent trace archive、public chain 和 participant artifact stores 保持外部边界。PostgreSQL 不是 canonical history 的唯一恢复来源。NSW trial 的 primary deployment 位于 Australian region（优先 NSW/Sydney），所有非公开 operational data 默认不出境。
 
 **为什么尚未完全定案：** PostgreSQL 足以提供事务、约束、JSON 和递归遍历，但背景也要求多产品线和地区，未来可能出现数据驻留或跨区域写入限制。
 
@@ -1304,13 +1377,15 @@ Consortium Key Service
 
 **需要接受的代价：** PostgreSQL 是共享运营依赖，存在共同故障域；复杂谱系或跨区域部署达到一定规模后可能需要分区或专用存储。
 
-**待回答：** 第一个部署区域、数据驻留假设、备份与恢复目标，以及何种实测阈值触发 graph/read store 或区域拆分。
+**待回答：** PostgreSQL backup/PITR 和具体 RPO/RTO；何种实测阈值触发 read replica、partition、graph/read store 或跨区域拆分。
 
 ---
 
 ## C3. 独立控制域的恢复目标和具体运营安排是什么？
 
 **已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
+
+NSW trial 的 mandatory archive 和 Consortium KMS 位于 Australian regions；恢复副本至少跨 Australian failure domain。Public chain 可以是 global network，因为链上只保存不直接识别个人的 commitment/Merkle root。
 
 故障语义也已经确定：write path 在失败步骤 fail closed 并可幂等续跑；既有 confirmed data 尽可能继续读取并暴露 freshness/degradation；archive acknowledgement 之前不签 receipt，public-chain finality 之前不进入 `CONFIRMED`。
 
@@ -1320,7 +1395,7 @@ Consortium Key Service
 
 **需要接受的代价：** 跨控制域部署增加网络、安全、监控、升级和故障协调成本。
 
-**待回答：** 强制 archive operator 和 KMS account owner 的具体组织；archive retention、replica geography、RPO/RTO；KEK deletion protection、rotation 和 emergency recovery；是否需要第二 provider escrow；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
+**待回答：** 强制 archive operator 和 KMS account owner 的具体组织；Australian replica/failure-domain 选择和 RPO/RTO；KEK deletion protection、rotation 和 emergency recovery；是否需要第二 provider escrow；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
 
 # 当前总体结论
 
@@ -1351,6 +1426,8 @@ Human 和 IoT fleet identity 由外部/参与方 IAM 管理；核心只保存 or
 Recall 是对 shared consortium lineage projection 的保守、带 watermark 的查询，并可展示 authorised party 提交的 signed recall status。平台不执行实际下架、封存、退货或销毁；confirmed impact 与 recent pending claims 分开展示，private evidence 只在后续调查时单独授权。
 
 参与方负责分配标准 product/logistics identifiers，平台只为缺少外部 scheme 的参与方提供 network-scoped fallback，并验证 syntax、namespace、resolution 和 attribution。Consumer QR 只解析 public projection，不证明标签物理真实性或提供防伪保证。
+
+NSW 是首个 trial jurisdiction。非公开 operational data、independent archive 和 Consortium KMS 默认位于 Australian regions；immutable trace 排除自然人直接标识，retention 按 data class/product/jurisdiction policy 管理，并按至少七年 canonical capacity 规划。Mutable personal data 支持 correction/deletion/de-identification，public chain 永久保存的只有非个人 commitment。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
