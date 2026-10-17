@@ -1326,6 +1326,59 @@ Regulator Portal/Access Module 仍是核心平台的一等业务入口，负责 
 
 **为什么可以接受：** 监管方保留规则和披露决定权，平台参与方又能及时获得获准的初步提醒。Peer integration 避免平台自行复制监管逻辑或看到全部调查结果，也避免把 optional analytics 变成 canonical write path 的可用性依赖。
 
+---
+
+## B22. NSW pilot 使用什么量化 workload 与恢复假设？
+
+**决定：** 背景没有给出真实规模和 SLA，因此报告采用一组显式、内部一致且可测试的 NSW pilot architecture assumptions。它们不是客户事实或生产合同承诺，必须在 production deployment 前通过 load、failure-recovery、security 和 rural-usability testing 验证。
+
+| Measure | NSW pilot assumption |
+|---|---:|
+| Initial participating organisations | 200 |
+| Designed organisation growth | 1,000 |
+| Internal users | 2,000 |
+| Average canonical events | 10,000/day |
+| Offline recovery burst | 50 events/s for 15 minutes |
+| Consumer request peak at CDN | 5,000 requests/s |
+| CDN cache-hit target | at least 95% |
+| Public origin/API peak after cache | approximately 250 requests/s |
+| Maximum synchronous lineage traversal | 10,000 edges |
+| Large regulatory export | up to 1,000,000 events/job, asynchronous |
+| Normal projection lag | at most 30 seconds |
+| Safety-query stale threshold | 5 minutes |
+| Designed rural offline window | up to 72 hours |
+| Archive receipt latency after connected submission | p95 at most 5 seconds under healthy dependencies |
+| Public-chain anchor/finality target | 15–60 minutes; exact value deferred to C1 |
+| Canonical trace capacity horizon | at least 7 years |
+| Receipted/CONFIRMED canonical trace logical RPO | 0 |
+| PostgreSQL operational RPO | at most 5 minutes |
+| Core platform RTO | at most 4 hours |
+| Full Australian regional rebuild RTO | at most 24 hours |
+
+10,000 events/day over seven years is approximately 25.6 million canonical events before growth and headroom。该数量仍适合以 managed PostgreSQL 保存 indexed operational metadata/projections，并把完整 payload 放在 object/WORM archive；consumer 5,000 requests/s 不进入 PostgreSQL/KMS 路径，而由 versioned snapshots 和 CDN 承担。
+
+Offline burst 明显高于日均写入，用于验证多个 rural gateways 恢复连接时的 idempotency、backpressure 和 outbox processing。50 events/s 持续 15 分钟约为 45,000 submissions；平台不要求全部在一个数据库事务中完成，而按 stable event ID 分批处理。
+
+同步 lineage traversal 超过 10,000 edges，或预计结果接近 response/time limits 时，自动转 asynchronous export。一次最多约一百万 events 的监管 export 使用固定 watermark、streaming、独立 worker quota 和 temporary protected object，不形成长时间同步 database transaction。
+
+Projection 正常 lag 目标为 30 秒；达到五分钟 safety threshold 时，recall/food-safety query 等待追平、回查 confirmed event index 或返回 `STALE/INCOMPLETE`。Dashboard/consumer view 可以显示最新 watermark，不把缺失结果当成“没有风险”。
+
+RPO=0 仅适用于已经获得 independent archive acknowledgement 并签发 receipt，或已经 `CONFIRMED` 的 canonical event。`LOCAL_DRAFT/QUEUED_OFFLINE/SYNCING` 由 participant device/gateway 负责；PostgreSQL 中可重建 operational state 使用五分钟 RPO 目标。Core RTO 四小时优先恢复 ingestion、trace query 和 regulatory access；大型 exports/analytics 可以在完整区域重建的二十四小时目标内后恢复。
+
+### Scaling triggers
+
+第一版先使用 connection pooling、query/index tuning、vertical scaling、CDN 和 workload quotas。若连续 load test/production window 中出现以下任一情况，则进行相应演进，而不是按日历提前拆分：
+
+- consumer origin 超过约 250 requests/s 或 cache hit 低于 95%：先修正 cache key/TTL/publication strategy，再扩 stateless origin；
+- regulator export 或 read workload 使 ingestion/receipt SLO 失败：增加 PostgreSQL read replica 或专用 export projection；
+- event/index volume、vacuum/backup 或 projection rebuild 无法满足四小时 core RTO：引入 time/organisation partitioning；
+- 10,000-edge traversal 经索引和查询优化后仍无法满足交互时延，或大图查询变为常态：评估专用 graph/read projection；
+- outbox backlog 无法在允许的 projection lag 内消化：先水平扩 worker，再评估独立 broker。
+
+**需要接受的代价：** 数字不是实测事实，可能导致初始容量偏大或偏小；报告和测试计划必须清楚标注 assumption、measurement method 和 revision trigger，不能把它们包装成客户 SLA。
+
+**为什么可以接受：** 可量化假设使 PostgreSQL、CDN、outbox、archive、offline queue 和 async export 的设计能够被验证，同时保留基于实际证据调整的空间。相比虚构极端 TPS 或完全不写容量，它更符合试点阶段的现实决策方式。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -1456,13 +1509,15 @@ Consortium Key Service
 
 **已确认的边界：** 第一版使用一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；independent trace archive、public chain 和 participant artifact stores 保持外部边界。PostgreSQL 不是 canonical history 的唯一恢复来源。NSW trial 的 primary deployment 位于 Australian region（优先 NSW/Sydney），所有非公开 operational data 默认不出境。
 
+NSW pilot 采用 B22 假设：10,000 canonical events/day、50 events/s offline-sync burst、PostgreSQL operational RPO 不超过五分钟、core platform RTO 不超过四小时、完整 Australian regional rebuild 不超过二十四小时。扩容由 SLO、rebuild time 和实测 workload 触发，不预先引入多数据库。
+
 **为什么尚未完全定案：** PostgreSQL 足以提供事务、约束、JSON 和递归遍历，但背景也要求多产品线和地区，未来可能出现数据驻留或跨区域写入限制。
 
 **已否决：** 第一版同时引入事务数据库、event store、graph database 和独立 read store，因为没有 workload 证据支持这些一致性边界。
 
 **需要接受的代价：** PostgreSQL 是共享运营依赖，存在共同故障域；复杂谱系或跨区域部署达到一定规模后可能需要分区或专用存储。
 
-**待回答：** PostgreSQL backup/PITR 和具体 RPO/RTO；何种实测阈值触发 read replica、partition、graph/read store 或跨区域拆分。
+**待回答：** 最终 cloud service 的 backup/PITR 配置与成本验证；load/recovery tests 是否证明 B22 targets 可达。Read replica、partition、graph/read store 的初始触发条件已经由 B22 定义，但 production threshold 可按测试结果修订。
 
 ---
 
@@ -1472,6 +1527,8 @@ Consortium Key Service
 
 NSW trial 的 mandatory archive 和 Consortium KMS 位于 Australian regions；恢复副本至少跨 Australian failure domain。Public chain 可以是 global network，因为链上只保存不直接识别个人的 commitment/Merkle root。
 
+已经获得 independent archive acknowledgement/receipt 的 canonical trace 采用 logical RPO=0；core service RTO 为四小时，完整 regional rebuild RTO 为二十四小时。该保证仍依赖选定 archive/KMS product、account governance 和恢复演练证明能够达到目标。
+
 故障语义也已经确定：write path 在失败步骤 fail closed 并可幂等续跑；既有 confirmed data 尽可能继续读取并暴露 freshness/degradation；archive acknowledgement 之前不签 receipt，public-chain finality 之前不进入 `CONFIRMED`。
 
 **为什么部分内容尚未定案：** 权力边界已经确定，但背景没有给出愿意签约的 archive operator、联盟治理实体、部署地区、保留期限或恢复 SLA，不能虚构具体组织和供应商。
@@ -1480,7 +1537,7 @@ NSW trial 的 mandatory archive 和 Consortium KMS 位于 Australian regions；�
 
 **需要接受的代价：** 跨控制域部署增加网络、安全、监控、升级和故障协调成本。
 
-**待回答：** 强制 archive operator 和 KMS account owner 的具体组织；Australian replica/failure-domain 选择和 RPO/RTO；KEK deletion protection、rotation 和 emergency recovery；是否需要第二 provider escrow；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
+**待回答：** 强制 archive operator 和 KMS account owner 的具体组织；Australian replica/failure-domain 选择；archive/KMS 产品级 failover 与 restore procedure 能否满足 B22 RPO/RTO；KEK deletion protection、rotation 和 emergency recovery；是否需要第二 provider escrow；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
 
 # 当前总体结论
 
@@ -1513,6 +1570,8 @@ Recall 是对 shared consortium lineage projection 的保守、带 watermark 的
 参与方负责分配标准 product/logistics identifiers，平台只为缺少外部 scheme 的参与方提供 network-scoped fallback，并验证 syntax、namespace、resolution 和 attribution。Consumer QR 只解析 public projection，不证明标签物理真实性或提供防伪保证。
 
 NSW 是首个 trial jurisdiction。非公开 operational data、independent archive 和 Consortium KMS 默认位于 Australian regions；immutable trace 排除自然人直接标识，retention 按 data class/product/jurisdiction policy 管理，并按至少七年 canonical capacity 规划。Mutable personal data 支持 correction/deletion/de-identification，public chain 永久保存的只有非个人 commitment。
+
+NSW pilot 的 reference workload 为 200 个初始组织、2,000 名内部用户和日均 10,000 canonical events；农村恢复峰值按 50 events/s、消费者 CDN 峰值按 5,000 requests/s 设计。Confirmed/receipted trace logical RPO=0，PostgreSQL RPO 五分钟，core RTO 四小时，regional rebuild 二十四小时；这些都是待测试验证的 architecture assumptions，而不是生产 SLA。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
