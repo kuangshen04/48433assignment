@@ -1146,6 +1146,28 @@ recentPendingClaims
 
 **为什么可以接受：** 该边界直接支持追溯和食品安全调查，同时保持系统不是 ERP/WMS/POS 或监管 case-management platform。访问控制复用既有 `CONSORTIUM/PRIVATE` 模型，复杂度集中在时间关系、冲突声明、可复现 watermark 和大图查询，而不是建立另一套业务权限和工作流。
 
+---
+
+## B19. 产品、物流标识和消费者 QR 由谁分配，平台是否负责防伪？
+
+**决定：** 参与方继续分配和管理其标准 product/logistics identifiers；平台为没有外部 scheme 的小型参与方提供可选 network-scoped identifiers。平台只验证 syntax、namespace authority、stable resolution、event attribution 和 idempotency，不验证 external code 的现实所有权、标签物理粘贴或产品真实性。QR 是 public-projection resolver，不是 anti-counterfeit proof。
+
+优先复用 GTIN、GTIN+lot、SGTIN、SSCC、GLN、GRAI/GIAI 和 GS1 Digital Link 等现有标识。大型参与方继续使用其 ERP/WMS/serialisation 系统；平台不建立替代 GS1 的全局编码机构。没有标准标识的参与方使用由 `networkId + issuerOrganisationId + objectType + localId` 组成或等价表达的 network-scoped URI，确保联盟内部命名空间不冲突。
+
+平台可以检查 identifier scheme、格式/check digit、组织 namespace、profile 允许的 scheme、canonical representation 和同一 event ID 的 digest consistency。Organisation signature 表示发布方为“该 identifier 对应此对象/事件”的声明负责。平台不额外证明组织在现实中拥有某个 GTIN，也不证明 label、package 和 physical product 正确对应。
+
+网络中从未出现过的 input/reference 不因未知而被拒绝或赋予官方 anomaly status。平台保留 publisher 对该 identifier 的签名引用；监管方或参与方以后可请求 invoice、supplier record 或其他 private evidence。Trace 的起点和缺失上游可以从 graph 中直接观察，不由核心系统推断欺诈。
+
+Consumer QR 只编码稳定 resolver/Digital Link，解析到 versioned `PUBLIC` projection；不得包含 Consortium payload、private-resource locator、DEK 或访问 credential。平台可以为小参与方提供 QR 生成/打印便利，大企业继续使用自己的 labeling/RFID infrastructure；该便利不构成平台真实性背书。
+
+二维码可以被复制或换贴，因此扫描只能说明该 identifier 存在一份由相关组织发布并确认后未被替换的记录，不能证明眼前物品就是记录对应的真实对象。一次性 code、secure NFC、防拆标签和 scan-pattern detection 是可选防伪扩展，不属于当前核心保证。
+
+Consumer scan logs 是 platform-private operational/analytics data，不进入 canonical trace；必须限制 retention、位置收集和再利用。Duplicate/impossible scan patterns 可以由 Regulatory Analytics 生成 private alert，但核心不自动标记 counterfeit 或改变 trace。
+
+**需要接受的代价：** 平台无法阻止复制二维码、冒用外部编号或标签贴错实物；缺少 GS1 标识的 network-scoped ID 在联盟外互操作性较弱。
+
+**为什么可以接受：** 当前系统的保证是 attribution、stable trace reference 和 post-confirmation integrity，而不是物理防伪。复用外部标准保持企业互操作性，为小参与方提供 scoped fallback 保持可访问性，同时把现实 ownership/authenticity 审查留给责任组织和监管方。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -1327,6 +1349,8 @@ Human 和 IoT fleet identity 由外部/参与方 IAM 管理；核心只保存 or
 核心只验证 EPCIS source assertion 的 schema、signature、authority、canonicalisation 和 idempotency，不判断 transformation、aggregation、quantity、timing 或 lineage 是否符合业务常识。监管方在独立 Regulatory Analytics System 中运行启发式规则、统计分析或可选 ML；其输出在人工签署前只是 regulator-private advisory alert。
 
 Recall 是对 shared consortium lineage projection 的保守、带 watermark 的查询，并可展示 authorised party 提交的 signed recall status。平台不执行实际下架、封存、退货或销毁；confirmed impact 与 recent pending claims 分开展示，private evidence 只在后续调查时单独授权。
+
+参与方负责分配标准 product/logistics identifiers，平台只为缺少外部 scheme 的参与方提供 network-scoped fallback，并验证 syntax、namespace、resolution 和 attribution。Consumer QR 只解析 public projection，不证明标签物理真实性或提供防伪保证。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
