@@ -1085,6 +1085,67 @@ Confirmed source assertions
 
 **为什么可以接受：** 区块链和 EPCIS 在本系统中提供 attribution、trace reconstruction 和 post-confirmation integrity，而不是通用欺诈检测。把产品、地区和监管机构特有的启发式规则留在 regulator-controlled analytics，可以避免核心平台变成难以治理的规则引擎，也避免错误规则阻止冲突证据进入历史。
 
+---
+
+## B18. Recall 在本系统中是查询还是实际下架流程？
+
+**决定：** Recall 的核心范围是对共享 `CONSORTIUM` lineage projection 进行保守、可复现的影响范围查询，以及展示 authorised organisation/regulator 提交的 signed recall status；不是由平台执行 POS 禁售、仓库封存、门店下架、退货、运输、销毁或退款。
+
+```text
+Regulator/responsible organisation decides recall externally
+→ submits signed recall notice or recalled EPCIS statement
+→ platform performs conservative lineage traversal
+→ consortium/public recall projection
+→ participant ERP/WMS/POS and staff execute physical actions
+→ optional subsequent EPCIS action claims
+```
+
+参与方可以随后提交 recalled、quarantined、returned、destroying/decommissioning 等事件，记录其声称采取的行动；平台不远程控制外部库存系统，也不把通知送达解释为物理下架完成。
+
+### No new access model
+
+Recall impact query 只遍历所有 active consortium members 原本可读的 canonical trace fields，因此不引入单独权限层。Raw IoT、完整 laboratory reports、contracts 和 investigation notes 仍是 `PRIVATE` ProtectedResources；只有调查确实需要时，才通过已有 case-specific regulator/participant access path 获取。
+
+查询本身可以由普通联盟成员运行；但发布正式 recall status、改变 consumer projection 或签署监管结论仍要求 responsible-organisation 或 regulator authority。Regulatory Analytics/ML alert 不能自动成为 recall。
+
+### Conservative lineage traversal
+
+```text
+Transformation: input → all claimed outputs
+Aggregation: child ↔ time-applicable parent/container
+Shipping/Receiving: object → all claimed destinations/custodians
+Association: not automatically treated as product-impact propagation
+```
+
+平台不判断哪条冲突路径真实，也不决定某种加工是否消除污染。查询返回所有可能相关的 source assertions 和 edge provenance，结果语义是 `possibly affected based on available claims`，不是平台认证的污染结论。产品/风险特有的停止规则、cross-contamination 和 process-effectiveness 判断属于监管分析或人工调查。
+
+Aggregation/custody relations 具有时间范围；重复使用的 pallet、container 或 location 不能形成永久影响关系。Lineage edge projection 至少保留 `fromObjectId`、`toObjectId`、`edgeType`、`sourceEventId`、publisher、event time、effective interval、confirmation status 和 handover status。
+
+### Reproducibility and pending data
+
+标准 recall result 固定一个 confirmed-data watermark，确保同一查询可以复现：
+
+```text
+confirmedImpact
+→ derived only from CONFIRMED source assertions at watermark W
+
+recentPendingClaims
+→ RECEIPTED / PENDING_ANCHOR claims shown separately
+→ never silently mixed into confirmed result
+```
+
+新事件、迟到事件或 correction 到达后可以在新 watermark 上重新运行并生成新 export/version，不能无提示覆盖先前范围。Disputed、partially accepted 和 unacknowledged handover relationships 仍属于 confirmed claims 时，应被保守遍历并带状态返回。
+
+### Query implementation boundary
+
+第一版使用 PostgreSQL 中可重建的 lineage-edge projection 和 cycle-safe recursive traversal。查询必须使用 visited set、depth/result limits、cursor pagination、timeout 和 provenance-per-edge；超过同步结果阈值时复用 B12 的 asynchronous export path。Graph database 只在实测 traversal/rebuild 指标证明需要后引入。
+
+正式 recall notice 可以作为 authorised party 提交的 signed record 和 consumer-projection input 处理，不需要独立 case-management/workflow engine。通知可通过 portal、webhook 或外部 email/SMS provider 辅助，但监管机构现有公告渠道和参与方 operational systems 仍负责现实执行。
+
+**需要接受的代价：** 保守遍历可能返回过多候选对象，并且不能保证实际污染或下架完成；网络外来源、缺失事件和冲突声明会限制结果完整性。大型 traversal 可能只能异步导出。
+
+**为什么可以接受：** 该边界直接支持追溯和食品安全调查，同时保持系统不是 ERP/WMS/POS 或监管 case-management platform。访问控制复用既有 `CONSORTIUM/PRIVATE` 模型，复杂度集中在时间关系、冲突声明、可复现 watermark 和大图查询，而不是建立另一套业务权限和工作流。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -1264,6 +1325,8 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 Human 和 IoT fleet identity 由外部/参与方 IAM 管理；核心只保存 organisation membership、organisation public keys、scoped user/machine delegations 和 signed governance history。Membership governance 只判断现实参与资格，高影响变更采用独立 dual control；它不能替成员签署事件或改写 public-chain finality，因此不取代区块链的完整性职责。
 
 核心只验证 EPCIS source assertion 的 schema、signature、authority、canonicalisation 和 idempotency，不判断 transformation、aggregation、quantity、timing 或 lineage 是否符合业务常识。监管方在独立 Regulatory Analytics System 中运行启发式规则、统计分析或可选 ML；其输出在人工签署前只是 regulator-private advisory alert。
+
+Recall 是对 shared consortium lineage projection 的保守、带 watermark 的查询，并可展示 authorised party 提交的 signed recall status。平台不执行实际下架、封存、退货或销毁；confirmed impact 与 recent pending claims 分开展示，private evidence 只在后续调查时单独授权。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
