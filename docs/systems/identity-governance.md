@@ -16,7 +16,20 @@
 
 平台不以自然人为管理单元。组织承担签名归因、租户边界、KMS epoch 和治理记录，因此一个 `organisationId` 必须同时是这四件事的 key。
 
-**每请求显式绑定组织。** 一个 subject 可以代表多个组织（顾问、集团员工、合作社职员），所以 token 里的 subject 推不出以哪个组织身份行动：
+### 核心侧最小模型
+
+```text
+Organisation Registry      组织身份、类型、membership 状态
+Organisation Key Registry  签名/加密公钥、用途（SIGNING | ENCRYPTION）、有效期、撤销状态
+Delegation Registry        subjectOrIntegrationPrincipal → organisation + allowedScopes + 有效期
+Governance Record History  membership/key/delegation 变更的签署历史
+```
+
+角色只保留少量固定值（OrgAdmin、EventPublisher、EvidenceManager、Viewer）用于划分权限范围；**不建模组织内部组织架构**。`ENCRYPTION` 用途的密钥供 [B23](/decisions/catalog#b23) 的内容加密接收方使用。
+
+### 每请求显式绑定组织
+
+一个 subject 可以代表多个组织（顾问、集团员工、合作社职员），所以 token 里的 subject 推不出以哪个组织身份行动：
 
 ```text
 authenticated subject       由外部 IdP 断言

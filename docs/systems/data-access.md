@@ -26,20 +26,57 @@ KEK epoch 同时构成时间边界：新成员默认只拿到当前及之后的 
 
 这也决定了 B7 的一项要求：批次 root 必须构成可验证的 append-only 序列（running hash chain 或 consistency proof），否则“成员可独立验证”只剩单批次 inclusion，不覆盖“没有批次被跳过”。
 
+## 核心字段地板
+
+分类判据（B3）落到具体字段时需要一条地板，否则每个 profile 都能自行决定“哪些字段算结构性”，最终会出现某条产品线无法重建 trace。
+
+**必进 `CONSORTIUM` 的核心字段**（每条都挂到它所服务的决策）：
+
+| 字段 | 服务的决策 |
+|---|---|
+| event type、`eventTime`、`eventTimeZoneOffset` | A3、B6（顺序与迟到判定） |
+| `bizStep`、`disposition` | A3、B9（交接阶段识别） |
+| `sourceList`、`destinationList` | B18（一上一下的召回遍历） |
+| `bizLocation`（GLN 或 URI） | B3、B18 |
+| `readPoint` | 无消费者声明，默认 **optional**（争议与审计证据） |
+| 对象标识：`epcList` 或 `quantityList`（含 `epcClass` / `uom`） | A3、B17（lineage 与冲突并存） |
+| `profileId` / `profileVersion`、`canonicalisationVersion` | B11、B5（签名绑定） |
+| `captureRecordId`、`epcisEventId`、`SignatureEnvelope` | A6、B5、B6 |
+| 交接用的 `bizTransactionList` 引用 | B9、B19 |
+
+**数量与粒度绑定，不是全局无条件：**
+
+```text
+class/lot 级事件（批次、散装、农产品常态）
+  → quantityList 必填，单位用 UN/CEFACT code
+  → 理由：B9 部分收货、B21 mass balance 都以"有多少"为前提
+
+instance 级事件（SSCC 整车 / 整托、序列化单品）
+  → 数量可由标识计数表达
+  → 重量、体积等可退化为证据引用 + 加盐承诺（B23）
+  → 这不是"藏数量"，是换了标识粒度
+```
+
+**这张表的来源：** 不是手写清单，而是所有 ACTIVE 语义模块 manifest 的 `requiresFields` 并集，编译后冻结进 profile 版本（[B25](/decisions/catalog#b25)、[B11](/decisions/catalog#b11)）。因此“某字段为什么必填”永远能回答到具体模块；没有消费者的字段（如 `readPoint`）默认不进地板。新增模块会收紧地板，属治理变更。
+
+判据本身（哪些字段必须进、为什么不能下放给 profile）见 [B3](/decisions/catalog#b3)。
+
 ## ProtectedResource
 
 不能进入共享 trace 的大型或敏感内容使用统一的**平台侧记录**模型。平台只持有记录，不持有内容（B23）：
 
 ```text
 ProtectedResource (platform-side record)
+  resourceId
+  captureRecordId / epcisEventId reference
   ownerOrganisationId
-  resourceId / reference
-  mediaType
-  plaintextCommitment        参与方计算、加盐
+  resourceType / mediaType
+  plaintextCommitment        参与方计算、加盐；平台无法验证内容
   ciphertextDigest           仅零知识托管存在
   storageMode=PARTICIPANT_HOSTED | PLATFORM_HOSTED_ZERO_KNOWLEDGE
+  externalLocator            自托管时由所有者提供
   recipientKeyRefs           所有者选择的接收方
-  retention policy
+  retentionMetadata
   availabilityStatus=OWNER_ASSERTED | OBJECT_PRESENT | UNKNOWN
 ```
 

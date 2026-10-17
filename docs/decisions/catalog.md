@@ -17,6 +17,8 @@
 > 2026-10-18 修订（第四次）：B3 增加「核心字段地板」并把数量归类与标识粒度绑定；B11 增加 Profile 三条硬约束与 conformance check。
 >
 > 2026-10-18 修订（第五次）：新增 **B25**（Core / Semantic Module 分层）；B3 地板改为由模块 manifest 编译、B9 补配对键义务、B18 明确遍历策略归属 RecallModule、B11 补编译与冻结步骤、B21 指明投影由 AnalyticsInputModule 生产。
+>
+> 2026-10-18 文档治理：决策日志回到「定位 + 原因 + 舍弃什么」。字段地板、conformance 清单、`ProtectedResource` 字段、注册表与请求绑定、`QueryPort` / `ModuleManifest` / 模块清单等**设计内容已移入系统页**（[Data & Access](/systems/data-access)、[Traceability Core](/systems/traceability-core)、[Identity & Governance](/systems/identity-governance)、[Semantic Modules](/systems/semantic-modules)）。冲突时行为以系统页为准、理由以日志为准。
 
 ## 第一层：背景充分支持的决定
 
@@ -201,12 +203,16 @@
 
 **明确不承诺：** 密钥恢复、平台侧取证、PRIVATE 内容的可用性进入 core RPO/RTO、删除的全局证明、元数据保密。详见日志 B23 的不承诺清单。
 
+**设计：** `ProtectedResource` 字段与 `availabilityStatus` 语义见 [Data & Access](/systems/data-access)。
+
 <a id="b24"></a>
 ### B24 · 平台以组织为身份、访问与租户单元
 
 **Baseline.** 不建设用户目录、岗位、审批流程或人员生命周期；组织内部授权由组织自己决定并声明为 delegation 断言。角色只保留少量固定值（OrgAdmin、EventPublisher、EvidenceManager、Viewer）。**每个请求必须显式携带 acting organisation**——因为一个 subject 可代表多个组织，不能从 token 推断，缺失时拒绝而不是取默认值。
 
 **组织层级 out of scope：** 不建 `parentOrganisationId`。合作社、集团、多站点企业一律注册为多个 `organisationId`，用 delegation 表达代理关系；层级会污染 scope 计算、KMS epoch、签名归因与召回范围。触发条件：出现“父组织代为提交”的需求时先看 delegation 是否够用，不够再作为新架构前提评估。
+
+**设计：** 四个注册表与请求绑定流程见 [Identity & Governance](/systems/identity-governance)。
 
 <a id="b25"></a>
 ### B25 · Core 只做机制，业务语义放在语义模块里
@@ -218,6 +224,8 @@
 **模块 manifest 驱动地板：** 每个模块声明 `requiresFields` / `requiresEdges` / `requiresPairingKey` / `produces` / `invariant`。所有 ACTIVE manifest 的字段并集**编译**进 profile 版本后冻结（B11），因此“没有消费者的字段不进地板”，新增模块等于收紧地板，属治理变更。
 
 **核心分界：** Core 保证“这条事实是什么、你能否看见、你是否看全”；模块决定“它意味着什么”。模块能力可以降级，但不能影响确认、归档与锚定；任何结论仍作为签署事件走同一条 capture 路径。
+
+**设计：** `QueryPort` 契约、`ModuleManifest` 定义与六个模块的读写/降级表见 [Semantic Modules](/systems/semantic-modules)。
 
 ## 第三层：仍需关闭的决定
 

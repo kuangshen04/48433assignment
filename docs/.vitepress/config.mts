@@ -32,6 +32,7 @@ export default defineConfig({
           text: '系统视图',
           items: [
             { text: 'Traceability Core', link: '/systems/traceability-core' },
+            { text: 'Semantic Modules', link: '/systems/semantic-modules' },
             { text: 'Trust & Recovery', link: '/systems/trust-recovery' },
             { text: 'Identity & Governance', link: '/systems/identity-governance' },
             { text: 'Data & Access', link: '/systems/data-access' },

@@ -122,7 +122,19 @@ Versioned Product Validation Profile 可以配置：
 
 1. **不得把 B3 的核心字段地板设为 optional 或重定义语义**（事件类型、时间、bizStep/disposition、source/destination、位置、对象标识、profile/canonicalisation 版本、签名、交接 `bizTransaction`）。
 2. **粒度与数量必须一致**：`class-lot` 必须有 `quantityList` + `uom`（B9 部分收货与 B21 mass balance 的前提）；`instance` 级可用标识计数，重量退化为证据引用。
-3. **发布前必须通过 conformance check**：缺核心字段、粒度与 quantityList 不一致、TransformationEvent 缺 input/output、allowlist 引用未定义字段，一律失败。
+3. **发布前必须通过 conformance check**。
+
+```text
+profile conformance check（在 PUBLISH 之前执行）
+- 缺少任一核心字段，或把核心字段标为 optional          -> 失败
+- granularity=class-lot 但无 quantityList 或 uom     -> 失败
+- TransformationEvent 缺 input/output                 -> 失败
+- AggregationEvent / AssociationEvent 缺 parent 或 child -> 失败
+- consumerProjectionAllowlist 引用未在 schema 中的字段  -> 失败
+- 声明了 profile 不支持的 unit 或 vocabulary           -> 失败
+```
+
+地板清单由所有 ACTIVE 语义模块 manifest 的 `requiresFields` 并集编译而来（[B25](/decisions/catalog#b25)）；完整清单见 [Data & Access](/systems/data-access)。发布后地板即冻结，后续模块新增字段必须发新 profile 版本并走治理。
 
 Profile 不配置 yield tolerance、fraud heuristic、mass balance、跨事件合理性或自动合规结论。发布后的版本不可原地修改，事件签名固定绑定所用版本。
 

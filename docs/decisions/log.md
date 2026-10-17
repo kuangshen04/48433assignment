@@ -271,24 +271,13 @@ Public Blockchain
 
 ### ProtectedResource 统一模型
 
-结构化 private detail 与 PDF、照片、证书和原始 telemetry 使用同一个逻辑资源模型。**平台侧只有记录，没有内容**（B23）：
+结构化 private detail 与 PDF、照片、证书和原始 telemetry 使用同一个逻辑资源模型，**平台侧只有记录、没有内容**（B23）。字段定义见 [Data & Access](/systems/data-access)。
 
-```text
-ProtectedResource (platform-side record)
-- resourceId
-- captureRecordId / epcisEventId reference
-- ownerOrganisationId
-- resourceType / mediaType
-- plaintextCommitment       参与方计算、加盐
-- ciphertextDigest          仅 PLATFORM_HOSTED_ZERO_KNOWLEDGE 存在
-- storageMode: PARTICIPANT_HOSTED | PLATFORM_HOSTED_ZERO_KNOWLEDGE
-- externalLocator
-- recipientKeyRefs          所有者选择的接收方
-- retentionMetadata
-- availabilityStatus
-```
+三点与早期设计不同，且这三点是决策而非实现细节：
 
-三点与早期设计不同：平台**没有 `accessScope` 可执行**（没有明文，无法做内容级授权）；**没有结构化 JSONB 存 private detail 这条路**（要按字段查询就必须进 `CONSORTIUM`）；平台**不能验证 commitment 与内容一致**，只能证明自己保存的密文未被替换。分享通过所有者加密给接收方实现，细节见 B23。
+1. 平台**没有 `accessScope` 可执行**——没有明文，无法做内容级授权；访问权只能由所有者"加密给谁"表达；
+2. **没有结构化 JSONB 存 private detail 这条路**——要按字段查询就必须进 `CONSORTIUM`；
+3. 平台**不能验证 commitment 与内容一致**，只能证明自己保存的密文未被替换。
 
 ### 固定访问矩阵
 
@@ -334,40 +323,17 @@ ProtectedResource (platform-side record)
 
 判据落到具体字段时需要一条地板，否则每个 profile 都能自行决定"哪些字段算结构性"，最终会出现某条产品线的 trace 无法重建。
 
-**必进 `CONSORTIUM` 的核心字段**（每条都挂到它所服务的决策）：
+**决定：**
 
-| 字段 | 服务的决策 |
-|---|---|
-| event type、`eventTime`、`eventTimeZoneOffset` | A3、B6（顺序与迟到判定） |
-| `bizStep`、`disposition` | A3、B9（交接阶段识别） |
-| `sourceList`、`destinationList` | B18（一上一下的召回遍历） |
-| `readPoint`、`bizLocation`（GLN 或 URI） | B3、B18 |
-| 对象标识：`epcList` 或 `quantityList`（含 `epcClass` / `uom`） | A3、B17（lineage 与冲突并存） |
-| `profileId` / `profileVersion`、`canonicalisationVersion` | B11、B5（签名绑定） |
-| `captureRecordId`、`epcisEventId`、`SignatureEnvelope` | A6、B5、B6 |
-| 交接用的 `bizTransactionList` 引用 | B9、B19 |
-
-**数量不是全局无条件，而是与粒度绑定：**
-
-```text
-class/lot 级事件（批次、散装、农产品常态）
-  → quantityList 必填，单位用 UN/CEFACT code
-  → 理由：B9 部分收货、B21 mass balance 都以"有多少"为前提
-
-instance 级事件（SSCC 整车 / 整托、序列化单品）
-  → 数量可由标识计数表达
-  → 重量、体积等可退化为证据引用 + 加盐承诺（B23）
-  → 这不是"藏数量"，是换了标识粒度
-```
+- 存在一份**必进 `CONSORTIUM` 的核心字段地板**，profile 不得把它降级为 optional 或重定义语义。完整清单与消费方见 [Data & Access](/systems/data-access)。
+- **数量与粒度绑定**：`class-lot` 级必须带 `quantityList` + UN/CEFACT `uom`；`instance` 级可用标识计数，重量等退化为证据引用。具体规则见同一设计页。
+- 地板**不是手写清单**，而是所有 ACTIVE 语义模块 manifest 的 `requiresFields` 并集，编译后冻结进 profile 版本（B25、B11）。
 
 **为什么不能完全下放给 profile：** 字段只要进 canonical event 就是 `CONSORTIUM` 可见（B23 已确立没有中间档），所以 profile 能做的只有"放进 event"或"不放"。如果连核心字段也交给 profile 决定，就可能出现"某产品线没有数量、因此不支持部分收货与批量筛查"却仍被当作已实现的能力——这需要显式记录，而不是靠遗漏。
 
 **profile 仍可决定的是**哪些扩展字段、哪些证据要求、哪条公开 allowlist；这些交给 schema 阶段由产品工作组识别，见 B11。
 
-**这张地板表的来源（B25）：** 上表不是手写清单，而是**所有 ACTIVE 语义模块 manifest 的 `requiresFields` 并集**编译后冻结进 profile 版本的结果。推论有两条：
-
-- 没有消费者的字段不进地板。例如 `readPoint` 目前没有模块声明为必需，因此默认 optional，只作为争议与审计证据存在；`bizLocation` 由 RecallModule 与 ConsumerModule 声明，仍是必填。
-- 新增模块会收紧地板，属治理变更（`GovernanceRecord`），不能由开发流程静默完成。
+**推论：没有消费者的字段不进地板。** 例如 `readPoint` 目前没有任何模块声明为必需，因此默认 optional，仅作为争议与审计证据存在；`bizLocation` 由 RecallModule 与 ConsumerModule 声明，仍是必填。新增模块会收紧地板，属治理变更（`GovernanceRecord`），不能由开发流程静默完成。
 
 ### Consortium archive encryption
 
@@ -920,17 +886,9 @@ Profile 不引入任意 field-level access policy。Profile 中的 shared trace 
 | 2 | 必须显式声明**标识粒度**（`class-lot` 或 `instance`），且与 B3 的数量规则一致：`class-lot` 必须有 `quantityList` 与 `uom` | 数量是否进 event 取决于粒度，不能让"漏写数量"变成隐式的粒度切换 |
 | 3 | 必须通过 profile conformance check 才能发布 | 把"profile 不能弱化追溯"变成会挡住发布门禁，而不是一句原则 |
 
-```text
-profile conformance check（在 PUBLISH 之前执行）
-- 缺少任一核心字段，或把核心字段标为 optional        -> 失败
-- granularity=class-lot 但无 quantityList 或 uom    -> 失败
-- TransformationEvent 缺 input/output                -> 失败
-- AggregationEvent / AssociationEvent 缺 parent 或 child -> 失败
-- consumerProjectionAllowlist 引用未在 schema 中的字段 -> 失败
-- 声明了 profile 不支持的 unit 或 vocabulary          -> 失败
-```
+**地板清单由模块 manifest 编译而来（B25），不是手写维护。** 发布 profile 时执行两步：① 把所有 ACTIVE 语义模块的 `requiresFields` 并集编译成该版本的地板；② 用地板做 conformance check。地板一旦发布即冻结，后续模块新增字段必须发新 profile 版本并走治理，否则历史事件会按新规则被重新解释——这违反 B2 的恢复要求。
 
-**地板清单由模块 manifest 编译而来（B25），不是手写维护。** 发布 profile 时执行两步：① 把所有 ACTIVE 语义模块的 `requiresFields` 并集编译成该版本的地板；② 用地板 + 上面这份清单做 conformance check。地板一旦发布即冻结，后续模块新增字段必须发新 profile 版本并走治理，否则历史事件会按新规则被重新解释——这违反 B2 的恢复要求。
+conformance check 的完整失败条件清单属于设计内容，见 [Traceability Core → Product Profile](/systems/traceability-core)。
 
 ### 扩展字段的判据（给 schema 作者用）
 
@@ -1801,24 +1759,11 @@ Logical RPO=0 的必测场景是：event 已取得 independent ArchiveAck 并向
 - 举证义务本来就在发布方（A4/B19），把内容收进平台反而让责任变模糊；
 - commitment 进入锚定历史后，"参与方事后替换证据"从免责声明变成**可被检测**（见"承诺的可执行性"）。
 
-### 平台侧记录
+### 平台侧只留记录
 
-```text
-ProtectedResource (platform-side record)
-- resourceId
-- captureRecordId / epcisEventId reference
-- ownerOrganisationId
-- resourceType / mediaType
-- plaintextCommitment       参与方计算、加盐；平台无法验证内容
-- ciphertextDigest          平台对托管密文计算；仅托管模式存在
-- storageMode: PARTICIPANT_HOSTED | PLATFORM_HOSTED_ZERO_KNOWLEDGE
-- externalLocator           自托管时由所有者提供
-- recipientKeyRefs          所有者选择的内容接收方（见下）
-- retentionMetadata
-- availabilityStatus        OWNER_ASSERTED | OBJECT_PRESENT | UNKNOWN
-```
+平台侧保存的是 `ProtectedResource` **记录**，不是内容：`captureRecordId` / `epcisEventId` 引用、`ownerOrganisationId`、`mediaType`、`plaintextCommitment`、可选 `ciphertextDigest`、`storageMode`、`externalLocator`、`recipientKeyRefs`、`retentionMetadata`、`availabilityStatus`。字段定义与三种 `availabilityStatus` 的语义见 [Data & Access](/systems/data-access)。
 
-与早期模型的两点差别：
+与早期模型的两点差别（这两点是决策，不只是实现）：
 
 1. **不再有由平台执行的 `accessScope`。** 平台没有明文，无法执行内容级授权；访问权只能由所有者通过"加密给谁"来表达。
 2. **没有"结构化 private detail 存 PostgreSQL JSONB"这条路。** 一旦平台需要按结构化字段查询，它就必须是 `CONSORTIUM`，没有中间地带。
@@ -1881,30 +1826,14 @@ owner encrypts evidence to:
 - 员工入离职、岗位调整、审批链属于企业 HR/IAM 职责，复制进追溯平台只会产生第二份会过期的真相；
 - 把组织当唯一单元后，租户边界、签名归因、archive/KMS epoch 和治理记录共用同一个 key。
 
-### 平台侧最小模型
+### 四个注册表与请求绑定
 
-```text
-Organisation Registry      组织身份、类型、membership 状态
-Organisation Key Registry  签名/加密公钥、用途、有效期、撤销状态
-Delegation Registry        subjectOrIntegrationPrincipal → organisation + allowedScopes + 有效期
-Governance Record History  membership/key/delegation 变更的签署历史
-```
+平台侧只维护四样东西：`Organisation Registry`、`Organisation Key Registry`（区分 `SIGNING` / `ENCRYPTION` 用途）、`Delegation Registry`、`Governance Record History`；角色保留少量固定值，不建模组织内部架构。字段定义与请求绑定流程见 [Identity & Governance](/systems/identity-governance)。
 
-角色只保留少量固定值（OrgAdmin、EventPublisher、EvidenceManager、Viewer），用于划分权限范围；**不建模组织内部组织架构**。
+以下两条是决策，不能下沉为实现细节：
 
-### 每请求显式绑定组织
-
-由于一个 subject 可以代表多个组织，**token 里的 subject 不足以决定以哪个组织身份行动**。每个请求必须显式携带 acting organisation，并由平台按 Delegation Registry 校验：
-
-```text
-authenticated subject       由外部 IdP 断言
-+ explicit actingOrganisationId
-+ operation scope
-→ Delegation Registry 校验
-→ 决定归因、可见范围与 KMS epoch
-```
-
-缺少显式绑定时必须拒绝，**不能默认取"该 subject 的第一个组织"或"最近使用的组织"**——那会让归因和可见范围取决于会话历史。
+1. **每请求必须显式绑定 acting organisation。** 一个 subject 可代表多个组织，缺失绑定时**拒绝**，不能默认取第一个或最近使用的组织——否则归因与可见范围取决于会话历史。
+2. **平台可以给一个很简易的用户界面，但它是 delegation 注册表的编辑器，不是权威用户目录。** 组织更换 HR 系统时平台不感知，也不需要同步。
 
 ### 明确不管的部分
 
@@ -1962,49 +1891,15 @@ authenticated subject       由外部 IdP 断言
 6. **watermark 与完整性暴露**：每次查询都带 `dataCompleteThrough`（B12、B13）；
 7. **图的语义下限**：边只能来自 EPCIS 标准语义，不允许模块向图里注入自定义边。
 
-### QueryPort 契约
+### 读取入口与模块清单放在设计页
 
-```text
-edges(subjectRef, edgeTypes[], timeWindow, watermark?)
-  -> EdgeGroup[]        // 同一 (from, to, edgeType) 的全部竞争断言成组返回
-  + per-edge provenance
-  + dataCompleteThrough / completeness status
+`QueryPort` 的方法签名、`EdgeGroup` 语义、`ModuleManifest` 字段定义和第一版六个模块（Handover / Recall / Compliance / Consumer / AnalyticsInput / Insights）的读写与降级表，属于设计内容，见 [Semantic Modules](/systems/semantic-modules)。
 
-不存在 getHandoverStatus() / isImpacted() / getComplianceStatus()
-这类方法。Core 只返回断言与边，不返回业务状态。
-```
-
-第 4、5 条放在唯一查询入口的理由很直接：如果让六个模块各自实现"不许折叠"和"按 scope 过滤"，一定有人漏掉；放在入口，B17 和 B3 的保证才不会被某个模块出卖。
-
-### Semantic Module manifest
-
-```text
-ModuleManifest
-- moduleId / version / status: DRAFT | ACTIVE | RETIRED
-- requiresFields: [...]        影响 profile 地板
-- requiresEdges:  [...]        要求 Core 提供哪些边类型
-- requiresPairingKey: bizTransaction(type) | objectIdentity
-- produces: projectionId / reportId
-- invariant: 本模块自己对外承诺什么
-- watermarkSource
-```
-
-三条硬规则：
+留在本决策里的只有三条硬规则：
 
 1. **模块只读 canonical facts。** 任何"结论"（召回通知、监管评估、纠错声明）仍然作为签署事件走**同一条 capture 路径**——只有一个写路径，B5/B6 不受影响。
-2. **模块能力可以降级，但不能影响 Core 的确认、归档与锚定。** 能力降级必须可显示（见"降级"列），不能静默丢掉。
+2. **模块能力可以降级，但不能影响 Core 的确认、归档与锚定。** 降级必须可显示，不能静默丢掉。
 3. **`requiresFields` 的并集是编译产物，不是运行时 union。** 编译进 profile 版本后冻结，因为 B2 的恢复要求"还原当时的 schema 与验证规则"，地板不能随模块上线而漂移。
-
-### 第一版模块清单
-
-| 模块 | 读什么 | 产出 | 缺依赖时失去什么 |
-|---|---|---|---|
-| HandoverModule | shipping/receiving claims + pairing key | handover projection（`AWAITING_RECEIPT` / `ACCEPTED` / `PARTIALLY_ACCEPTED` / `DISPUTED` / `UNACKNOWLEDGED`） | 缺数量 → 失去 `PARTIALLY_ACCEPTED`；缺 pairing key → 退化为启发式匹配并进入 reconciliation |
-| RecallModule | transformation / aggregation / handover 边 + 时间范围 | 保守 impact 报告（带 watermark、`scope-limited` 标注） | 缺标识 → 无法遍历 |
-| ComplianceModule | `source`/`destination` + `bizTransaction` + profile 字段 | 一上一下重建、义务映射证据 | 缺 source/destination → 该辖区的一上一下不成立 |
-| ConsumerModule | allowlist 字段 | 版本化 `PUBLIC` 快照 | 缺字段 → 该字段不出现（fail-closed allowlist） |
-| AnalyticsInputModule | 最小化 confirmed projection | 交给 B21 的 Analytics（数据最小化规则写在它的 manifest 里） | 缺字段 → 对应 rule 类不可用于该产品线 |
-| InsightsModule | confirmed projection | warehouse / mart + dashboard serving（T2） | 缺字段 → 对应统计维度不可用 |
 
 ### 字段地板从哪来
 
