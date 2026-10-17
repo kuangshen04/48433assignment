@@ -698,14 +698,13 @@ Consumer view、dashboard、lineage visualisation、handover summary 和 analyti
 第一版 profile 可以定义：
 
 - required/optional EPCIS extension fields；
-- primitive types、formats、enumerations 和合理数值范围；
+- primitive types、formats 和 enumerations；
 - permitted units 和 product vocabulary；
-- required/optional evidence types；
-- 有限的字段内或简单条件校验；
+- required/optional evidence-reference types；
 - consumer projection 的显式字段 allowlist；
 - 通用表单控件所需的 label、help text 和 display metadata。
 
-以下内容不能由任意 profile 重写：EPCIS event core semantics、Shipping/Receiving handover、correction/append-only rules、canonical digest、signature assurance、archive/anchor lifecycle、organisation authorization、recall traversal 以及复杂 cross-event constraints。
+以下内容不能由任意 profile 重写：EPCIS event core semantics、Shipping/Receiving handover、correction/append-only rules、canonical digest、signature assurance、archive/anchor lifecycle、organisation authorization 和 recall traversal。Yield、mass balance、fraud heuristics、cross-event plausibility 和 compliance conclusions 不放入 profile，也不转移到核心领域代码，而由 regulator-controlled analytics 处理。
 
 Profile 不引入任意 field-level access policy。Profile 中的 shared trace fields 默认属于 `CONSORTIUM`；消费者只能读取 allowlisted `PUBLIC` projection；不能向联盟公开的文件或数据继续作为 `PRIVATE` ProtectedResource。
 
@@ -726,11 +725,13 @@ DRAFT
 
 ```text
 Profile/schema validation
-→ fields, types, formats, enumerations, units, simple conditions
+→ fields, types, formats, enumerations, units,
+  required evidence-reference shape
 
-Domain validators in code
-→ identity, authority, handover, correction,
-  transformation, recall and cross-event invariants
+Core protocol/domain processing
+→ identity, authority, signature, canonicalisation,
+  idempotency, lifecycle, handover correlation,
+  append-only correction structure and recall traversal
 ```
 
 通用 UI 可以根据 profile 生成 string、number、date、enumeration 和 unit fields；需要特殊交互、复杂计算或新业务 lifecycle 的产品必须提供经过评审的代码扩展，不能承诺所有产品永远只靠 JSON 配置上线。
@@ -739,7 +740,7 @@ Domain validators in code
 
 **需要接受的代价：** 系统必须长期保留旧 profile、测试跨版本 projection、管理 vocabulary/unit 演进，并防止 schema validation 与领域代码产生冲突。动态字段的查询索引和复杂 UI 仍可能需要专门实现。
 
-**为什么可以接受：** 多数“新增字段、枚举、单位和证据要求”的产品差异可以低成本扩展，而会改变交接、转换或召回语义的差异仍通过显式代码接受审查。这个边界提供实际可扩展性，同时避免把项目变成通用规则平台。
+**为什么可以接受：** 多数“新增字段、枚举、单位和证据引用要求”的产品差异可以低成本扩展，而会改变交接、转换或召回数据结构的差异仍通过显式代码接受审查。业务合理性与合规判断保留给监管分析。这个边界提供实际可扩展性，同时避免把项目变成通用规则平台。
 
 ---
 
@@ -900,13 +901,13 @@ IoT vendor/参与方负责完整 device fleet identity、certificate provisionin
 
 ---
 
-## B15. 监管方与监管 ML 是否拥有相同权限？
+## B15. 监管方与 Regulatory Analytics/ML 是否拥有相同权限？
 
-**决定：** 不拥有相同权限。Regulator organisation/authorised officer 是具有法定或联盟治理职责的正式主体；Regulatory ML service 是目的受限的辅助工具和独立 service identity。ML 不继承监管方人员的全部权限，也不能以“由监管方运营”为理由获得任意 archive、KMS 或 `PRIVATE` data access。
+**决定：** 不拥有相同权限。Regulator organisation/authorised officer 是具有法定或联盟治理职责的正式主体；Regulatory Analytics service（包括 deterministic heuristics、statistics 和 optional ML）是目的受限的辅助工具和独立 service identity。Analytics service 不继承监管方人员的全部权限，也不能以“由监管方运营”为理由获得任意 archive、KMS 或 `PRIVATE` data access。
 
 ### Permission matrix
 
-| Capability | Regulator / authorised officer | Regulatory ML screening service |
+| Capability | Regulator / authorised officer | Regulatory Analytics/ML service |
 |---|---|---|
 | Read `PUBLIC` data | Yes | Only when included in its dataset |
 | Read confirmed `CONSORTIUM` trace | Yes, through regulator role | Only purpose-minimised analytics projection |
@@ -927,11 +928,11 @@ IoT vendor/参与方负责完整 device fleet identity、certificate provisionin
 Confirmed CONSORTIUM trace
 → Regulatory Analytics Projection
 → purpose- and field-minimised export with watermark
-→ Regulatory ML Service
+→ Regulatory Analytics/ML Service
 → regulator-private RiskAlert
 ```
 
-Regulatory Analytics Projection 可以包含 confirmed event relationships、handover discrepancies、sensor summaries、missing/delayed evidence status、correction history 和必要 organisation/location identifiers。它不包含 raw IoT telemetry、合同、完整实验室文件、device credentials、signing material 或其他 participant-private resources。ML 无权通过 reference 自动追取对应 ProtectedResource。
+Regulatory Analytics Projection 可以包含 confirmed event relationships、handover claims、sensor summaries、missing/delayed evidence status、correction history 和必要 organisation/location identifiers。它不包含 raw IoT telemetry、合同、完整实验室文件、device credentials、signing material 或其他 participant-private resources。Analytics service 无权通过 reference 自动追取对应 ProtectedResource。
 
 Export 记录 dataset/schema version、confirmed-data watermark、purpose、recipient service identity、retention/expiry 和 audit ID。Model output 记录 `alertId`、`modelId/modelVersion`、`runId`、关联 event IDs、reason codes、risk score、data watermark 和生成时间。
 
@@ -1040,6 +1041,49 @@ APPLICANT → ACTIVE → SUSPENDED → ACTIVE / EXITED / REVOKED
 **需要接受的代价：** 平台需要 federation/managed-IAM adapters、organisation/key/delegation registries 和治理审批记录；onboarding、lost-key recovery 和高权限变更不会即时完成。
 
 **为什么可以接受：** 核心只保留跨组织追责所必需的身份事实，不复制企业 IAM 或 IoT device-management 能力。有限治理解决现实身份入口，签名解决声明归属，public commitment 解决确认后的不可篡改，三者职责不重叠。
+
+---
+
+## B17. 核心平台是否判断 Transformation、Aggregation 或数量关系异常？
+
+**决定：** 不判断。核心平台只验证 event 的 schema/profile shape、signature、organisation authority、canonicalisation、idempotency 和 envelope/lifecycle validity。只要一项声明在技术和权限上有效，就保留发布方签署的原始 claim；平台不生成官方 anomaly、fraud、mass-balance 或 compliance status，也不因跨事件关系看起来不合理而拒绝归档和锚定。
+
+### Admission validation only
+
+核心可以拒绝：无法解析的 EPCIS/profile payload、缺失 schema-required fields、非法数据类型或 vocabulary、无法 canonicalise 的内容、无效 signature、无权 publisher、event ID 对应不同 digest、损坏的 signature/archive envelope，以及非法 lifecycle transition。
+
+核心不判断：input 是否被重复消耗、output/yield 是否合理、损耗是否异常、时间地点是否可疑、同一对象是否被多个 transformation 声称、aggregation 是否冲突、关系是否形成业务上可疑的 cycle，或某组织 correction 是否过于频繁。EPCIS schema 明确禁止的结构仍不接收，但平台不添加超出 schema 的业务合理性门槛。
+
+### Preserve conflicting claims
+
+互相冲突或不完整的 signed events 仍分别进入 canonical history，并保留 publisher、event time、record/received time、profile version 和 signature。平台不选择“哪一条是真的”，也不使用 first-writer-wins 让先提交者阻止其他组织留下相反声明。
+
+Lineage/query projection 必须容忍 unknown references、多条竞争关系和 graph cycles，使用 visited set、depth/result limit 和 provenance-per-edge 防止无限遍历。它可以如实显示“没有更早的网络内事件”或多条声明，但不创建 `UNRESOLVED_INPUT`、`MASS_BALANCE_WARNING` 等官方业务判断状态。
+
+Shipping/Receiving 的 `ACCEPTED/PARTIALLY_ACCEPTED/DISPUTED` 是对两份明确声明的机械关联结果，而不是异常检测；同理，correction relationship 和 recall traversal 是结构处理，不代表平台认定声明真实。
+
+### No authoritative material-balance model
+
+平台不维护 authoritative inventory、remaining quantity、expected yield、consumed balance、fraud score 或 MaterialBalanceProjection。TransformationEvent 只记录 publisher 声称的 inputs、outputs、quantities、transformation ID 和 process context；AggregationEvent 只记录 publisher 声称的 parent/child relationship。ERP/MES 继续负责库存、配方、生产核算和内部控制。
+
+Product Profile 只定义字段结构、required references、vocabulary、units、consumer allowlist 和 UI metadata，不配置 yield tolerance、mass-balance、fraud heuristics 或 automatic compliance conclusion。
+
+### Analysis belongs outside the core
+
+```text
+Confirmed source assertions
+→ Regulatory Analytics Projection
+→ regulator-controlled deterministic rules / statistics / optional ML
+→ regulator-private alert
+→ human investigation
+→ optional regulator-signed Assessment/Inspection event
+```
+
+监管方可以自行配置 duplicate-consumption、mass-balance、timing/location、correction-frequency、sensor-excursion 和 supplier-risk rules。它们遵守 B15 的最小化数据权限，输出保持 advisory/private；只有监管人员复核并签署的正式结论才进入 canonical trace。
+
+**需要接受的代价：** 没有启用监管分析时，核心系统会保存甚至展示明显矛盾的 source assertions。`CONFIRMED` 只能解释为“已签名、归档并锚定”，不能被 UI 或报告表达为“平台已验证业务真实、数量合理或合规”。Recall traversal 也必须保守处理所有相关 claims，而不能依赖一个平台判定的唯一正确路径。
+
+**为什么可以接受：** 区块链和 EPCIS 在本系统中提供 attribution、trace reconstruction 和 post-confirmation integrity，而不是通用欺诈检测。把产品、地区和监管机构特有的启发式规则留在 regulator-controlled analytics，可以避免核心平台变成难以治理的规则引擎，也避免错误规则阻止冲突证据进入历史。
 
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
@@ -1207,7 +1251,7 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 
 应用不采用全量 Event Sourcing。不可变 trace core 保持 append-only；普通应用状态使用事务模型；archive、anchor 和针对性 projections 由 PostgreSQL transactional outbox 驱动。第一版不需要独立 broker 或多套读写数据库，projection lag 必须通过 watermark 暴露，安全查询不得把过期视图解释为完整结果。
 
-产品扩展采用不可变、版本化并由联盟治理的 Product Validation Profiles。Profile 只配置字段、枚举、单位、简单校验、证据要求和 consumer allowlist；交接、纠错、转换、授权、签名和召回等跨事件语义保留在领域代码中，不承诺用配置取代所有产品代码扩展。
+产品扩展采用不可变、版本化并由联盟治理的 Product Validation Profiles。Profile 只配置字段、枚举、单位、证据引用、consumer allowlist 和 UI metadata；它不承载 yield、mass-balance、fraud heuristic 或 compliance conclusion，也不承诺用配置取代所有产品代码扩展。
 
 性能设计分为 participant ingestion、regulator/internal investigation 和 public consumer 三个 workload planes。低频写入通过离线队列、幂等和 outbox 保证可靠；大范围监管读取使用带 watermark 的异步 export；消费者只访问 versioned public projections，并由 cache/CDN 承担高并发。农村网络造成的 edge sync lag 与平台 processing lag、public-chain anchor lag 分开度量。
 
@@ -1218,6 +1262,8 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 监管机构与其 ML 工具使用不同身份和权限。监管方可以读取 confirmed consortium trace，并在具体案件中依据记录的法律或治理授权访问选定 private evidence、签署正式监管事件；ML 只读取最小化的 regulatory analytics projection，输出 regulator-private advisory alerts，不能访问任意 private resource、作出监管决定或直接写入 canonical trace。
 
 Human 和 IoT fleet identity 由外部/参与方 IAM 管理；核心只保存 organisation membership、organisation public keys、scoped user/machine delegations 和 signed governance history。Membership governance 只判断现实参与资格，高影响变更采用独立 dual control；它不能替成员签署事件或改写 public-chain finality，因此不取代区块链的完整性职责。
+
+核心只验证 EPCIS source assertion 的 schema、signature、authority、canonicalisation 和 idempotency，不判断 transformation、aggregation、quantity、timing 或 lineage 是否符合业务常识。监管方在独立 Regulatory Analytics System 中运行启发式规则、统计分析或可选 ML；其输出在人工签署前只是 regulator-private advisory alert。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
