@@ -80,17 +80,19 @@
 
 ## A5. 是否把完整事件、文件和 IoT 原始数据全部上链？
 
-**决定：** 不把所有数据上链。账本保存联盟同意共享、足以恢复最小完整 trace 的 canonical EPCIS core；大型、敏感、高频或仅用于举证的内容留在链下。
+**决定：** 不把完整事件和文件写入公共链。公共链只保存 event commitment 或周期性 Merkle root；完整 canonical EPCIS shared trace 保存在平台控制域之外的独立不可变归档中，大型、高频或仅用于举证的内容继续作为 ProtectedResource 管理。
 
-**边界条件/假设：** 区块链用于共享历史和独立验证，不是通用文件库、时序数据库或运营查询引擎。
+**边界条件/假设：** 公共链负责不可篡改的时间和完整性证明，不负责业务数据权限、完整 trace 恢复、文件存储或运营查询。
 
-**为什么这样定：** 原始 telemetry、PDF、照片、合同和私有业务详情具有不同的容量、隐私、保留和删除要求，不适合复制到所有 ledger nodes。
+**为什么这样定：** 明文 EPCIS trace 上公链会永久公开供应链关系；完整 ciphertext 上公链又会产生费用、永久保留和未来密钥泄露风险。把 payload 与 proof 分开，可以让联盟内恢复完整 trace，同时只向公共网络暴露最小 commitment。
 
-**否决的方案：完整数据全部上链。** 该方案会放大商业泄露、数据驻留、删除、更正、节点存储、共识性能和 schema 升级成本，并让每个节点运营方持有不必要的数据。
+**否决的方案一：完整明文或密文 EPCIS payload 直接上公链。** 该方案会放大商业泄露、费用、数据驻留、删除和长期密码风险。
 
-**承受的代价：** 系统必须维护链上 shared trace 与链下 protected resources 的引用和 commitment；调查时可能遇到外部证据不可用。
+**否决的方案二：公链只存 hash，完整 payload 只有平台一份。** 该方案只能在平台愿意提供 payload 时验证防改；平台删除、拒绝服务或退出后无法恢复 trace。
 
-**为什么可以接受：** 最小 trace 仍能在平台失效时恢复并定位潜在责任方；原始材料的举证责任可以保留在声明方，平台不必成为所有企业资料的中央保管人。
+**承受的代价：** 系统需要额外维护独立 immutable archive、归档复制、access-controlled key service、public-chain relayer、finality monitor 和 inclusion proof。
+
+**为什么可以接受：** Archive 的运维职责远小于一个 BFT validator network：它不参与共识、不执行 smart contract，也不需要实时出块。它只需可靠保存、校验和恢复数据，仍能满足平台外可恢复的要求。
 
 ---
 
@@ -120,27 +122,27 @@
 
 ## B1. 参与方是否完全信任平台运营者？
 
-**决定：** 不完全信任。平台运营者不能成为已确认历史的唯一控制者和唯一验证者。
+**决定：** 不完全信任。平台可以运营 SaaS、查询和日常数据处理，但不能成为已确认历史的唯一完整性证明和唯一可恢复副本。
 
-**边界条件/假设：** 平台可能发生内部滥用、管理员账号泄露、基础设施入侵、错误恢复或受到商业压力。参与方不一定认为平台会主动作恶，但不能把所有历史保证建立在这种信任上。
+**边界条件/假设：** 平台可能发生内部滥用、管理员账号泄露、基础设施入侵、错误恢复、商业压力或停止运营。系统需要防止平台在事件确认后无痕修改历史，并在平台失效后恢复 canonical trace。
 
-**为什么这样定：** 如果平台独占数据库、参与方声明权、全部 ledger nodes 和治理密钥，区块链相对于普通 append-only database 或 WORM audit log 的额外价值很弱。
+**为什么这样定：** 如果事件 payload、commitment、查询结果和唯一副本都由平台控制，blockchain 只是平台内部的 append-only 实现，参与方仍然必须完全信任平台。
 
-**否决的方案一：完全信任平台。** 该方案最简单，但平台可以控制写入、查询和恢复结果，无法回答为什么需要 blockchain。
+**否决的方案一：完全信任平台数据库和备份。** 无法独立验证历史，也无法应对平台退出。
 
-**否决的方案二：平台和所有节点在密码学上都不能看到任何业务数据。** 该方案需要事件级加密、复杂密钥分发、private collections 和恢复 escrow，超出当前可实现范围。
+**否决的方案二：自建多组织 BFT validator network。** 该方案技术上有效，但背景没有给出足够多、真正独立且愿意承担节点、治理与升级成本的组织。
 
-**承受的代价：** 需要平台控制域之外的验证和复制能力，并引入联盟成员资格、节点治理、升级和潜在串谋问题。
+**当前约束：**
 
-**为什么可以接受：** 这是让 blockchain 对应真实信任问题所需的最低额外复杂度。当前只要求防止平台单方面静默重写，不声称能够抵抗所有联盟成员共同串谋。
+- 已 finalise 的 commitment 必须位于平台控制域之外的公共链；
+- 完整 canonical trace 必须至少有一个平台控制域之外的 immutable archive；
+- 平台接受事件时签发 receipt，anchor finalise 后提供 inclusion proof；
+- 平台不能把自己的 acceptance receipt 当作 public-chain finality；
+- 平台仍可能在上链前拒绝或延迟事件，因此 censorship 与 tamper resistance 分开处理。
 
-**由此产生的约束：**
+**承受的代价：** 共识和时间证明依赖外部 public network；数据可用性依赖独立 archive；系统还要维护 relayer、gas、finality 和 chain migration。
 
-- 已确认历史必须在平台控制域之外可验证；
-- 账本节点不能只是同一云账号中的名义复制；
-- 平台不能同时独占全部节点和治理密钥；
-- 平台延迟、遗漏或删除已经接受的数据必须可以被审计；
-- 节点运营者、数量、quorum 和反串谋机制仍需继续决定。
+**为什么可以接受：** 这些职责比组织和维护自己的 BFT validator consortium 更标准化。平台风险被拆成可分别验证的 integrity、availability 和 ingestion-censorship 问题，而不是假装由一个账本同时解决。
 
 ---
 
@@ -150,15 +152,15 @@
 
 **边界条件/假设：** 平台失效后，参与方或审计者至少需要判断产品经历了哪些阶段、数据由谁发布、在哪一环出现矛盾，以及应向哪一方索取证据。
 
-**为什么这样定：** 只有 opaque hash 时，平台消失后无法还原物流或谱系；只有平台 PostgreSQL 保存完整事件时，平台仍然是唯一数据可用性来源。
+**为什么这样定：** 公链 commitment 只能验证拿到的内容是否匹配，不能从 hash 恢复 payload；只有平台 PostgreSQL 保存完整事件时，平台仍然是唯一数据可用性来源。
 
-**否决的方案一：账本只保存 hash，完整事件只在平台数据库。** 可以检测拿到的 payload 是否被改，但拿不到 payload 时无法恢复任何 trace。
+**否决的方案一：公链只保存 hash，完整事件只在平台数据库。** 可以检测拿到的 payload 是否被改，但拿不到 payload 时无法恢复任何 trace。
 
 **否决的方案二：共享网络强制保管所有原始 IoT、证书、照片、合同和内部记录。** 会把平台变成通用证据仓库并承担不必要的隐私、保留和法规责任。
 
-**承受的代价：** Shared ledger 保存的内容多于单纯 commitment，所有节点运营方都能看到联盟 trace core；参与方自管的证据仍可能 `Unavailable`、`Expired` 或无法举证。
+**承受的代价：** 需要平台外的 immutable archive、复制和恢复流程；参与方自管的 evidence 仍可能 `Unavailable`、`Expired` 或无法举证。
 
-**为什么可以接受：** Trace core 的体积远小于原始文件和 telemetry，却足以定位问题。原始材料由作出声明的一方负责保存和提供，平台可以提供可选托管，但不转移其真实性责任。
+**为什么可以接受：** Trace core 的体积远小于原始文件和 telemetry，使用对象存储/WORM archive 的成本显著低于运行共识节点，却足以定位问题。原始材料仍由声明方举证，平台可提供可选托管。
 
 **强制恢复范围：**
 
@@ -171,32 +173,47 @@
 
 **默认不强制恢复：** 原始高频 telemetry、完整实验室文件、证书文件、照片、合同、商业单据、内部 ERP/WMS/TMS 明细和私有扩展。
 
+### 当前存储分工
+
+```text
+Platform PostgreSQL
+→ hot operational copy、query、projection
+
+Independent Immutable Trace Archive
+→ encrypted canonical EPCIS shared trace
+→ platform-independent recovery
+
+Public Blockchain
+→ event commitment 或 periodic Merkle root
+→ archive manifest hash
+```
+
 ---
 
 ## B3. EPCIS 数据和证据采用什么权限模型？
 
-**决定：** 使用固定的 `PUBLIC / CONSORTIUM / PRIVATE` 三层模型；不做字段级动态权限、不做每事件密钥分发，也不建立独立的 private EPCIS event store。
+**决定：** 保留固定的 `PUBLIC / CONSORTIUM / PRIVATE` 三层语义，但公共链只看到 commitment；`CONSORTIUM` payload 加密保存在 independent archive，不把联盟 trace 明文公开到公链。
 
-**边界条件/假设：** 参与方不信任平台控制历史完整性，但接受平台和联盟节点作为受合同、安全控制和审计约束的数据处理者。加入联盟意味着同意共享 network EPCIS profile 中的最小 trace facts。
+**边界条件/假设：** 加入联盟意味着同意其他有效联盟成员读取 network EPCIS profile 中的最小 trace facts，但联盟外用户只能看到 public projection 和不可反推 payload 的 commitment。
 
-**为什么这样定：** 如果完整 EPCIS event 中每个字段都有不同受众，就需要事件级加密、DEK wrapping、审计 escrow、密钥恢复和复杂查询。固定分类可以用一张权限矩阵解释，并保持平台失效后的可恢复性。
+**为什么这样定：** 固定分类保留清晰的业务权限；per-event DEK 与版本化 consortium KEK 只保护整个 canonical payload，不重新引入字段级权限。
 
 **否决的方案一：完整 EPCIS 明文对消费者公开。** 会泄露交易关系、精确地点、数量、设备和商业节奏。
 
-**否决的方案二：每事件、每字段密码学隔离。** 会造成密钥和 policy 爆炸、难以查询、难以恢复，也无法简单撤销已经解密的数据。
+**否决的方案二：每字段密码学隔离。** 会造成密钥和 policy 爆炸、难以查询和恢复，也无法让已经读取数据的成员“忘记”内容。
 
 **否决的方案三：单独维护 private EPCIS layer。** 它与证书、IoT、合同等可选托管资料边界模糊，会产生两套权限和生命周期模型。
 
-**承受的代价：** 所有联盟节点运营方可以看到 shared trace core；不能进入 core 的精确数量、位置或原始证据无法用于全联盟自动验证。平台仍被信任执行日常保密和访问控制。
+**承受的代价：** 权限治理从 validator membership 转移到 Consortium Key Service；KMS 不可用会影响 archive recovery，key compromise 可能暴露对应 epoch，退出成员已经下载的明文无法撤回。
 
-**为什么可以接受：** 当前目标是恢复路径、识别声明者和定位潜在责任方，而不是让所有成员验证每项商业细节。敏感详情仍可在直接交易方或调查范围内提供，复杂度与收益更匹配。
+**为什么可以接受：** KMS、key rotation 和 archive access 是成熟且较窄的基础设施问题，比维护多组织 consensus、orderer、validator upgrade 和 quorum 更容易外包和审计。
 
 ### 固定数据层
 
 | 分类 | 内容 | 谁可读取 | 保存方式 |
 |---|---|---|---|
 | `PUBLIC` | 产品、来源地区、主要阶段、公开认证摘要、温控摘要、recall status | Consumer 及其他用户 | 从 shared trace 生成 allowlisted projection |
-| `CONSORTIUM` | 联盟批准的 canonical EPCIS trace core | 已认证参与方、Auditor/Regulator、必要运维人员 | Permissioned ledger + application projection |
+| `CONSORTIUM` | 联盟批准的 canonical EPCIS trace core | 已认证参与方、Auditor/Regulator、必要运维人员 | Encrypted immutable archive + application projection |
 | `PRIVATE` | 精确商业详情、完整 sensor data、文件、企业私有扩展 | Owner、直接交易方、明确授权的调查者 | Participant-hosted 或可选 platform-hosted `ProtectedResource` |
 
 ### ProtectedResource 统一模型
@@ -228,7 +245,7 @@ ProtectedResource
 | Consortium Participant | 可读 | 可读 | 仅自有、直接交易相关或明确共享的资源 |
 | Auditor/Regulator | 可读 | 可读 | 在批准的 investigation scope 和期限内可读 |
 | Platform Operator | 托管 | 托管 | 仅为托管/运维技术访问，并记录审计日志 |
-| Ledger Node Operator | 不因运行节点获得消费者身份 | 保存并可验证 | 不保存，也不因运行节点获得访问权 |
+| Archive Operator | 不因运行归档获得消费者身份 | 保存 ciphertext，不因运维自动获得明文权限 | 仅保存平台托管的资源时按审计流程访问 |
 
 ### 分类判据
 
@@ -240,78 +257,61 @@ ProtectedResource
 
 如果某字段既不能让联盟成员看到，又是重建最小 trace 必不可少的内容，则当前简化模型不成立；必须修改共享假设或重新引入加密/private collection。
 
+### Consortium archive encryption
+
+每个 canonical EPCIS event 使用独立 DEK 加密，DEK 再由版本化 Consortium KEK 包装：
+
+```text
+Canonical EPCIS payload
+→ encrypt with Event DEK
+→ ciphertext stored in immutable archive
+
+Event DEK
+→ wrapped by Consortium KEK
+→ keyEpoch recorded in archive envelope
+```
+
+Consortium KEK 保存在受控 KMS/HSM 中，不把同一个 private key 文件复制给所有成员。成员通过 organisation identity 获得解密权限；成员变化后启用新 key epoch。Revocation 只能阻止未来获取，不能撤回成员已经下载的明文。
+
+公共链只保存 ciphertext/archive manifest 的 hash 或 Merkle root，不保存 plaintext、DEK 或可直接揭示供应链关系的 metadata。
+
 ---
 
 ## B4. 系统对节点和参与方串谋提供什么保证？
 
-**决定：** 系统以有限的 L2 作为目标，不承诺完整 L3。L2 保护的是 ledger integrity、identity attribution 和 governance safety，不是串谋方业务声明的物理真实性。
+**决定：** 不再声明本系统自己的 validator L2/L3。已锚定历史的完整性依赖所选成熟 public network 的 consensus 和 finality；本系统只声明平台与业务参与方不能重写已经 finalise 的 commitment。
 
-### 两类串谋必须分开
+### 当前保证
 
-**Validator collusion** 是账本节点尝试确认替代历史、审查交易或修改网络规则。其影响与恶意 validator 的比例、共识协议和治理 threshold 有关；BFT 可以在明确容错阈值内阻止少数恶意节点破坏 safety。
+在所选 public network 安全且 commitment 已 finalise 的前提下，平台与一个业务参与方不能：
 
-**Business-party collusion** 是合法参与方共同签署一套虚假但彼此一致的供应链声明。即使所有 validators 都诚实，只要签名、schema 和业务规则有效，账本也无法判断物理事实是假的。BFT 只能证明这些组织确实作出了这些声明。
+- 修改 archived EPCIS payload 而不导致 public commitment 校验失败；
+- 删除或替换已锚定的 archive manifest 而不留下不一致；
+- 伪造自行持钥、未参与串谋组织的原始 event signature；
+- 让另一份 payload 匹配同一 cryptographic commitment。
 
-### L2 的具体保证
+它们仍然可以：
 
-假设平台运营者与一个参与方串谋，并且受损的独立 validator domains 没有超过系统配置的 Byzantine fault threshold，则它们不能：
+- 对自己控制的业务阶段共同提交虚假声明；
+- 隐瞒从未提交的现实事件；
+- 在 commitment 上链前拒绝、延迟或遗漏事件；
+- 拒绝提供 participant-hosted evidence；
+- 控制平台 consumer projection，除非用户独立验证 archive/proof；
+- 泄露平台可以读取的 private data。
 
-- 修改或删除已经取得 BFT finality 的 canonical trace events；
-- 让一条替代 ledger history 被诚实节点接受为相同的最终历史；
-- 冒充自行保管密钥、且未参与串谋的组织；
-- 满足明确要求该组织签名的 shipping、receiving、certificate 或其他 business endorsement；
-- 单方面修改 membership、identity mapping、network profile、signature requirement 或 governance quorum；
-- 垄断已确认 shared trace 的恢复，因为诚实节点仍保存并能导出完整副本。
+因此当前最简洁的保证仍是：
 
-L2 不保证：
+> 串谋方可以对自己控制的业务阶段共同说谎，但不能修改已经锚定的 payload 而不被发现，也不能替未串谋且自行持钥的组织生成真实签名。
 
-- 串谋方对自己控制阶段所作的声明真实；
-- 现实中发生但从未提交的事件会被系统发现；
-- 中央 API 不会在交易到达共识前审查或丢弃提交，除非另有独立入口或可审计 receipt；
-- participant-hosted evidence 始终可用；
-- platform-hosted `PRIVATE` 数据在密码学上对恶意平台不可见；
-- 超过 BFT 或 governance threshold 的联盟成员串谋时系统仍保持正确。
+### 公链信任没有消失，只是外部化
 
-因此 L2 最简洁的表述是：
+系统依赖所选 public network 不发生足以破坏 finality 的 validator/stake majority attack、恶意治理升级或长期停摆。这些风险不由农业联盟自行解决，而通过选择成熟网络、等待正式 finality、保存 chain receipts 和设计 chain migration 处理。
 
-> 串谋方可以对自己控制的业务阶段共同说谎，但不能改掉别人已经最终确认的声明，也不能替未串谋且自行持钥的组织说话。
+公链不解决上链前 censorship。平台接受事件时需要签发包含 event hash 和 anchor window 的 receipt；anchor finalise 后提供 inclusion proof。Receipt 可以证明平台接受后未按承诺锚定，但只有独立 submission path 才能真正绕过恶意平台入口。
 
-### 超过 BFT threshold 后会发生什么
+**承受的代价：** 信任从自建 consortium validators 转移到外部 public network，并引入 gas、finality delay、chain governance 和迁移风险。
 
-BFT safety 只在恶意独立验证域不超过 `f` 时成立。经典关系通常写为：
-
-```text
-n >= 3f + 1
-```
-
-例如，要正式容忍两个 Byzantine validator domains，通常需要至少七个真正独立的验证域。这里的“独立”指不同组织、管理员、云账号和密钥；同一平台多开几个节点不能增加容错域数量。
-
-超过 `f` 后，安全保证失效，但攻击者并不会立即获得所有权限：
-
-- 刚超过 `f` 时，恶意节点可能通过 equivocation 和网络分区诱导不同诚实节点形成 conflicting finality；
-- 达到 commit quorum 后，它们可以不依赖诚实节点确认替代历史或审查交易；
-- 达到 governance threshold 后，它们可以修改成员、profile、identity mapping 和验证规则；
-- 即使所有 validators 串谋，只要没有某个外部组织的私钥，它们仍不能生成该组织的原始数字签名，但可以尝试修改规则或 key registry，让新客户端接受替代身份。
-
-因此 consensus threshold、governance threshold 和 business-signature requirement 是三个不同门槛，不能都简化为“多数节点同意”。
-
-### 为什么不承诺完整 L3
-
-如果 L3 表示“即使达到联盟共识或治理 quorum 的成员串谋，系统仍能阻止它们改写账本并继续运行”，那么封闭 permissioned consortium 内部无法同时保证这一点和系统 liveness。协议无法从一组合法 quorum signatures 判断签名者是在诚实投票还是串谋。
-
-提高到 unanimity 只会把问题变成任何一个节点都能永久阻止网络运行。所有共识系统最终都依赖某个诚实 threshold，不能在任意数量合法成员串谋时仍同时保持正确和可用。
-
-外部 checkpoint 可以实现的是有限 L3 detection：
-
-- 将 consortium block hash 周期性提交给公共链、独立监管见证或外部 timestamp service；
-- 由参与方和审计者独立保存 block headers、receipts 和 event signatures；
-- 使联盟多数对已经 checkpoint 的历史进行事后重建时留下可验证分叉。
-
-它不能阻止联盟停止服务、审查新交易或从现在开始共同提交虚假事件，也不能证明现实数据真实。因此 external anchoring 只作为可选的反无痕重写措施，不作为主数据存储或物理真实性保证。
-
-**需要承受的代价：** 真正的 L2 validator guarantee 可能要求较多独立验证域、BFT 运维和更高治理成本；如果实际联盟无法提供这些控制域，就必须把保证降低为“抵抗单一平台运营者”，而不能仍然宣称容忍平台与一个 validator 共同作恶。
-
-**为什么可以接受：** 明确保证边界比用模糊的“区块链防串谋”更有价值。系统优先解决单方或少数节点篡改、身份冒充和历史垄断，同时承认多数治理串谋和物理事实共谋需要外部审计、法律责任与证据机制，而不是继续堆叠无法兑现的技术承诺。
+**为什么可以接受：** 防止平台事后无痕修改是当前最明确的目标。使用已有公共共识比在缺少真实运营者的情况下虚构七个独立 BFT domains 更务实，也更容易清楚说明保证边界。
 
 ---
 
@@ -363,7 +363,7 @@ canonical event digest
 → check assurance level required by event policy
 ```
 
-Ledger 和领域规则依赖标准 envelope，不依赖 AWS、Azure、Turnkey、Fireblocks、Vault 或某个本地 KMS 的专有格式。
+Archive、anchor service 和领域规则依赖标准 envelope，不依赖 AWS、Azure、Turnkey、Fireblocks、Vault 或某个本地 KMS 的专有格式。
 
 ### Self-custody 与托管签名使用不同入口
 
@@ -407,7 +407,7 @@ ManagedSigningPort
 └── PlatformKmsAdapter
 ```
 
-第一版只集成一个默认 external signing provider，不同时维护多个同类供应商。新增供应商只增加 adapter，不改变事件、验证或 ledger 模型。
+第一版只集成一个默认 external signing provider，不同时维护多个同类供应商。新增供应商只增加 adapter，不改变事件、验证、archive 或 public-chain commitment 模型。
 
 ### 所有模式签署相同 canonical digest
 
@@ -439,9 +439,131 @@ Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 d
 
 ## B6. 事件什么时候进入正式共享历史？
 
-**决定：** 保持所选 permissioned ledger 的标准 BFT consensus、finality 和 view-change 行为，不修改共识协议。事件只有作为有效交易进入 final block 后才成为 `CONFIRMED`；无法形成 quorum 时保持 `PENDING_LEDGER`，不降级为平台单方确认。
+**决定：** 事件只有在 canonical payload 已进入 independent immutable archive，并且对应 commitment 已按所选 public network 的规则达到 finality 后，才成为 `CONFIRMED`。
 
-PBFT/BFT 负责对有序状态变更达成共识，但不管理 PWA draft、EPCIS validation、托管签名、PostgreSQL submission 或 query projection。因此应用使用以下生命周期表达共识外围状态：
+```text
+DRAFT
+→ RECEIVED
+→ VALIDATED
+→ PENDING_SIGNATURE
+→ PENDING_ARCHIVE
+→ PENDING_ANCHOR
+→ SUBMITTED_ON_CHAIN
+→ INCLUDED
+→ FINALISED
+→ CONFIRMED
+```
+
+失败或终止状态包括：
+
+```text
+REJECTED
+SIGNING_REJECTED
+EXPIRED
+ARCHIVE_RETRY
+ANCHOR_RETRY
+```
+
+### 各状态的含义
+
+- `DRAFT`：参与方本地意图，可以编辑或删除，不属于共享历史；
+- `RECEIVED/VALIDATED`：平台已经接收和验证，尚未形成外部证明；
+- `PENDING_SIGNATURE`：等待参与方或 signing provider 批准；
+- `PENDING_ARCHIVE`：等待 encrypted canonical payload 在独立归档中达到约定复制等级；
+- `PENDING_ANCHOR`：archive object 已持久化，等待生成 event commitment 或进入 Merkle batch；
+- `SUBMITTED_ON_CHAIN/INCLUDED`：交易已广播或进入区块，但尚未满足最终性规则；
+- `FINALISED`：public network 已达到所选 finality；
+- `CONFIRMED`：finality、archive location 和 inclusion proof 已关联，正式进入 trace、projection、recall 与 consumer-view 输入。
+
+### 权威关系
+
+```text
+Signed canonical EPCIS payload in Independent Archive
+→ 可恢复的业务记录
+
+Finalised public-chain commitment
+→ payload 未被事后替换的外部证明
+
+PostgreSQL
+→ submission 状态、hot query 和 projection
+
+Participant/PWA storage
+→ 尚未共享的 draft
+```
+
+完整权威记录是 `signed payload + archive copy + finalised commitment + inclusion proof` 的组合，而不是 PostgreSQL 行或单独一个 public-chain hash。
+
+平台接收事件时签发 acceptance receipt，其中包含 event ID、payload hash、received time 和预期 anchor window。Finality 后再提供 chain transaction reference 与 inclusion proof。Receipt 能证明平台已经接受提交，但不能替代 finality。
+
+Archive 已写入但 public-chain transaction 失败时，事件保持 `PENDING_ANCHOR` 并幂等重试；链上 commitment 已 finalise 但 PostgreSQL 更新失败时，根据 archive manifest 和 chain proof 修复运营数据库，不生成新事件。
+
+如果使用 Merkle batching，平台还必须公开或独立保存 batch manifest，使参与方能够验证某个 event 确实包含在 root 中。普通 projection 默认只使用 `CONFIRMED` events。
+
+**代价：** 公链费用、finality delay、reorganisation、relayer failure 或 archive replication failure 都可能延迟确认。
+
+**为什么可以接受：** 延迟确认比在 payload 未安全保存或 commitment 尚未 finalise 时提前宣布共享历史更安全。现有 confirmed trace 仍可查询，pending events 在依赖恢复后继续处理。
+
+# 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
+
+该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
+
+## D1. 原方案的产品和部署模型
+
+```text
+Participant Environment
+- ERP/WMS/TMS
+- optional Participant Gateway
+- organisation signing key
+- participant-owned evidence
+
+Shared SaaS Application Plane
+- PWA / portals / API
+- modular Traceability Application
+- PostgreSQL / projection / broker
+
+Permissioned Consortium Ledger Plane
+- independently controlled validators/orderers
+- complete canonical EPCIS shared trace core
+- common membership and governance policies
+```
+
+普通农场和中小企业不运行节点。节点只由平台运营者、生产者代表组织、物流/分销代表、零售代表、行业机构或独立审计主体等治理成员运行。日常技术运维可以外包，但云账号、validator key 和 governance approval 必须保持独立控制。
+
+## D2. 原方案的数据和权限模型
+
+- `PUBLIC`：消费者 allowlisted projection；
+- `CONSORTIUM`：联盟 profile 中的完整 EPCIS shared trace core，以明文复制给 channel/ledger members；
+- `PRIVATE`：精确商业详情、文件和原始 telemetry，作为 participant-owned ProtectedResource；
+- PostgreSQL：hot operational copy 和可重建 projections；
+- Permissioned ledger：平台外可恢复的 canonical history 和 finality。
+
+加入联盟意味着接受所有 node operators 能看到 shared trace core。无法向所有联盟成员披露的字段不得进入 network EPCIS profile。
+
+## D3. 原方案的签名与共识边界
+
+Participant signature、ledger consensus 和 governance approval 是三个不同门槛：
+
+- Participant signature 证明哪个组织作出声明；
+- BFT consensus 决定交易顺序和 finality；
+- Governance policy 决定 membership、profile、validator 和规则变更。
+
+即使 validators 达到 quorum，也不能生成未串谋且自行持钥组织的原始签名；但治理多数可能尝试修改 identity mapping 或降低 endorsement requirement，因此旧 policy 和 identity history 仍需保留。
+
+## D4. 原方案的 L2/L3 保证
+
+原目标是有限 L2：平台运营者与一个 participant/validator domain 串谋时，仍不能修改已 finalise 事件、冒充未串谋自持钥组织，或单方面改变治理。
+
+经典 BFT 关系通常为：
+
+```text
+n >= 3f + 1
+```
+
+如果要正式容忍两个 Byzantine validator domains，通常需要至少七个真正独立的验证域。超过 `f` 后 safety 不再有形式保证；达到 commit quorum 后，串谋节点可能不依赖诚实节点确认替代历史；达到 governance threshold 后，还可能修改成员和规则。
+
+原方案不承诺完整 L3。达到联盟 consensus/governance quorum 的成员串谋时，封闭联盟无法同时保证正确性和 liveness；外部 checkpoint 最多使既有历史重写可检测，不能阻止串谋方共同提交虚假现实声明。
+
+## D5. 原方案的确认生命周期
 
 ```text
 DRAFT
@@ -452,79 +574,58 @@ DRAFT
 → CONFIRMED
 ```
 
-失败或终止状态包括：
+只有有效 transaction 获得 BFT finality 后才成为 `CONFIRMED`。Quorum 不足时保持 `PENDING_LEDGER`，不降级为平台单方确认。Ledger 是 confirmed consortium history，PostgreSQL 是 submission 状态和查询 projection。
+
+## D6. 原方案为何舍弃
+
+1. **缺少真实节点运营者。** 背景没有给出一个已经存在的行业联盟，也没有证据证明足够多组织愿意承担 validator、CA、HSM、升级、监控和 incident response。
+2. **完整 L2 的独立域成本过高。** 若目标为 `f=2`，经典 BFT 需要至少七个独立控制域；七个容器或同一服务商代管的七个节点并不构成七个故障域。
+3. **治理问题无法由节点数量解决。** Membership、profile、key rotation、validator replacement 和 emergency upgrade 都需要长期章程、预算和投票机制。
+4. **少数节点方案的保证容易被夸大。** 三至五个节点可能降低单方控制，但不能诚实宣称完整抵抗平台与另一个 validator 同时 Byzantine。
+5. **主要目标只是防止事后无痕修改。** 使用成熟公链提供外部 commitment，并用独立 archive 提供数据可用性，可以更直接地解决已确认的 integrity/availability 问题。
+
+## D7. 从原方案保留的设计
+
+切换到 public-chain commitment 后仍保留：
+
+- participant event signatures 与分级 custody；
+- canonical EPCIS shared trace；
+- `PUBLIC / CONSORTIUM / PRIVATE` 分类；
+- participant-owned ProtectedResource；
+- 平台外恢复完整 trace；
+- append-only correction；
+- acceptance receipt、幂等 event ID 和明确 finality；
+- PostgreSQL hot query 与可重建 projection；
+- 不声称区块链证明物理事实真实。
+
+新的方案只是把原方案中三个耦合职责拆开：
 
 ```text
-REJECTED
-SIGNING_REJECTED
-EXPIRED
-LEDGER_RETRY
+Public Blockchain
+→ integrity and timestamp proof
+
+Independent Immutable Archive
+→ full canonical trace availability
+
+Consortium Key Service
+→ consortium-only access
 ```
-
-### 各状态的权威含义
-
-- `DRAFT`：参与方本地意图，可以编辑或删除，不属于共享历史；
-- `RECEIVED/VALIDATED`：平台已接收并验证，但其他参与方不能据此认定事件已发生；
-- `PENDING_SIGNATURE`：托管签名尚未获得参与方/provider 批准；
-- `PENDING_LEDGER`：已有有效签名并等待 BFT finality，只对提交者显示为 pending；
-- `CONFIRMED`：已作为有效 transaction finalised，进入正式 trace、projection、recall 和 consumer-view 输入；
-- `REJECTED/EXPIRED`：不进入共享历史，也不使用 correction event 处理。
-
-### 权威关系
-
-```text
-Permissioned ledger
-→ confirmed consortium history 的权威来源
-
-PostgreSQL
-→ submission 状态、运营查询和 projection
-
-Participant/PWA storage
-→ 尚未共享的 draft
-```
-
-PostgreSQL 保存成功但 ledger 提交失败时，事件保持 `PENDING_LEDGER` 并使用稳定 event ID 幂等重试。Ledger 已 finalise 但 PostgreSQL 状态更新失败时，以 ledger 为准，恢复后修复数据库并重建 projection，不重新创建事件。
-
-普通查询和 projection 默认只使用 `CONFIRMED` events。Submission receipt 只证明平台收到或接受了一项提交，不能替代 ledger finality certificate。
-
-### 保持和不保持哪些默认行为
-
-直接沿用所选 BFT 实现的正常行为：
-
-- quorum 不足时停止产生新 final blocks；
-- faulty leader 由协议内置 view change 处理；
-- 达到 finality 后不再等待概率型 confirmations；
-- validators 按相同确定性规则验证和执行交易。
-
-不能盲目沿用部署向导的默认配置：
-
-- validator 数量和可容忍的 `f`；
-- 独立控制域划分；
-- governance threshold；
-- membership、identity 和 key-rotation policy；
-- block size、timeout 和运维参数。
-
-这些参数与 C1 的威胁保证和实际节点运营方直接相关。B6 不预设节点数量；C1 确定需要抵抗的 Byzantine domains 和现实可提供的独立控制域后，再选择 `n`、`f` 和 quorum。
-
-**代价：** Ledger quorum 故障期间，新事件不能成为 confirmed history，即使平台数据库仍然可用。
-
-**为什么可以接受：** 把 pending submission 暂时留在平台，比在共识不可用时制造一套平台私有的“正式历史”更安全。既有 confirmed trace 仍可查询，新提交则在网络恢复后幂等确认。
 
 # 第三层：仍需讨论的决定
 
 以下项目保留当前倾向和 trade-off，但尚未提升为架构基线。
 
-## C1. 谁运行 permissioned-ledger nodes，采用什么 quorum？
+## C1. Public-chain anchoring 采用什么网络和提交粒度？
 
-**当前倾向：** 平台运营者之外，由利益和管理控制域相互独立的代表组织运行节点；不要求每个参与方运行节点。若坚持 B4 中“容忍平台与一个 validator domain 同时 Byzantine”的完整 L2 目标，则所选 BFT 协议和独立验证域数量必须正式支持 `f=2`，经典模型通常意味着至少七个独立验证域。
+**当前倾向：** 使用成熟、具有明确 finality 和长期可验证性的 public network；canonical EPCIS payload 不上链，只提交 event commitment 或 periodic Merkle root。
 
-**为什么尚未定案：** 背景没有给出真实行业联盟、节点预算、运营能力或治理章程。节点太少存在串谋和支配风险，太多则增加成本、升级协调和故障概率。
+**为什么尚未定案：** 每事件上链能提供更短的遗漏窗口和直接 proof，但费用与吞吐开销较高；Merkle batching 成本低，却需要 acceptance receipt、batch manifest、inclusion proof 和明确 anchor window。
 
-**已否决：** 随意写成“3–5 个独立组织”却不解释其身份和激励；以及由平台在同一云账号代管所有所谓独立节点。这两种做法只是在图上去中心化。
+**已否决：** 完整 EPCIS plaintext/ciphertext 默认上公链；以及由平台数据库保存唯一 payload、公链只留无法恢复内容的 opaque hash。
 
-**需要接受的代价：** 任何平台外可恢复和不可单方改写的保证，都要求某些外部主体承担存储、验证和治理成本。架构不能消除该成本，只能明确由谁承担。
+**需要接受的代价：** 系统依赖外部网络的 gas、finality、validator/stake security、治理升级和长期可用性；平台需要 relayer、transaction monitor、proof service 和 chain migration procedure。
 
-**待回答：** 是否存在足够多且真正独立、愿意承担成本的行业组织；节点由生产者组织、物流/分销组织、零售组织、审计机构还是专业托管方运行；若无法提供支持 `f=2` 的独立控制域，是降低 L2 声明还是引入外部验证域；公共链 anchoring 是否仅作为多数串谋后的检测措施。
+**待回答：** 选择哪类 public network；按 event 还是按时间窗口 batching；谁支付 gas；平台是否是唯一 relayer；commitment contract 是否 immutable；如何迁移到新链并保持 anchor continuity；允许多长的 anchor/finality delay。
 
 ---
 
@@ -538,7 +639,7 @@ PostgreSQL 保存成功但 ledger 提交失败时，事件保持 `PENDING_LEDGER
 
 **需要接受的代价：** 如果先同步查询 PostgreSQL，未来高负载时可能需要重构；如果现在采用异步 projection，食品召回视图可能短暂落后，必须暴露 watermark 和 stale/unavailable 状态。
 
-**待回答：** 哪些查询必须同步强一致，哪些允许 eventual consistency；是否只有 ledger dual-write 使用 outbox，还是所有 read models 都通过 broker 更新。
+**待回答：** 哪些查询必须同步强一致，哪些允许 eventual consistency；是否只有 archive/anchor publication 使用 outbox，还是所有 read models 都通过 broker 更新。
 
 ---
 
@@ -558,7 +659,7 @@ PostgreSQL 保存成功但 ledger 提交失败时，事件保持 `PENDING_LEDGER
 
 ## C4. 第一版是否固定为一个 PostgreSQL？
 
-**当前倾向：** 一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；permissioned ledger 和 participant artifact stores 保持外部边界。
+**当前倾向：** 一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；independent trace archive、public chain 和 participant artifact stores 保持外部边界。
 
 **为什么尚未完全定案：** PostgreSQL 足以提供事务、约束、JSON 和递归遍历，但背景也要求多产品线和地区，未来可能出现数据驻留或跨区域写入限制。
 
@@ -600,15 +701,15 @@ PostgreSQL 保存成功但 ledger 提交失败时，事件保持 `PENDING_LEDGER
 
 ## C7. 云部署如何表达权力边界？
 
-**当前倾向：** 区分 Participant Environment、Shared SaaS Application Plane 和 Consortium Ledger Plane；云厂商与具体 managed services 后定。
+**当前倾向：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive/Key Service 和 External Public Blockchain；云厂商与具体 managed services 后定。
 
-**为什么尚未定案：** 部署图必须反映真实独立控制域。把所有节点、密钥、数据库和治理组件部署在平台同一账号，会否定 B1 的不完全信任假设。
+**为什么尚未定案：** 部署图必须反映真实独立控制域。若 PostgreSQL、唯一 archive replica、Consortium KEK、relayer wallet 和恢复凭证全部属于平台同一账号，平台仍然可以垄断数据可用性和解密能力。
 
 **已否决：** 仅罗列云服务品牌而不说明谁控制账号、密钥和恢复；也否决要求每个小型参与方部署完整基础设施。
 
 **需要接受的代价：** 跨控制域部署增加网络、安全、监控、升级和故障协调成本。
 
-**待回答：** 哪些组件由平台托管，哪些由独立组织或专业托管方控制；Participant Gateway 是否进入第一版；ledger node 和备份是否跨云账号或区域。
+**待回答：** Archive 由独立行业机构、专业托管方还是 consortium-owned cloud account 控制；需要多少 replicas 和怎样的 RPO/RTO；Consortium KMS 的管理员与恢复 quorum；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
 
 # 当前总体结论
 
@@ -616,8 +717,10 @@ PostgreSQL 保存成功但 ledger 提交失败时，事件保持 `PENDING_LEDGER
 
 > 本系统是跨组织农业供应链追溯层，而不是农业 ERP。参与方通过 PWA 或既有系统发布联盟 profile 约束的 EPCIS events。消费者只读取公开 projection；联盟成员共享足以重建路径和定位潜在责任方的 canonical EPCIS trace core；商业详情和原始证据作为 participant-owned ProtectedResources，由参与方保存或选择平台托管。系统不声称区块链证明物理事实真实，但要求平台运营者不能单方面静默重写或垄断已经确认的历史。
 
-仍然阻止方案最终定型的核心问题是：谁在平台控制域之外运行 ledger nodes、承担复制和治理成本，以及系统需要抵抗到什么程度的节点串谋。
+Canonical shared trace 使用 per-event DEK 加密并复制到平台控制域之外的 immutable archive；公共链只保存 event commitment 或 Merkle root，提供平台不能改写的外部完整性证明。平台 PostgreSQL 负责 hot query 和 projection，Consortium Key Service 负责联盟内解密权限。
+
+仍待定的是 public network、anchoring 粒度、archive/KMS 运营主体、RPO/RTO 和 chain migration，而不是自建 validator 数量。
 
 # 答辩时的一分钟版本
 
-> We are building a cross-organisation agricultural traceability layer rather than an ERP. Small participants may use the platform PWA, while mature organisations integrate through EPCIS or APIs. A permissioned shared record retains the consortium-approved EPCIS trace core needed to reconstruct lineage and identify the party from whom further evidence is required. Consumers receive an allowlisted public projection, while commercially sensitive details and source evidence remain participant-owned protected resources that may optionally be hosted by the platform. This deliberately trades fine-grained cryptographic isolation for a clear and feasible permission model. The ledger makes unilateral post-confirmation rewriting by the platform detectable, but it does not prove that source claims are physically true.
+> We are building a cross-organisation agricultural traceability layer rather than an ERP. Small participants may use the platform PWA, while mature organisations integrate through EPCIS or APIs. The consortium-approved EPCIS trace core is encrypted and replicated in an independently controlled immutable archive so that the trace remains recoverable if the platform fails. A public blockchain stores only event commitments or periodic Merkle roots, making post-confirmation replacement detectable without exposing supply-chain data. Consumers receive an allowlisted public projection, while detailed evidence remains participant-owned and may optionally be hosted by the platform. This design does not claim that blockchain proves the physical truth of source assertions.
