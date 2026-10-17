@@ -593,6 +593,44 @@ Mirror 接收标准化 archive bundle：encrypted canonical payload、wrapped DE
 
 **为什么可以接受：** 这些参与方只承担标准化存储或密钥托管职责，无需验证业务交易或参与共识。一个强制外部副本提供最低恢复保证，自愿 mirrors 可以逐步增加韧性，同时不会让小型参与方承担基础设施义务。
 
+---
+
+## B9. Shipping 与 Receiving 如何形成双边确认？
+
+**决定：** 所有跨组织实物交接都要求 receiver 最终作出独立签名的 ReceivingEvent，但不要求双方共同签署或修改同一个 event。Sender 的 ShippingEvent 与 receiver 的 ReceivingEvent 分别进入 immutable history；平台通过稳定的 `handoverId` 和 event references 派生业务交接状态。
+
+```text
+Sender-signed ShippingEvent
+→ independently CONFIRMED claim: "we shipped these objects"
+
+Receiver-signed ReceivingEvent
+→ independently CONFIRMED claim: "we received/rejected these objects"
+
+Transfer projection
+→ AWAITING_RECEIPT / ACCEPTED / PARTIALLY_ACCEPTED
+  / REJECTED / DISPUTED / UNACKNOWLEDGED
+```
+
+这里必须区分两个正交状态：
+
+- event lifecycle 的 `CONFIRMED` 表示某一组织的声明已经签名、归档并锚定，不表示另一方同意；
+- handover status 表示双方声明能否匹配以及 receiver 是否接受交接。
+
+缺少 ReceivingEvent 不会阻止或删除 ShippingEvent。发货声明可以独立 `CONFIRMED`，但 transfer 保持 `AWAITING_RECEIPT`；超过 profile 定义的期限后变为 `UNACKNOWLEDGED`，不能自动视为接受。这样 receiver 无法通过不响应抹去 sender 的声明，sender 也不能用单方声明制造一条被表示为双方已接受的路径。
+
+ReceivingEvent 不是简单的 approve flag。它必须能够记录实际收到的 identifiers、quantity/unit、time、condition 和差异原因，并引用 `handoverId`、ShippingEvent ID、sender、receiver 与相关 logistic units，以支持分批接收、短缺、损坏、错发和多目的地。无法确定匹配关系时进入 reconciliation/dispute workflow，不静默合并事件。
+
+### 查询和纠错规则
+
+- 普通 accepted-path 或 consumer projection 可以只展示 `ACCEPTED`，或明确标记其他状态；
+- recall、food-safety 和 audit 查询必须保守地包含 `AWAITING_RECEIPT`、`PARTIALLY_ACCEPTED`、`DISPUTED` 和 `UNACKNOWLEDGED` edges，避免争议期间漏掉可能已经实际流转的货物；
+- 已确认的 ShippingEvent 和 ReceivingEvent 不原地修改；数量、关联或状态错误通过引用原事件的 correction event 修正；
+- carrier、sensor 或 inspection events 可以增加证据，但双边确认仍只证明双方作出了相互关联的声明，不能证明物理事实真实，也不能防止双方串谋。
+
+**需要接受的代价：** 系统需要 handover correlation、partial receipt、timeout、reconciliation 和 dispute projection；未及时确认会产生长期非终态 edge，查询必须显示保证等级而不能简单隐藏。
+
+**为什么可以接受：** 两份独立声明保留了不一致本身这一关键证据，也避免由接收方离线或拒绝配合而阻止发货方记录历史。复杂性集中在可重建的 transfer projection，而不是让任意一方修改另一方已经签署的事实声明。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -733,21 +771,7 @@ Consortium Key Service
 
 ---
 
-## C3. Shipping 与 receiving 是否必须形成双边交接状态机？
-
-**当前倾向：** Shipping 和 receiving 保持两个组织的独立声明；平台关联后可以派生 Pending、Accepted、Partial、Rejected 或 Disputed，但是否强制双边确认由 product/transaction profile 决定。
-
-**为什么尚未定案：** 独立声明能防止一方覆盖另一方，但现实流程可能存在代理接收、分批收货、永不确认或多个目的地。将同一状态机强加给所有供应链可能导致大量永久 Pending 和绕过行为。
-
-**已否决：** 一条由任意一方修改的 transfer row，因为无法保留双方不一致；也不应默认每一次物流都必须由双方共同签署同一交易。
-
-**需要接受的代价：** 独立事件带来 reconciliation 和争议处理；profile-specific 规则比一个全局流程更难测试。
-
-**待回答：** 哪些业务步骤需要 receiver confirmation；未确认事件是否仍进入 trace；争议状态对消费者和 recall 查询有什么影响。
-
----
-
-## C4. 第一版是否固定为一个 PostgreSQL？
+## C3. 第一版是否固定为一个 PostgreSQL？
 
 **当前倾向：** 一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；independent trace archive、public chain 和 participant artifact stores 保持外部边界。
 
@@ -761,7 +785,7 @@ Consortium Key Service
 
 ---
 
-## C5. Product Profile 能承担多少产品线差异？
+## C4. Product Profile 能承担多少产品线差异？
 
 **当前倾向：** 稳定 EPCIS core 加 versioned product profiles 是主要扩展机制，但不承诺所有新产品都只需配置、永远无需代码和数据模型变化。
 
@@ -775,7 +799,7 @@ Consortium Key Service
 
 ---
 
-## C6. Trustworthiness 与 scalability 如何排序？
+## C5. Trustworthiness 与 scalability 如何排序？
 
 **当前倾向：** Trustworthiness 决定核心信任边界，但 scalability 仍必须通过可测场景验证；不能用“不是主要问题”跳过 case brief 的多产品和多地区要求。
 
@@ -789,7 +813,7 @@ Consortium Key Service
 
 ---
 
-## C7. 独立控制域的恢复目标和具体运营安排是什么？
+## C6. 独立控制域的恢复目标和具体运营安排是什么？
 
 **已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
 
@@ -808,6 +832,8 @@ Consortium Key Service
 > 本系统是跨组织农业供应链追溯层，而不是农业 ERP。参与方通过 PWA 或既有系统发布联盟 profile 约束的 EPCIS events。消费者只读取公开 projection；联盟成员共享足以重建路径和定位潜在责任方的 canonical EPCIS trace core；商业详情和原始证据作为 participant-owned ProtectedResources，由参与方保存或选择平台托管。系统不声称区块链证明物理事实真实，但要求平台运营者不能单方面静默重写或垄断已经确认的历史。
 
 Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少一个平台控制域之外的 WORM archive；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的外部完整性证明。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台只有有限使用权而没有密钥管理权。
+
+跨组织实物交接由 sender-signed ShippingEvent 与 receiver-signed ReceivingEvent 两份独立声明组成；二者分别确认，平台只派生 handover status。缺少接收确认不会抹去发货声明，争议和未确认 edges 仍进入 recall/audit 查询并明确标记保证等级。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
