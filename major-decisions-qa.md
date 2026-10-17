@@ -892,6 +892,63 @@ IoT provider/device signature 可以证明 bundle 的技术来源，但 canonica
 
 **为什么可以接受：** 高频 telemetry 的容量、商业敏感性和设备多样性远高于共享 trace core。统一 ProtectedResource 模型保留了调查验证能力，也避免把追溯平台扩张为强制的通用 IoT device-management 和 time-series storage platform。
 
+---
+
+## B15. 监管方与监管 ML 是否拥有相同权限？
+
+**决定：** 不拥有相同权限。Regulator organisation/authorised officer 是具有法定或联盟治理职责的正式主体；Regulatory ML service 是目的受限的辅助工具和独立 service identity。ML 不继承监管方人员的全部权限，也不能以“由监管方运营”为理由获得任意 archive、KMS 或 `PRIVATE` data access。
+
+### Permission matrix
+
+| Capability | Regulator / authorised officer | Regulatory ML screening service |
+|---|---|---|
+| Read `PUBLIC` data | Yes | Only when included in its dataset |
+| Read confirmed `CONSORTIUM` trace | Yes, through regulator role | Only purpose-minimised analytics projection |
+| Read complete canonical archive | Through authorised regulator query/recovery path when required | No direct archive/KMS access |
+| Read participant `PRIVATE` evidence | Only for a specific case with recorded legal/governance basis | No in routine screening |
+| Request evidence or exercise legal authority | Yes | No; may only recommend investigation |
+| Create internal risk alert | Yes | Yes, regulator-private advisory output |
+| Sign Inspection/Assessment event | Yes, using regulator organisation key | No |
+| Change handover/event validity | No direct mutation; may publish a new signed regulatory statement | No |
+| Approve consumer safety notice | Authorised regulator process | No |
+| Reuse data for model training | Only under separate approved purpose and policy | Not implied by screening access |
+
+即使 ML runtime 部署在监管机构自己的 cloud account 中，也使用与 regulator human/gateway 分开的 credential、role 和 audit trail。外部 ML provider 只是 regulator 的受约束 data processor，权限不得高于 ML service identity，也不得自行留存、训练或复用数据。
+
+### Routine screening data path
+
+```text
+Confirmed CONSORTIUM trace
+→ Regulatory Analytics Projection
+→ purpose- and field-minimised export with watermark
+→ Regulatory ML Service
+→ regulator-private RiskAlert
+```
+
+Regulatory Analytics Projection 可以包含 confirmed event relationships、handover discrepancies、sensor summaries、missing/delayed evidence status、correction history 和必要 organisation/location identifiers。它不包含 raw IoT telemetry、合同、完整实验室文件、device credentials、signing material 或其他 participant-private resources。ML 无权通过 reference 自动追取对应 ProtectedResource。
+
+Export 记录 dataset/schema version、confirmed-data watermark、purpose、recipient service identity、retention/expiry 和 audit ID。Model output 记录 `alertId`、`modelId/modelVersion`、`runId`、关联 event IDs、reason codes、risk score、data watermark 和生成时间。
+
+### Investigation and formal decision path
+
+```text
+ML RiskAlert
+→ regulator reviews
+→ optional case-specific RegulatoryEvidenceRequest
+→ authorised officer accesses selected PRIVATE resources
+→ human/legal assessment
+→ regulator-signed Inspection/Assessment event
+→ normal archive and anchoring lifecycle
+```
+
+对 `PRIVATE` evidence 的访问必须绑定 case ID、resource IDs、purpose、authorised identity、legal/governance basis、effective/expiry time 和 access audit。该访问权属于监管调查主体，不自动下放给日常批量筛查模型。
+
+ML alert 默认属于 regulator-owned `PRIVATE` data，不能直接进入 consumer projection、改变 event validity、触发法律结论或公开企业风险标签。只有经授权人员复核并以 regulator organisation key 签署的 Inspection/Assessment event 才进入 canonical trace；是否形成 `PUBLIC` safety notice 还需要独立的监管发布流程。
+
+**需要接受的代价：** 平台需要单独的 regulatory analytics projection、service identity、export audit 和 risk-alert store；监管人员调查 private evidence 时走另一条 case-specific authorization path，不能简单复用 ML 的批量数据接口。
+
+**为什么可以接受：** ML 需要足够数据发现异常，但不需要监管机构的全部法定权力。身份和数据路径分离降低了大规模 private-data 暴露、外部模型供应商滥用、误报自动执法以及模型输出泄露企业声誉信息的风险，同时保留监管方依法调查和签署正式结论的能力。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -1065,6 +1122,8 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 依赖故障时，写路径停留在最后一个持久化状态并幂等续跑，不绕过签名、archive acknowledgement 或 public-chain finality；读路径继续提供已有 confirmed data，并通过 watermark、stale status 和安全查询的 fail-closed 行为诚实表达降级。
 
 原始 IoT telemetry 默认作为 participant-controlled PRIVATE ProtectedResource，由参与方自管或选择平台托管；canonical trace 只保存 profile-required sensor summary、异常、provenance、reference 和 content commitment。一体化设备接入不改变数据分类和举证责任。
+
+监管机构与其 ML 工具使用不同身份和权限。监管方可以读取 confirmed consortium trace，并在具体案件中依据记录的法律或治理授权访问选定 private evidence、签署正式监管事件；ML 只读取最小化的 regulatory analytics projection，输出 regulator-private advisory alerts，不能访问任意 private resource、作出监管决定或直接写入 canonical trace。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
