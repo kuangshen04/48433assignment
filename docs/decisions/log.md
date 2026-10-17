@@ -25,6 +25,8 @@ outline: false
 > 2026-10-18 第六次修订：B5 增补第 4 档 `DEVICE_BOUND_SELF_CUSTODY`（组织设备密钥，不引入自然人身份，载体受限）并补 assurance 表；B15 增补「Evidence request 只是一条审计记录」，明确不建工作流。
 >
 > 2026-10-18 第七次修订：B5 移除 `actorId`（canonical trace 与 signature envelope 都不再含自然人标识，B20 同步）；B9 确定配对键为 `bizTransaction(desadv)`；B23 补 `availabilityStatus` 三态语义与 `ENCRYPTION` 密钥生命周期。
+>
+> 2026-10-18 第八次修订：B21 补「跨租户接口」——三条流、六项契约、撤回按追加处理，并确定**上链与否由法律效力决定**（日常 advisory 不上链，正式 Assessment/Recall 作为 canonical event 自然上链）。租户划分与部署判据见 [Operations & Deployment](/systems/operations-deployment)。
 
 本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
 
@@ -1811,6 +1813,48 @@ RuleVersionManifest（进 platform archive + Merkle 锚定）
 - 撤回 = 发新 `RuleVersion`（`supersedes` 指向旧版本），不原地修改；
 - 撤回**不回溯**已签发的 `AdvisoryFinding`：finding 保留自己的 `ruleVersion` 引用与 `expiresAt`，其有效性由 `expiresAt` 和数据 watermark 决定；
 - `activeRuleSetVersion` 变化必须对平台可见，否则平台无法向用户解释"为什么上个月有提示、这个月没有"。
+
+### 跨租户接口：三条流与"什么才上链"
+
+Analytics 在监管方租户里（见系统地图的部署划分），因此原本的内部调用变成三条跨租户流：
+
+```text
+平台 → 监管方    DatasetSnapshot（最小化 + purpose + expiry + watermark）
+监管方 → 平台    RegulationRequirement / RuleVersionManifest（签署后归档并锚定）
+监管方 → 平台    signed AdvisoryFinding（含撤回）
+```
+
+**传输认证不是授权。** mTLS/token 只证明"谁连上来了"；权威性来自 finding 上的监管方签名，平台用 `EventSignatureVerifier` + Organisation Key Registry 验，不为这条流新设信任机制。
+
+契约另外五项：按 `findingId` 幂等；finding 必须回显 `dataWatermark` 且平台不能用当前 watermark 替代；`expiresAt` 到期后停止当前态展示但保留历史；通道活性由平台自己观测；**撤回**按追加处理——同一 `findingId` 重新签名并带 `status: ACTIVE | RETRACTED`，不新增消息类型、不覆盖历史。
+
+#### 上链与否由"法律效力"决定
+
+| 产出 | 法律效力 | 是否上链 | 机制 |
+|---|---|---|---|
+| 日常 advisory / ML 提示（"可能异常"） | 无，只供参考 | **否** | 签名消息 → 平台 advisory store，`expiresAt` 过期 |
+| 实质调查材料（evidence request、finding 汇总、调查笔记） | 过程材料，不对外 | **否** | regulator-private audit，不进 canonical trace（B15/B23） |
+| 正式 Assessment / Inspection / Recall Notice | 有 | **是** | 本来就是 signed canonical event，走正常 capture → archive → anchor |
+
+第三行不需要新机制：**正式声明上链不是"额外锚定"，而是它作为 canonical event 的自然结果**。这也让 B18 的 `VERIFIED_PENDING_ANCHOR` 快速发布保持成立——召回本来就是被锚定的，只是允许先发布后补 finality。
+
+**因此不新增 advisory 的 Merkle leaf。** 代价是 prelim advisory 没有链上痕迹：平台理论上可以事后否认展示过某条提示。缓解手段有两个，都不上链——
+
+1. **发行方留底**：监管方保存自己签发的每一条 finding（它就是 issuer）；
+2. **接收方不可覆盖**：平台 advisory store 保留原始 signed payload 与接收时间，不原地修改。
+
+争议时由双方各自的记录对质；因为 prelim advisory 没有法律效力，这个强度与它的后果是匹配的。
+
+#### 两个健康信号不能混
+
+平台看不到 Analytics 的运行状态，只能看通道，所以必须分别显示：
+
+```text
+analysisHealth           监管方自报（随 finding 或心跳带上）
+advisoryChannelLiveness  平台自己观测：最后一次成功接收的时间
+```
+
+任一为 stale，UI 必须显示"提示可能不完整"；**不能因为"最近没收到 advisory"就暗示"没有风险"**（B13/B21 已有此约束，这里只是多了一个失效来源）。
 
 ### Analytics freshness and failure semantics
 

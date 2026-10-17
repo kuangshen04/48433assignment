@@ -26,6 +26,10 @@
 | **B3 配对键** | 确定为 `bizTransaction(type=desadv)`：发货方签发、收货方必须引用同一个；`EXTERNAL_COUNTERPARTY` 可无；同一产品线只用一种 |
 | **B5 `availabilityStatus`** | 三态 = 两个独立来源的并集（`OBJECT_PRESENT` / `OWNER_ASSERTED` / `UNKNOWN`），规则是"存在 ≠ 可读""未知 ≠ 不存在" |
 | **B6 `ENCRYPTION` 密钥生命周期** | 撤销只阻止再加密、旧私钥保留到对应密文删除、丢失即永久不可解；`recipientKeyRefs` 必须带 `keyId`，与 retention 终态联动 |
+| **C1 Analytics 租户归属** | 软件平台构建、**运行在监管方账户**；判据是"谁掌握控制平面"（掌握 ⇒ 可读明文），因此同集群+无 DB key 不算隔离。整个 Analytics 一起搬（拆开会让规则正文外泄）；平台不持运行时凭据、不能远程推送 |
+| **C2 `RegulationRequirement`** | 独立 artifact，监管方签署，绑定已有字段或用同一 primitive 类型新声明；地板编译 = 模块 manifest ∪ 适用辖区要求 |
+| **C3 Insights 边界** | 主要服务监管问责与召回；允许无归属的跨组织聚合，**禁止点名排名与绩效画像**；不接外部业务数据、不预测、不写回 |
+| **C4 跨租户契约** | 三条流 + 六项契约；撤回用同一 `findingId` 重签 `status`；**上链由法律效力决定**——日常 advisory 不上链，正式 Assessment/Recall 作为 canonical event 自然上链 |
 | 文档迁移 | `major-decisions-qa.md` 移入本站为[完整决策日志](/decisions/log) |
 
 ---

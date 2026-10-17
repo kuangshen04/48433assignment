@@ -96,6 +96,49 @@ approved rule/finding
   -> permitted participant reminder
 ```
 
+## 跨租户接口
+
+本子系统跑在监管方租户里，所以和平台之间只有三条流，且都是签名消息：
+
+```text
+平台 → 监管方    DatasetSnapshot（最小化 + purpose + expiry + watermark）
+监管方 → 平台    RegulationRequirement / RuleVersionManifest（归档并锚定）
+监管方 → 平台    signed AdvisoryFinding（含撤回）
+```
+
+**传输认证不是授权**：mTLS/token 只证明调用方身份，权威性来自监管方签名，平台用 `EventSignatureVerifier` + Organisation Key Registry 验。
+
+| 契约项 | 约定 |
+|---|---|
+| 幂等 | 按 `findingId` 去重，重复推送不产生多条 |
+| watermark 回显 | finding 携带 `dataWatermark`，平台不能用当前 watermark 替代 |
+| 过期 | `expiresAt` 到期停止当前态展示，历史保留 |
+| 撤回 | 同一 `findingId` 重新签名并带 `status: ACTIVE \| RETRACTED`，追加不覆盖 |
+| 通道活性 | 平台自观测，与监管方自报的 `analysisHealth` 分开显示 |
+
+### 什么才上链：由法律效力决定
+
+| 产出 | 法律效力 | 上链 | 机制 |
+|---|---|---|---|
+| 日常 advisory / ML 提示 | 无，仅供参照 | **否** | 签名消息 + 平台 advisory store，按 `expiresAt` 过期 |
+| 实质调查材料（evidence request、调查笔记） | 过程材料 | **否** | regulator-private audit，不进 canonical trace |
+| 正式 Assessment / Inspection / Recall Notice | 有 | **是** | 本身就是 signed canonical event，走正常 capture → archive → anchor |
+
+第三行不需要额外机制——**正式声明上链是它作为 canonical event 的自然结果**，不是额外的"锚定动作"。
+
+**不新增 advisory 的 Merkle leaf。** 代价是 prelim advisory 没有链上痕迹，平台理论上可事后否认曾展示某条提示；缓解靠两点，都不上链：发行方（监管方）自己留底、平台 advisory store 保留原始 signed payload 与接收时间且不原地修改。因为 prelim advisory 没有法律效力，这个强度与后果是匹配的。
+
+### 两个健康信号不能混
+
+平台看不到 Analytics 的运行状态，只能看通道：
+
+```text
+analysisHealth            监管方自报
+advisoryChannelLiveness   平台自观测：最后一次成功接收时间
+```
+
+任一为 stale，UI 必须显示"提示可能不完整"，不能因为"最近没收到 advisory"就暗示"没有风险"。
+
 `AdvisoryFinding` 至少绑定 issuer、rule/version、affected references、severity/reason codes、data watermark、generated/expiry time、disclosure scope 和 regulator signature。它不进入 canonical trace，不改变 event validity，也不自动成为 recall。
 
 ### 基础规则如何授权给平台

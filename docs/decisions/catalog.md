@@ -201,6 +201,10 @@
 
 **`RuleVersion` 的锚定：** 规则正文留在监管域，只把 `RuleVersionManifest`（ruleId/version、issuer、effective、scope、`ruleBodyDigest`、disclosures、签名）放进 platform archive 与 Merkle 锚定——这样"当时依据哪条规则"可事后验证，又不会把筛查规则正文暴露给全体成员。撤回通过发布新版本实现，不回溯已签发的 finding。
 
+**跨租户接口（三条流）：** 平台 → 监管方送 `DatasetSnapshot`；监管方 → 平台送 `RegulationRequirement` / `RuleVersionManifest`（归档并锚定）与 signed `AdvisoryFinding`。**传输认证不是授权**——权威性来自监管方签名。finding 按 `findingId` 幂等、回显 `dataWatermark`、`expiresAt` 到期即停展示；撤回用同一 `findingId` 重签并带 `status: ACTIVE | RETRACTED`（追加不覆盖）。
+
+**上链由法律效力决定：** 日常 advisory / ML 提示**不上链**（只供参照、无法律效力）；实质调查材料留在 regulator-private audit；正式 Assessment / Inspection / Recall Notice 上链——因为它们**本来就是 signed canonical event**，不是额外锚定。因此不新增 advisory 的 Merkle leaf；代价是 prelim advisory 无链上痕迹，靠发行方留底 + 平台 advisory store 不可覆盖缓解。`analysisHealth`（监管方自报）与 `advisoryChannelLiveness`（平台自观测）必须分开显示。
+
 <a id="b22"></a>
 ### B22 · 使用显式、可测试的 NSW pilot 数量假设
 
