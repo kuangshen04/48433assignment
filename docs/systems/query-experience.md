@@ -38,6 +38,8 @@ Recall 是对共享 consortium lineage 的保守、可复现遍历，不是实�
 
 结果语义是 `possibly affected based on available claims`，不是污染或责任结论。超过同步 10,000 edges 或接近响应限制时转为固定 watermark 的异步 export。
 
+**遍历范围受 scope 限制。** 普通成员能运行的遍历只覆盖自己的 scope（B3），结果必须标注 `scope-limited`，不能当作权威影响范围；权威遍历由全 scope 方在同一 watermark 和同一遍历规则下执行。超出 scope 的节点显示为“存在但不在可见范围内”，不能当作不存在。
+
 ## Freshness 契约
 
 每个 projection 显示：

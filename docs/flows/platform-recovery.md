@@ -11,6 +11,7 @@
 2. Discover archive catalogue/manifests without platform database
 3. Verify ArchiveAck signatures and stored envelope/ciphertext digests
 4. Authenticate authorised recovery organisation/regulator
+5. Determine the requester's scope（B3：成员仅恢复自身 scope；完整历史需全 scope 身份）
 5. Use non-platform KMS recovery identity to unwrap DEKs
 6. Decrypt payload and verify canonicalPayloadDigest
 7. Verify participant signatures, profile and key history

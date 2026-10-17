@@ -70,6 +70,8 @@
 | Analytics 停止两小时 | Trace 继续，UI 明确显示 risk assessment unavailable |
 | 冲突 Transformation claims | Core 保留双方，Analytics 可独立提示风险 |
 | Recall 时 public chain 不可用 | Official notice 快速发布但不伪装为 confirmed event |
+| 成员只持有自身 scope（B3） | 能验证日志连续性与自己记录的 inclusion；不能重建完整历史，且把不可见节点显示为不可见而不是不存在 |
+| 成员加入后要访问加入前历史 | 默认不自动获得旧 epoch；历史访问走显式治理授予并可审计 |
 | Australian primary region 故障 | Archive catalogue、KMS recovery 与 core service 满足目标恢复路径 |
 
 ## 最终报告的关闭标准

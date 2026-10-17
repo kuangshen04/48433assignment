@@ -29,6 +29,8 @@ Shipping/Receiving object -> all claimed destinations/custodians
 
 结果按 B17 的 non-collapsing 规则呈现：竞争边并存显示，不排序、不打分、不选代表路径。任何 impact 结论都必须能追溯回它依赖的断言集合与 watermark。
 
+结果还要标注**遍历范围**：成员自行运行得到的是 `scope-limited` 结果（B3），只能说明“在我的可见范围内可能受影响”；权威影响范围由全 scope 方（监管方、审计者或受托恢复方）执行同一遍历得到。超出 scope 的节点必须显示为“存在但不可见”，不能静默视为不存在。
+
 输出语义始终是：
 
 > possibly affected based on available claims at watermark W

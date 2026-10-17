@@ -6,6 +6,8 @@
 
 目标是让平台运营者无法单方面静默改写、删除或垄断已接受的追溯历史，并让授权主体能够在平台失效后恢复最小完整 trace。
 
+“不受平台单方控制”需要按能力区分（B3）：任一成员都能**验证**历史是 append-only 且自己的记录被纳入——这不需要明文，也不需要信任平台；但**重建**范围受 scope 限制，完整历史的重建由全 scope 方（监管方、审计者或受托恢复方）执行。完整性保证不因这个收窄而下降。
+
 ::: warning 为什么必须存在这个不完全信任场景
 Blockchain 是题目明确要求的架构元素。若参与方完全信任平台，并由平台单独控制数据、备份、密钥和验证结果，那么普通 managed database + WORM backup 已经足够，区块链没有独立作用。B1 因而有意把确认后完整性证明放到平台控制域之外；如果独立控制域在实际部署中只是名义独立，方案仍是 blockchain theatre。
 :::
@@ -44,6 +46,8 @@ EncryptedArchiveEnvelope
 ```
 
 事件身份、明文 digest、签名 digest、key epoch 和版本作为 authenticated metadata。Archive Operator 不解密业务内容，只对实际保存的 envelope/ciphertext bytes 签发 `ArchiveAck`。
+
+`keyId/keyEpoch` 只是 envelope 元数据，不进入 canonical payload、签名输入或 Merkle leaf。因此将来增加第二类受众只需新增 key 与治理关系，不必变更 canonicalisation、签名、leaf 或 anchor 格式；但它同时是成员可解密范围的唯一依据，所以 epoch 的授予必须有治理记录。
 
 ## ArchiveAck 与公共 commitment
 

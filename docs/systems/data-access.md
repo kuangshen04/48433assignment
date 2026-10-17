@@ -12,6 +12,20 @@
 
 “所有 active consortium participants 可读取 canonical trace core”是试点共享协议的强业务假设，不是密码学必然结果。若利益相关方拒绝该假设，需要重新引入 scoped ABAC、private collections 或 selective disclosure。
 
+## 验证与重建不是同一件事
+
+扁平可见性不等于“任一成员能读全部历史”。按 B3：
+
+| 能力 | 谁可以做 |
+|---|---|
+| 验证日志 append-only、自己的记录已纳入批次、批次序列无断裂 | 任一成员（inclusion + consistency proof） |
+| 重建并验证某条记录 | 持有该事件 scope 的成员 |
+| 重建并验证完整历史 | 全 scope 方：监管方、审计者、受托恢复方 |
+
+KEK epoch 同时构成时间边界：新成员默认只拿到当前及之后的 epoch，加入前的历史明文访问需要显式治理授予。**这是对能力声明的收窄，不影响完整性保证**——完整性验证不需要明文。
+
+这也决定了 B7 的一项要求：批次 root 必须构成可验证的 append-only 序列（running hash chain 或 consistency proof），否则“成员可独立验证”只剩单批次 inclusion，不覆盖“没有批次被跳过”。
+
 ## ProtectedResource
 
 不能进入共享 trace 的大型或敏感内容使用统一 ProtectedResource 模型：

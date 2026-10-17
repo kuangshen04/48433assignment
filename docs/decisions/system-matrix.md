@@ -22,7 +22,8 @@
 |---|---|---|
 | `CONFIRMED` 只表示 signed + archived + finalised | Core + Archive/Anchor | 所有 projections、Analytics |
 | 判定只能以签署声明进入历史（Error Declaration / signed notice / signed assessment） | Core + Identity/Governance | 所有 projections、Analytics |
-| 竞争断言必须并存显示，不得折叠为单一路径 | Traceability Core projections | Query、Recall、Consumer、Analytics |
+| 竞争断言必须并存显示，不得折叠为单一路径（相对 scope） | Traceability Core projections | Query、Recall、Consumer、Analytics |
+| 完整性可验证不需要明文，但重建受 scope 限制 | Trust & Recovery / KMS epoch | Core rebuild、Query、Recall |
 | Participant time 不是可信签署时间 | Identity/Signature validation | Core、Governance、offline UI |
 | Platform DB 不是唯一历史 | Archive/Recovery | Core rebuild、Operations |
 | Profile 不产生合规结论 | Profile/Core | IoT、Analytics、UI |

@@ -9,6 +9,8 @@
 - **Open**：边界已确定，但产品、参数或运营主体仍需关闭。
 
 > 2026-10-18 修订：B17 改为“记录断言 / 签署判定”两分，并补上 non-collapsing 表示义务；B21 明确 Regulatory Analytics 位于系统边界内、但属监管方独立运行时域，因此承担 C4 分解责任。B15、B18 相应补充。
+>
+> 2026-10-18 修订（第二次）：B3 增加“验证与重建分开”的保证范围，并明确 KEK epoch 的历史访问语义；B2、B17、B18、B7 相应收窄。原因见日志 B3 的“保证范围”一节。
 
 ## 第一层：背景充分支持的决定
 
@@ -64,12 +66,16 @@
 <a id="b2"></a>
 ### B2 · 平台失效后恢复最小完整 trace
 
-**Conditional baseline.** 恢复范围包括 canonical EPCIS、signatures、profiles、identity/key/governance history 和 chain/archive metadata，不强制恢复所有 raw telemetry 与业务附件。
+**Conditional baseline.** 恢复范围包括 canonical EPCIS、signatures、profiles、identity/key/governance history 和 chain/archive metadata，不强制恢复所有 raw telemetry 与业务附件。按 B3 的划分，各成员恢复自己的 scope，完整联盟历史由全 scope 方（监管方、审计者、受托恢复方）恢复；`logical RPO=0` 衡量"存在且可恢复"，不要求每个成员都能恢复全部。
 
 <a id="b3"></a>
 ### B3 · PUBLIC / CONSORTIUM / PRIVATE 三层数据模型
 
 **Conditional baseline.** Active consortium participants 共享 canonical trace core；消费者只读 allowlisted public projection；敏感证据是 owner-controlled ProtectedResource。联盟内广泛共享是假设，需利益相关方验证。
+
+**保证范围（验证 ≠ 重建）：** 任一成员可独立验证"历史是一条 append-only 日志、自己的记录已被纳入"（inclusion + consistency proof），并可重建自己 scope 内的历史；完整历史的重建与语义验证由全 scope 方执行。这是对**能力声明**的收窄，不影响 B1 的完整性保证——完整性验证不需要明文。
+
+**Epoch 与历史访问：** 新成员默认只获得当前及之后的 KEK epoch，不自动取得加入前的明文访问权；历史访问是显式治理授予。v1 的 scope = 全体 active 成员（扁平）；按 trace 收窄是治理参数，因为 `keyId/keyEpoch` 只是 envelope 元数据，变更不影响 canonicalisation、签名与 anchor 格式。
 
 <a id="b4"></a>
 ### B4 · 保证限制在可归责与确认后完整性
@@ -89,7 +95,7 @@
 <a id="b7"></a>
 ### B7 · 固定窗口 deterministic Merkle batching
 
-**Baseline.** 平台 relayer 提交 versioned Merkle root；leaf 绑定 event identity、canonical digest、signature digest 和 ArchiveAck digest。首版不要求 secondary relayer。
+**Baseline.** 平台 relayer 提交 versioned Merkle root；leaf 绑定 event identity、canonical digest、signature digest 和 ArchiveAck digest。首版不要求 secondary relayer。**批次序列本身必须可验证**：root 承诺前序 root（running hash chain）或采用支持 consistency proof 的 log 结构——只有独立 root 时无法证明"没有批次被跳过或重排"，而这是 B3 中成员可独立验证的那一半。
 
 <a id="b8"></a>
 ### B8 · 一个强制独立归档 + 联盟控制 KMS
@@ -141,14 +147,14 @@
 
 **Baseline.** Core 只做 admission/protocol validation，并原样保留相互冲突的 signed assertions；它不判定哪一条冲突声明为真（例如同一序列化对象被两项 transformation 分别声称消耗时，核心无从观察现实），也不产生 anomaly、mass balance、fraud 或 compliance verdict。判定只能由有权主体以签署声明进入历史：EPCIS Error Declaration、signed Recall/Safety Notice，或 regulator-signed Assessment/Inspection。
 
-**必须配对的表示义务（non-collapsing）：** lineage、recall、handover 和 audit 的默认视图不得把竞争断言折叠成一条路径，必须多边并存并保留 provenance，不排序、不打分、不选代表路径。平台不得创建 `UNRESOLVED_INPUT` 这类 verdict；但“该对象存在两条由不同组织发布、无法相互衔接的已确认断言”属于 provenance fact，必须可见。
+**必须配对的表示义务（non-collapsing）：** lineage、recall、handover 和 audit 的默认视图不得把竞争断言折叠成一条路径，必须多边并存并保留 provenance，不排序、不打分、不选代表路径。**该义务相对 scope**：可读范围内的竞争必须并存；超出 scope 的内容显示为“存在但不在你的可见范围内”，不得静默丢弃或合并。平台不得创建 `UNRESOLVED_INPUT` 这类 verdict；但“该对象存在两条由不同组织发布、无法相互衔接的已确认断言”属于 provenance fact，必须可见。
 
 **为什么是项目成立前提：** 平台不知道不同产品、地区和监管制度下的权威领域规则，无权自行发明；它同时无法观察现实，因此连“哪条冲突声明为真”都不能判断。普通 deterministic heuristics 与高级 statistics/optional ML 因而统一放在 Regulatory Analytics 中，由监管方配置、版本化、审计并承担规则责任。Optional 的是 ML 技术，不是该核心业务子系统。
 
 <a id="b18"></a>
 ### B18 · Recall 是保守 lineage query，不是物理下架
 
-**Baseline.** 平台查询可能受影响对象、展示授权 notice 和记录后续 claims；ERP/WMS/POS 与人员执行封存、下架、退货和销毁。结果按 B17 的 non-collapsing 规则呈现：竞争边并存，不选代表路径、不打分；`confirmedImpact` 与 `recentPendingClaims` 分开展示，不静默混入。
+**Baseline.** 平台查询可能受影响对象、展示授权 notice 和记录后续 claims；ERP/WMS/POS 与人员执行封存、下架、退货和销毁。结果按 B17 的 non-collapsing 规则呈现：竞争边并存，不选代表路径、不打分；`confirmedImpact` 与 `recentPendingClaims` 分开展示，不静默混入。**成员自行运行的遍历只覆盖其 scope，必须标注 `scope-limited`，不能作为权威影响范围**；权威遍历由全 scope 方在同一 watermark 与同一遍历规则下执行。
 
 <a id="b19"></a>
 ### B19 · 标识符由参与方分配，QR 不是防伪证明

@@ -193,7 +193,7 @@ Normative basis: <https://ref.gs1.org/standards/epcis/2.0.1/#ErrorDeclaration>
 
 **决定：** 在适用 retention period 和 legal hold 内，必须恢复联盟 network profile 中的完整 canonical EPCIS shared trace，包括事件、对象关系和纠错历史。原始证据和企业内部资料不属于强制恢复范围；retention 到期后的保证按 B20 收窄为 commitment 与删除审计可验证，而非 payload 永久可恢复。
 
-**边界条件/假设：** 平台失效后，参与方或审计者至少需要判断产品经历了哪些阶段、数据由谁发布、在哪一环出现矛盾，以及应向哪一方索取证据。
+**边界条件/假设：** 平台失效后，需要判断产品经历了哪些阶段、由谁发布、在哪一环出现矛盾，以及应向哪一方索取证据。按 B3 的"验证与重建"划分，这由两类主体分担：持有相应 scope 的成员恢复自己的范围；完整联盟历史由全 scope 方（监管方、审计者或受托恢复方）恢复。`logical RPO=0` 衡量的是"存在且可恢复"，不要求每个成员都能恢复全部 payload。
 
 **为什么这样定：** 公链 commitment 只能验证拿到的内容是否匹配，不能从 hash 恢复 payload；只有平台 PostgreSQL 保存完整事件时，平台仍然是唯一数据可用性来源。
 
@@ -294,6 +294,26 @@ ProtectedResource
 | Platform Operator | 托管 | 托管 | 仅为托管/运维技术访问，并记录审计日志 |
 | Archive Operator | 不因运行归档获得消费者身份 | 保存 ciphertext，不因运维自动获得明文权限 | 仅保存平台托管的资源时按审计流程访问 |
 
+### 保证范围：验证与重建分开
+
+扁平可见性容易被读成"任一成员可以重建完整联盟历史"。更准确的说法是把两种能力分开：
+
+| 能力 | 需要明文吗 | 谁可以做 |
+|---|---|---|
+| 验证历史存在且不可重写：自己的记录被包含在某个已 finalise 批次、批次序列无断裂 | 不需要 | 任一成员（inclusion proof + consistency proof） |
+| 重建并验证某条记录的内容、签名与语义 | 需要该事件的 canonical payload | 持有该事件 scope 的成员 |
+| 重建并验证完整联盟历史 | 需要全部明文 | 全 scope 方：监管方、审计者、受托恢复方 |
+
+即：
+
+> 任一成员可以独立验证历史是一条 append-only 日志、且自己的记录被纳入其中；可以重建并验证自己 scope 内的历史。完整历史的重建与语义验证由全 scope 方执行，其结论对任何拥有相应 scope 的一方可以复核。
+
+这样定的理由是：B1 的保证是**完整性**，而完整性验证不需要明文——成员靠 root 序列、inclusion proof 和 consistency proof 就能证明"我的记录在这条链里，且这条链没有被重写"。扁平可见性额外提供的"我能读别人的全部记录"对防篡改没有贡献，它服务的是恢复能力；而恢复能力可以由全 scope 方承担。
+
+反过来，如果按 trace 收窄重建范围（只让当事人解密自己经手的批次），独立验证能力不变，但"任一成员可自行重建整条链"会退回到受托方一级。因此 v1 仍按扁平运行（scope = 全体 active 成员）；收窄是治理参数，不是架构重写。
+
+**这条降低的是能力声明，不是安全保证。** 受影响的下游表述见 B2（恢复主体）、B7（consistency proof）、B17（non-collapsing 相对 scope）、B18（成员召回范围受限）。
+
 ### 分类判据
 
 > 没有该数据，联盟是否仍能重建产品经过的组织、阶段和转换关系，并定位潜在责任方？
@@ -321,6 +341,10 @@ Event DEK
 Consortium KEK 保存在专业 managed KMS/HSM 中，不把同一个 private key 文件复制给所有成员。承载 KEK 的 cloud/KMS account 必须由联盟或独立受托方控制，而不是平台运营者自己的管理员账号。平台只获得日常加解密所需的最小使用权限，不获得 key policy、disable、deletion 或 recovery 管理权限。
 
 成员通过 organisation identity 获得解密权限；成员变化后启用新 key epoch。Revocation 只能阻止未来获取，不能撤回成员已经下载的明文。使用 AWS、Azure 或其他专业 KMS 降低了密钥存储和运维风险，但真正决定权力边界的是 account ownership、key policy 和 recovery authority，而不是供应商品牌。
+
+Epoch 同时定义了**时间维度上的访问边界**：新加入的成员默认只获得当前及之后的 epoch，不会自动取得加入前的历史明文访问权；历史访问是显式的治理授予，由 B16 的 `GovernanceRecord` 记录。这直接决定了上节"验证与重建"的分界——加入前发生了什么，成员能验证日志连续性，但不一定能重建内容。
+
+`keyId/keyEpoch` 是 archive envelope 的元数据，不进入 canonical payload、不进入签名输入、不进入 Merkle leaf。因此将来若需要第二类受众（例如只对监管方开放的提交），只需新增 key 与治理关系，不必变更 canonicalisation、签名、leaf 或 anchor 格式。
 
 公共链只保存 ciphertext/archive manifest 的 hash 或 Merkle root，不保存 plaintext、DEK 或可直接揭示供应链关系的 metadata。
 
@@ -628,6 +652,8 @@ Signed canonical event
 Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、hash/canonicalisation algorithm、Merkle root 和 archive reference，并与 event payload 一起独立归档。每个 versioned Merkle leaf 绑定 `networkId + captureRecordId + epcisEventId + canonicalPayloadDigest + participantSignatureDigest + ArchiveAckDigest`；字段顺序、长度编码和 hash algorithm 由 canonicalisation version 固定。相同输入必须能够重建相同 root；参与方不需要信任平台提供的查询结果即可验证 inclusion proof。
 
 第一版不设置 independent secondary relayer。平台漏提或延迟提交时，receipt、archive copy 和逾期的 expected anchor window 会留下可审计的不一致，但不会自动绕过平台的 censorship。若实际治理要求在平台失效时仍能继续提交，可在不改变 event、archive 和 proof 格式的前提下增加 archive operator 或 auditor relayer。
+
+**批次序列必须可验证，而不是只有单批次可验证。** B3 把"成员可独立验证历史未被重写"写成了保证的一半，而彼此独立的 root 只提供 inclusion proof，不能证明"没有批次被跳过、没有批次被重排"。因此 root 必须构成可验证的 append-only 序列：每个 root 承诺其前序 root（running hash chain），或采用支持 consistency proof 的 transparency-log 结构。**这一条是 B3 保证范围的技术前提，不是可选优化。**
 
 **未采用逐事件上链：** 它的 proof 更直接、确认等待通常更短，但每个 event 都产生链上交易，成本、nonce 管理和故障恢复随业务量增长。Merkle batching 把链上职责压缩为定期发布少量 root，更符合“公链只负责外部 existence/integrity checkpoint”的边界；链上 inclusion time 不证明业务 `eventTime`。
 
@@ -1247,6 +1273,8 @@ Lineage/query projection 必须容忍 unknown references、多条竞争关系和
 
 “不创建判断状态”和“必须暴露断言冲突”并不矛盾：前者是 platform verdict，禁止；后者是关于已提交断言集合的 provenance fact，必须可见。
 
+在 B3 的 scope 模型下，这条性质是**相对 scope** 的：竞争断言必须在调用者可读范围内并存显示，不得因为部分内容超出 scope 就把它呈现为单一路径。超出 scope 的内容应显示为"存在该记录但不在你的可见范围内"，而不是被静默丢弃或合并。
+
 对同一对象的全部已确认断言，lineage、recall impact、handover 和 audit 的**默认视图不得折叠为一条路径**，也不得为竞争边排序、打分或选择“代表路径”（平台不产生置信度）。每条边至少保留 B18 定义的 provenance 字段。
 
 Recall/food-safety 查询尤其不能折叠：任何“受影响 / 未受影响”的结论都必须能追溯到它所依赖的断言集合和 watermark；当依赖集合包含竞争边时，结果必须显示该竞争关系，而不是取其一。Consumer projection 受 `PUBLIC` allowlist 约束，但同样不得在存在竞争断言时呈现为单一路径；具体披露措辞可与消费者视图的合规审查一并确定。
@@ -1299,7 +1327,7 @@ Regulator/responsible organisation decides recall externally
 
 Recall impact query 只遍历所有 active consortium members 原本可读的 canonical trace fields，因此不引入单独权限层。Raw IoT、完整 laboratory reports、contracts 和 investigation notes 仍是 `PRIVATE` ProtectedResources；只有调查确实需要时，才通过已有 case-specific regulator/participant access path 获取。
 
-查询本身可以由普通联盟成员运行；但发布正式 recall status、改变 consumer projection 或签署监管结论仍要求 responsible-organisation 或 regulator authority。Regulatory Analytics/ML alert 不能自动成为 recall。
+查询本身可以由普通联盟成员运行；但发布正式 recall status、改变 consumer projection 或签署监管结论仍要求 responsible-organisation 或 regulator authority。按 B3，成员自行运行的遍历只覆盖其 scope，结果必须标注 `scope-limited`，不能作为权威影响范围；权威的保守遍历由全 scope 方执行，两者使用同一 watermark 和同一遍历规则。Regulatory Analytics/ML alert 不能自动成为 recall。
 
 ### Conservative lineage traversal
 
