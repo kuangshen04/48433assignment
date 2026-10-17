@@ -17,6 +17,8 @@ outline: false
 > 2026-10-18 第二次修订：新增 **B23（PRIVATE 零知识模型与证据层分享）** 与 **B24（平台以组织为身份与访问单元）**；B3 的 `PRIVATE` 数据层、ProtectedResource 模型与访问矩阵，以及 B14、B15、B18、B20、B16 中与“平台可读私有证据”相关的表述一并修正。
 >
 > 2026-10-18 第三次修订：B3 新增「核心字段地板」并把数量归类与标识粒度绑定；B11 新增 Profile 的三条硬约束（含 conformance check）与扩展字段判据，明确 profile 不得把核心字段设为 optional。
+>
+> 2026-10-18 第四次修订：新增 **B25（Core / Semantic Module 分层与不变量）**，把 handover 状态、召回遍历策略、合规重建、分析输入、洞察统计移出 Core；B3 地板改为由模块 manifest 编译、B9 补配对键义务、B18 明确遍历策略归属、B11 补编译步骤、B21 指明投影由 AnalyticsInputModule 生产。
 
 本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
 
@@ -361,6 +363,11 @@ instance 级事件（SSCC 整车 / 整托、序列化单品）
 **为什么不能完全下放给 profile：** 字段只要进 canonical event 就是 `CONSORTIUM` 可见（B23 已确立没有中间档），所以 profile 能做的只有"放进 event"或"不放"。如果连核心字段也交给 profile 决定，就可能出现"某产品线没有数量、因此不支持部分收货与批量筛查"却仍被当作已实现的能力——这需要显式记录，而不是靠遗漏。
 
 **profile 仍可决定的是**哪些扩展字段、哪些证据要求、哪条公开 allowlist；这些交给 schema 阶段由产品工作组识别，见 B11。
+
+**这张地板表的来源（B25）：** 上表不是手写清单，而是**所有 ACTIVE 语义模块 manifest 的 `requiresFields` 并集**编译后冻结进 profile 版本的结果。推论有两条：
+
+- 没有消费者的字段不进地板。例如 `readPoint` 目前没有模块声明为必需，因此默认 optional，只作为争议与审计证据存在；`bizLocation` 由 RecallModule 与 ConsumerModule 声明，仍是必填。
+- 新增模块会收紧地板，属治理变更（`GovernanceRecord`），不能由开发流程静默完成。
 
 ### Consortium archive encryption
 
@@ -793,7 +800,11 @@ Recovery identity、KMS policy、archive catalogue/export endpoint、profile/key
 
 ## B9. Shipping 与 Receiving 如何形成双边确认？
 
-**决定：** 当实物交接双方都是联盟内已注册组织时，B2B handover 要求 receiver 最终作出独立签名的 receiving claim，但不要求双方共同签署或修改同一个 event。文档中的 `ShippingEvent/ReceivingEvent` 是领域简称；EPCIS 接口使用标准 `ObjectEvent`（或 profile 允许的相应标准 event）配合 `bizStep=shipping/receiving`、source/destination 和 disposition 表达。双方 claims 分别进入 immutable history；平台通过稳定的 `handoverId` 和 event references 派生业务交接状态。
+**决定：** 当实物交接双方都是联盟内已注册组织时，B2B handover 要求 receiver 最终作出独立签名的 receiving claim，但不要求双方共同签署或修改同一个 event。文档中的 `ShippingEvent/ReceivingEvent` 是领域简称；EPCIS 接口使用标准 `ObjectEvent`（或 profile 允许的相应标准 event）配合 `bizStep=shipping/receiving`、source/destination 和 disposition 表达。双方 claims 分别进入 immutable history。
+
+**谁派生 handover 状态：** 按 B25，Core 只存两份 claim 与它们的配对引用，不产生交接状态；**状态由 HandoverModule 派生**，作为可重建投影存在，并由该模块的 manifest 声明它需要的 `requiresPairingKey`。
+
+**配对键必须稳定。** 如果发货方和收货方各自引用自己的单据编号，两个 URI 配不上，`ACCEPTED` 就退化成"标识符 + 时间窗 + 双方组织"的启发式匹配，`PARTIALLY_ACCEPTED` 在实践中不可靠。因此 profile 必须指定唯一的配对键类型，并由**收货方在其 receiving claim 中引用发货方签发的那个键**（候选实现：`bizTransaction` 的 desadv，见待办 T13）。若无法配对，进入 reconciliation/dispute，不静默合并。
 
 ```text
 Sender-signed ShippingEvent
@@ -918,6 +929,8 @@ profile conformance check（在 PUBLISH 之前执行）
 - consumerProjectionAllowlist 引用未在 schema 中的字段 -> 失败
 - 声明了 profile 不支持的 unit 或 vocabulary          -> 失败
 ```
+
+**地板清单由模块 manifest 编译而来（B25），不是手写维护。** 发布 profile 时执行两步：① 把所有 ACTIVE 语义模块的 `requiresFields` 并集编译成该版本的地板；② 用地板 + 上面这份清单做 conformance check。地板一旦发布即冻结，后续模块新增字段必须发新 profile 版本并走治理，否则历史事件会按新规则被重新解释——这违反 B2 的恢复要求。
 
 ### 扩展字段的判据（给 schema 作者用）
 
@@ -1175,6 +1188,8 @@ Regulatory Analytics Projection 可以包含 confirmed event relationships、han
 
 Analytics service **不能任意追取** ProtectedResource；唯一例外是 B23 的窄通道：所有者提交时已把内容加密给监管 scope，Analytics 可用自有密钥解密并对照 commitment 校验。授权来自所有者，不是来自平台或 Analytics 的权限扩张。
 
+按 B25，这条投影由 **AnalyticsInputModule** 生产：它把"最小化到哪些字段、按什么 watermark、如何按目的打包"写在自己的 manifest 里，Core 只提供经 `QueryPort` 过滤后的 edge group。这样新增一类筛查数据是改 manifest + 发新 profile，而不是改 Core。
+
 Export 记录 dataset/schema version、confirmed-data watermark、purpose、recipient service identity、retention/expiry 和 audit ID。Model output 记录 `alertId`、`modelId/modelVersion`、`runId`、关联 event IDs、reason codes、risk score、data watermark 和生成时间。
 
 ### Investigation and formal decision path
@@ -1393,11 +1408,13 @@ Confirmed source assertions
 ```text
 Regulator/responsible organisation decides recall externally
 → submits signed recall notice or recalled EPCIS statement
-→ platform performs conservative lineage traversal
+→ RecallModule（B25）按声明的边类型与时间范围做保守遍历
 → consortium/public recall projection
 → participant ERP/WMS/POS and staff execute physical actions
 → optional subsequent EPCIS action claims
 ```
+
+按 B25，**遍历策略归 RecallModule，不归 Core**：Core 只提供带 scope、non-collapsing 和 watermark 的边查询；哪些边类型要跟、时间范围怎么截取、哪些 handover 状态必须保守纳入，写在模块 manifest 里，由监管方与联盟治理共同评审。这样新增一类证据（例如新的关联事件类型）不需要改 Core。
 
 参与方可以随后提交 recalled、quarantined、returned、destroying/decommissioning 等事件，记录其声称采取的行动；平台不远程控制外部库存系统，也不把通知送达解释为物理下架完成。
 
@@ -1910,6 +1927,106 @@ authenticated subject       由外部 IdP 断言
 **承受的代价：** 合作社/集团要在平台上注册多个组织，onboarding 成本上升；参与方内部权限变更需走 delegation 更新，不会随 HR 系统自动生效。
 
 **为什么可以接受：** 组织数量增加是一次性 onboarding 成本，而组织层级会污染每一个下游决策（scope、epoch、归因、召回范围）。宁可多注册几个组织。
+
+---
+
+## B25. Traceability Core 与业务语义如何分工？
+
+**决定：** 把 Core 收缩为**机制**——接收、验证、追加、确认、归档/锚定，以及只由 EPCIS 标准语义导出的证据图。业务语义（handover 状态、召回遍历策略、合规重建、分析输入、运营洞察）作为**同进程内的语义模块**，通过唯一的 `QueryPort` 读取事实，各自维护可重建投影。**Core 不认识任何模块。**
+
+**这是分层，不是微服务。** 模块同进程、同一 PostgreSQL、经 port 调用；不引入 broker、独立数据库或独立部署。与 A7/B10 一致：只有出现独立发布或扩缩容需求时才拆分。
+
+### 三层的分界
+
+| 层 | 内容 | 归属 |
+|---|---|---|
+| 完整性机制 | capture、canonicalisation、签名与 authority、幂等、lifecycle、archive/anchor 编排、`CONFIRMED` 门禁、correction 结构 | Core，不可下沉 |
+| 事实与图 | canonical event、对象身份、**只由 EPCIS 标准语义生成**的边（identity、transformation input/output、aggregation parent/child、association、correction link、handover reference） | Core |
+| 业务语义 | handover 状态、召回遍历策略、合规映射、mass-balance 口径、公开投影、洞察统计 | 语义模块 |
+
+一句话分界：
+
+> **Core 保证"这条事实是什么、你能否看见、你是否看全"；Service 决定"它意味着什么"。**
+
+前半句是 A5/B5/B6/B17/B23 已经承诺的东西，不能外包；后半句是业务词汇与策略，本就应当可替换。
+
+### 不可下沉的不变量
+
+以下七条必须由 Core 强制，任何模块都不得自行实现或绕过：
+
+1. **身份与幂等**：`captureRecordId` / `epcisEventId` 的唯一性与 Error Declaration 特例（A6）；
+2. **完整性管道**：canonicalisation、签名验证、authority、archive ack、finality 门禁（A5、B5–B8）；
+3. **append-only 与 correction 结构**（A6、B17）；
+4. **scope 强制**：`QueryPort` 按调用者 scope 过滤，而不是由模块自觉遵守（B3）；
+5. **non-collapsing 强制**：竞争断言成组返回，不排序、不打分、不选代表路径（B17）；
+6. **watermark 与完整性暴露**：每次查询都带 `dataCompleteThrough`（B12、B13）；
+7. **图的语义下限**：边只能来自 EPCIS 标准语义，不允许模块向图里注入自定义边。
+
+### QueryPort 契约
+
+```text
+edges(subjectRef, edgeTypes[], timeWindow, watermark?)
+  -> EdgeGroup[]        // 同一 (from, to, edgeType) 的全部竞争断言成组返回
+  + per-edge provenance
+  + dataCompleteThrough / completeness status
+
+不存在 getHandoverStatus() / isImpacted() / getComplianceStatus()
+这类方法。Core 只返回断言与边，不返回业务状态。
+```
+
+第 4、5 条放在唯一查询入口的理由很直接：如果让六个模块各自实现"不许折叠"和"按 scope 过滤"，一定有人漏掉；放在入口，B17 和 B3 的保证才不会被某个模块出卖。
+
+### Semantic Module manifest
+
+```text
+ModuleManifest
+- moduleId / version / status: DRAFT | ACTIVE | RETIRED
+- requiresFields: [...]        影响 profile 地板
+- requiresEdges:  [...]        要求 Core 提供哪些边类型
+- requiresPairingKey: bizTransaction(type) | objectIdentity
+- produces: projectionId / reportId
+- invariant: 本模块自己对外承诺什么
+- watermarkSource
+```
+
+三条硬规则：
+
+1. **模块只读 canonical facts。** 任何"结论"（召回通知、监管评估、纠错声明）仍然作为签署事件走**同一条 capture 路径**——只有一个写路径，B5/B6 不受影响。
+2. **模块能力可以降级，但不能影响 Core 的确认、归档与锚定。** 能力降级必须可显示（见"降级"列），不能静默丢掉。
+3. **`requiresFields` 的并集是编译产物，不是运行时 union。** 编译进 profile 版本后冻结，因为 B2 的恢复要求"还原当时的 schema 与验证规则"，地板不能随模块上线而漂移。
+
+### 第一版模块清单
+
+| 模块 | 读什么 | 产出 | 缺依赖时失去什么 |
+|---|---|---|---|
+| HandoverModule | shipping/receiving claims + pairing key | handover projection（`AWAITING_RECEIPT` / `ACCEPTED` / `PARTIALLY_ACCEPTED` / `DISPUTED` / `UNACKNOWLEDGED`） | 缺数量 → 失去 `PARTIALLY_ACCEPTED`；缺 pairing key → 退化为启发式匹配并进入 reconciliation |
+| RecallModule | transformation / aggregation / handover 边 + 时间范围 | 保守 impact 报告（带 watermark、`scope-limited` 标注） | 缺标识 → 无法遍历 |
+| ComplianceModule | `source`/`destination` + `bizTransaction` + profile 字段 | 一上一下重建、义务映射证据 | 缺 source/destination → 该辖区的一上一下不成立 |
+| ConsumerModule | allowlist 字段 | 版本化 `PUBLIC` 快照 | 缺字段 → 该字段不出现（fail-closed allowlist） |
+| AnalyticsInputModule | 最小化 confirmed projection | 交给 B21 的 Analytics（数据最小化规则写在它的 manifest 里） | 缺字段 → 对应 rule 类不可用于该产品线 |
+| InsightsModule | confirmed projection | warehouse / mart + dashboard serving（T2） | 缺字段 → 对应统计维度不可用 |
+
+### 字段地板从哪来
+
+```text
+所有 ACTIVE 模块 manifest 的 requiresFields 并集
+  → 编译
+  → 冻结进 profile 版本（B11）
+  → conformance check 用冻结后的清单校验
+```
+
+推论：**没有消费者的字段不进地板。** 例如 `readPoint` 目前没有任何模块声明为必需，因此默认 optional，仅作为争议与审计证据存在；`bizLocation` 由 RecallModule 与 ConsumerModule 声明，仍是必填。
+
+新增模块会收紧地板，属治理变更，必须走 `GovernanceRecord`（B16），不能由开发流程静默完成。
+
+### 两个必须避免的误读
+
+1. **"既然是模块，就可以随便加。"** 不行。模块上线会改变 profile 地板与治理范围，是治理动作，不是重构。
+2. **"Core 不含业务，所以没有业务保证。"** 不对。Core 保证的是**可验证性、可见范围、是否看全**——这正是 B17/B23/B3 的全部内容；业务含义由模块承担，且每个模块的能力边界必须对用户可见。
+
+**承受的代价：** 组件图变宽（Core 内部组件减少，多出约六个模块）；模块之间需要 watermark 对齐，否则 recall 与 handover 可能基于不同快照；需要一套 manifest 编译与冻结流程（与 T1 的 conformance check 合并）；port 边界一旦画错（把标准语义下沉或把完整性上移）会引发返工。
+
+**为什么可以接受：** 依赖方向单向——模块依赖 `QueryPort`，Core 不认识模块，属于 stable dependency；能力降级而非全局失败，与 B13 的读侧降级一致；只有一个写路径，B5/B6/B7 的完整性保证不受影响。
 
 <a id="layer-d"></a>
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger

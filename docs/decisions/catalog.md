@@ -15,6 +15,8 @@
 > 2026-10-18 修订（第三次）：新增 **B23**（PRIVATE 零知识模型与证据层分享）与 **B24**（组织作为身份与租户单元）；B3、B14、B15、B16、B18、B20 中与“平台可读私有证据”“用户管理”相关的表述已同步。
 >
 > 2026-10-18 修订（第四次）：B3 增加「核心字段地板」并把数量归类与标识粒度绑定；B11 增加 Profile 三条硬约束与 conformance check。
+>
+> 2026-10-18 修订（第五次）：新增 **B25**（Core / Semantic Module 分层）；B3 地板改为由模块 manifest 编译、B9 补配对键义务、B18 明确遍历策略归属 RecallModule、B11 补编译与冻结步骤、B21 指明投影由 AnalyticsInputModule 生产。
 
 ## 第一层：背景充分支持的决定
 
@@ -111,7 +113,9 @@
 <a id="b9"></a>
 ### B9 · 联盟内 B2B handover 使用两份独立 claims
 
-**Baseline.** Sender 与 receiver 分别签署；平台只派生 handover status。网络外交易方标为 `EXTERNAL_COUNTERPARTY`，消费者零售不要求消费者签名。
+**Baseline.** Sender 与 receiver 分别签署；Core 只存两份 claim 与配对引用，**handover status 由 HandoverModule 派生**（B25）。网络外交易方标为 `EXTERNAL_COUNTERPARTY`，消费者零售不要求消费者签名。
+
+**配对键必须稳定：** profile 指定唯一的配对键类型，收货方必须引用**发货方签发的那个键**（候选：`bizTransaction` 的 desadv，见待办 T13）。否则 `ACCEPTED` 退化为启发式匹配，`PARTIALLY_ACCEPTED` 不可靠。
 
 <a id="b10"></a>
 ### B10 · Append-only trace core，不采用全应用 Event Sourcing
@@ -162,7 +166,7 @@
 <a id="b18"></a>
 ### B18 · Recall 是保守 lineage query，不是物理下架
 
-**Baseline.** 平台查询可能受影响对象、展示授权 notice 和记录后续 claims；ERP/WMS/POS 与人员执行封存、下架、退货和销毁。结果按 B17 的 non-collapsing 规则呈现：竞争边并存，不选代表路径、不打分；`confirmedImpact` 与 `recentPendingClaims` 分开展示，不静默混入。**成员自行运行的遍历只覆盖其 scope，必须标注 `scope-limited`，不能作为权威影响范围**；权威遍历由全 scope 方在同一 watermark 与同一遍历规则下执行。
+**Baseline.** 平台查询可能受影响对象、展示授权 notice 和记录后续 claims；ERP/WMS/POS 与人员执行封存、下架、退货和销毁。**遍历策略（跟哪些边、时间范围、哪些 handover 状态必须保守纳入）归 RecallModule（B25），Core 只提供带 scope / non-collapsing / watermark 的边查询。** 结果按 B17 的规则呈现：竞争边并存，不选代表路径、不打分；`confirmedImpact` 与 `recentPendingClaims` 分开展示，不静默混入。**成员自行运行的遍历只覆盖其 scope，必须标注 `scope-limited`，不能作为权威影响范围**；权威遍历由全 scope 方在同一 watermark 与同一遍历规则下执行。
 
 <a id="b19"></a>
 ### B19 · 标识符由参与方分配，QR 不是防伪证明
@@ -203,6 +207,17 @@
 **Baseline.** 不建设用户目录、岗位、审批流程或人员生命周期；组织内部授权由组织自己决定并声明为 delegation 断言。角色只保留少量固定值（OrgAdmin、EventPublisher、EvidenceManager、Viewer）。**每个请求必须显式携带 acting organisation**——因为一个 subject 可代表多个组织，不能从 token 推断，缺失时拒绝而不是取默认值。
 
 **组织层级 out of scope：** 不建 `parentOrganisationId`。合作社、集团、多站点企业一律注册为多个 `organisationId`，用 delegation 表达代理关系；层级会污染 scope 计算、KMS epoch、签名归因与召回范围。触发条件：出现“父组织代为提交”的需求时先看 delegation 是否够用，不够再作为新架构前提评估。
+
+<a id="b25"></a>
+### B25 · Core 只做机制，业务语义放在语义模块里
+
+**Baseline.** Core 收缩为机制：接收、验证、追加、确认、归档/锚定，以及**只由 EPCIS 标准语义生成**的边。handover 状态、召回遍历策略、合规重建、分析输入、运营洞察都是**同进程内的语义模块**，通过唯一的 `QueryPort` 读取事实，各自维护可重建投影。Core 不认识任何模块；这是分层，不是微服务。
+
+**不可下沉的七条不变量：** 身份与幂等；完整性管道（签名/authority/archive ack/finality 门禁）；append-only 与 correction 结构；**scope 强制**；**non-collapsing 强制**；watermark 暴露；图的语义下限（边只能来自 EPCIS 标准语义）。第 4、5 条放在唯一查询入口，避免每个模块各自实现而漏掉。
+
+**模块 manifest 驱动地板：** 每个模块声明 `requiresFields` / `requiresEdges` / `requiresPairingKey` / `produces` / `invariant`。所有 ACTIVE manifest 的字段并集**编译**进 profile 版本后冻结（B11），因此“没有消费者的字段不进地板”，新增模块等于收紧地板，属治理变更。
+
+**核心分界：** Core 保证“这条事实是什么、你能否看见、你是否看全”；模块决定“它意味着什么”。模块能力可以降级，但不能影响确认、归档与锚定；任何结论仍作为签署事件走同一条 capture 路径。
 
 ## 第三层：仍需关闭的决定
 

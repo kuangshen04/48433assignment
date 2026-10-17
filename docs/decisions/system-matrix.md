@@ -7,7 +7,8 @@
 | 系统/主题 | 主要决策 | 支撑或跨系统决策 | 该系统拥有的核心契约 |
 |---|---|---|---|
 | Scope & Context | A1、A2、A7、A8 | B1、B20 | 追溯层边界、参与方集成方式、首版复杂度 |
-| Traceability Core | A3、A6、B6、B9、B10、B11 | A4、B13、B17、B18、B19 | EPCIS 写模型、状态机、handover、correction、lineage |
+| Traceability Core | A3、A6、B6、B10、B11、B25 | A4、B13、B17、B19 | EPCIS 写模型、状态机、correction、证据图、`QueryPort` |
+| Semantic Modules（同进程） | B25（Handover / Recall / Compliance / Consumer / AnalyticsInput / Insights） | B9、B17、B18、B21 | handover 状态、遍历策略、合规重建、公开投影、分析输入、洞察 |
 | Trust & Recovery | A5、B1、B2、B4、B7、B8 | B3、B6、B20、B22、C1、C3 | Archive envelope/Ack、Merkle leaf、KMS 与 recovery |
 | Identity & Governance | B5、B16、B24 | B6、B11、B20 | Organisation/key/delegation、签名 assurance、治理生效、acting organisation 绑定 |
 | Data & Access | B3、B10、B20、B23 | A5、B2、B12、B14、B15 | PUBLIC/CONSORTIUM/PRIVATE、零知识 ProtectedResource、承诺与分享、retention |
@@ -22,7 +23,7 @@
 |---|---|---|
 | `CONFIRMED` 只表示 signed + archived + finalised | Core + Archive/Anchor | 所有 projections、Analytics |
 | 判定只能以签署声明进入历史（Error Declaration / signed notice / signed assessment） | Core + Identity/Governance | 所有 projections、Analytics |
-| 竞争断言必须并存显示，不得折叠为单一路径（相对 scope） | Traceability Core projections | Query、Recall、Consumer、Analytics |
+| 竞争断言必须并存显示，不得折叠为单一路径（相对 scope） | `QueryPort`（Core） | Query、Recall、Consumer、Analytics |
 | 完整性可验证不需要明文，但重建受 scope 限制 | Trust & Recovery / KMS epoch | Core rebuild、Query、Recall |
 | Participant time 不是可信签署时间 | Identity/Signature validation | Core、Governance、offline UI |
 | Platform DB 不是唯一历史 | Archive/Recovery | Core rebuild、Operations |
@@ -34,6 +35,7 @@
 | 平台从不持有 PRIVATE 明文（零知识托管除外，且无 escrow） | Data Access / B23 | Core、Analytics、Regulator access |
 | 组织是唯一身份与租户单元，每请求显式绑定 acting organisation | Identity/Governance | Core、KMS、Projections |
 | Profile 不得弱化核心字段地板；class-lot 级必须带数量与单位 | Profile/Core（B3 + B11） | IoT、Analytics、Recall |
+| Core 不产生业务状态；结论只能由语义模块产出并标注能力边界 | Core（B25） | 所有模块、UI、报告 |
 
 ## 两个反误读测试
 
@@ -74,6 +76,15 @@ Archive 保存可验证 canonical bytes；PostgreSQL 提供热状态和索引。
 ### PRIVATE vs CONSORTIUM
 
 没有中间地带。需要按字段查询、需要被联盟重建路径使用的数据必须进 `CONSORTIUM`；不想让联盟读的内容只能留在平台外，用加盐承诺锚定。两者之间不存在"平台可读但成员不可读"的第三档——除非将来启用事件级受众（B3 已说明其代价）。
+
+### Core vs Semantic Module
+
+Core 保证"事实是什么、你能否看见、是否看全"（scope、non-collapsing、watermark、完整性）；模块决定"它意味着什么"（handover 状态、遍历策略、合规重建、分析输入、洞察）。判断一个逻辑该放哪边的两条检验：
+
+- 它的缺失会让 `CONFIRMED` 记录不可验证或不可恢复吗？会 → Core；
+- 它能否从 canonical events 重建、失败时是否只影响自身能力？能 → 模块。
+
+模块**不许写历史**：召回通知、监管评估、纠错声明都必须作为签署事件走同一条 capture 路径。
 
 ### 组织 vs 用户
 

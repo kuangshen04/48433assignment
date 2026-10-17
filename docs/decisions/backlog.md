@@ -15,6 +15,7 @@
 | B23 新增 | PRIVATE 不上平台，只留加盐承诺；可选零知识托管；分享由所有者加密授予，不做事件级受众 |
 | B24 新增 | 组织是唯一身份、访问与租户单元；每请求显式绑定 acting organisation；组织层级 out of scope |
 | **T1 决策部分** | 数量归类：`quantityList` 进 `CONSORTIUM`，但**与粒度绑定**——`class-lot` 级必填（+ UN/CEFACT `uom`），`instance` 级可用标识计数、重量退化为证据引用。核心字段地板写入 B3；Profile 三条硬约束 + 扩展字段判据写入 B11 |
+| **B25 新增** | Core 收缩为机制（含强制 scope / non-collapsing / watermark 的 `QueryPort`）；handover、召回遍历、合规重建、分析输入、洞察改为同进程语义模块；字段地板改由模块 manifest 编译；B9 补配对键义务、B18 明确遍历策略归属、B11 补编译冻结、B21 投影归 AnalyticsInputModule |
 | 文档迁移 | `major-decisions-qa.md` 移入本站为[完整决策日志](/decisions/log) |
 
 ---

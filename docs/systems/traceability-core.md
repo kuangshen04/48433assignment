@@ -4,17 +4,19 @@
 
 ## 责任
 
-Traceability Core 是跨组织 source assertion 的接收和查询系统，不是农业 ERP、库存系统或真实性裁判。它负责：
+Traceability Core 是跨组织 source assertion 的接收与查询机制，不是农业 ERP、库存系统或真实性裁判，也**不承载业务语义**（B25）。它负责：
 
 - 接收标准 EPCIS events 和受治理的 product-profile extensions；
 - canonicalisation、schema、signature、authority 和 idempotency validation；
 - append-only correction 与 EPCIS Error Declaration；
-- event confirmation lifecycle；
-- Shipping/Receiving claim correlation；
-- lineage、recall、consumer 和 investigation projections，且必须 non-collapsing 地并存呈现竞争断言；
+- event confirmation lifecycle 与 archive/anchor 编排；
+- 由 EPCIS 标准语义构建的证据图（identity、transformation、aggregation、association、correction、handover reference）；
+- `QueryPort`，强制 scope 过滤、non-collapsing 返回与 watermark，并携带 per-edge provenance；
 - transactional outbox 与失败后幂等续跑。
 
-它不负责企业库存、订单、支付、生产计划、设备 fleet management、物理召回执行或自动合规结论。
+它不负责业务语义：handover 状态、召回遍历策略、合规重建、分析输入和运营洞察由同进程的语义模块承担（HandoverModule、RecallModule、ComplianceModule、ConsumerModule、AnalyticsInputModule、InsightsModule），模块只读 canonical facts、不写历史。
+
+它也不负责企业库存、订单、支付、生产计划、设备 fleet management、物理召回执行或自动合规结论。
 
 ## 核心写入契约
 
@@ -96,10 +98,12 @@ sender-signed shipping claim
 receiver-signed receiving claim
               |
               v
-derived handover status
+HandoverModule（B25）派生 status —— 不在 Core 内
 ```
 
 状态包括 `AWAITING_RECEIPT`、`ACCEPTED`、`PARTIALLY_ACCEPTED`、`REJECTED`、`DISPUTED`、`UNACKNOWLEDGED`。网络外对手方使用 `EXTERNAL_COUNTERPARTY` 单方边界声明；消费者零售不要求消费者签名。
+
+**Core 只存两份 claim 与配对引用，不产生交接状态。** 配对键由 profile 指定，收货方必须引用发货方签发的键（候选：`bizTransaction` 的 desadv）；配不上则进入 reconciliation，不静默合并。缺数量时 HandoverModule 无法给出 `PARTIALLY_ACCEPTED`，这是能力降级而非 Core 故障。
 
 双边确认只证明双方分别作出关联声明，不能防止双方串谋。Recall/audit 查询会保守包含争议、未确认和外部边界 edges。
 
@@ -124,18 +128,31 @@ Profile 不配置 yield tolerance、fraud heuristic、mass balance、跨事件�
 
 ## 内部组件边界
 
+Core 只做机制（B25）：
+
 ```text
 Capture API
-  -> Canonicalisation & Profile Validator
+  -> Canonicalisation & Profile Validator      （含 conformance check）
   -> Signature / Authority Validator
   -> Submission State Machine
   -> Archive & Anchor Orchestrator
-  -> Confirmed Event Index
-  -> Handover / Lineage / Consumer Projections
-  -> Query, Export and Recall Services
+  -> Confirmed Event Store（append-only）
+  -> Evidence Graph Builder（只由 EPCIS 标准语义生成边）
+  -> QueryPort（强制 scope + non-collapsing + watermark）
 ```
 
-第一版是模块化单体与一个 managed PostgreSQL，不为术语完整性预先部署 event store、broker、graph database 和独立 read database。
+业务语义不在 Core 内，而是同一进程里的语义模块，各自通过 `QueryPort` 读事实、维护可重建投影：
+
+```text
+HandoverModule   RecallModule   ComplianceModule
+ConsumerModule   AnalyticsInputModule   InsightsModule
+```
+
+模块的 `requiresFields` 并集经编译后冻结进 profile 版本（B11）；因此“某字段为什么必填”永远能回答到具体模块，没有消费者的字段（如 `readPoint`）默认 optional。
+
+**Core 不提供 `getHandoverStatus()` / `isImpacted()` 这类方法。** 它只返回断言与边；任何结论性输出由模块产生，并且必须标注自己的 watermark 与能力边界。
+
+第一版是模块化单体与一个 managed PostgreSQL，模块经 port 调用而不是独立部署；不为术语完整性预先部署 event store、broker、graph database 和独立 read database。
 
 ## 依赖与失败语义
 

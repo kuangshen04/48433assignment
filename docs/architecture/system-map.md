@@ -49,7 +49,8 @@ Boundary 之外（外部系统与独立基础设施）
 | 系统或控制域 | 主要职责 | 明确不负责 |
 |---|---|---|
 | Participant Environment | 产生业务声明、企业签名、离线排队、私有证据保存 | 全网查询、公共链 finality |
-| Traceability Core | EPCIS 接收、结构验证、幂等、生命周期、handover 和 lineage projection；如实并存呈现竞争断言 | 判断物理事实真假、裁决冲突声明哪条为真、库存核算、违法结论 |
+| Traceability Core | EPCIS 接收、结构验证、幂等、生命周期、确认门禁；由 EPCIS 标准语义构建证据图；`QueryPort` 强制 scope / non-collapsing / watermark | 产生任何业务状态、判断物理事实真假、裁决冲突声明哪条为真、库存核算、违法结论 |
+| Semantic Modules（同进程） | Handover 状态、召回遍历策略、合规重建、公开投影、分析输入、运营洞察；各自维护可重建投影 | 写入历史（结论须作为签署事件走 capture）、绕过 `QueryPort`、弱化 scope 或 non-collapsing |
 | Identity & Governance | 组织资格、public key、delegation、profile/高权限变更历史；组织是唯一身份与租户单元 | 组织内部的员工目录、岗位、审批链；组织层级；设备 fleet IAM；替参与方签名 |
 | Evidence (PRIVATE) | 所有者一侧保存内容；平台只持加盐承诺；可选零知识托管 | 解密、检索、比对私有内容；密钥恢复；代为取证 |
 | Operational PostgreSQL | 热查询、状态机、outbox、可重建投影 | 作为唯一权威历史或唯一恢复副本 |
