@@ -914,7 +914,7 @@ IoT vendor/参与方负责完整 device fleet identity、certificate provisionin
 | Read complete canonical archive | Through authorised regulator query/recovery path when required | No direct archive/KMS access |
 | Read participant `PRIVATE` evidence | Only for a specific case with recorded legal/governance basis | No in routine screening |
 | Request evidence or exercise legal authority | Yes | No; may only recommend investigation |
-| Create internal risk alert | Yes | Yes, regulator-private advisory output |
+| Create internal risk alert | Yes | Yes, regulator-private by default; separately approved findings may be disclosed as advisory |
 | Sign Inspection/Assessment event | Yes, using regulator organisation key | No |
 | Change handover/event validity | No direct mutation; may publish a new signed regulatory statement | No |
 | Approve consumer safety notice | Authorised regulator process | No |
@@ -950,7 +950,7 @@ ML RiskAlert
 
 对 `PRIVATE` evidence 的访问必须绑定 case ID、resource IDs、purpose、authorised identity、legal/governance basis、effective/expiry time 和 access audit。该访问权属于监管调查主体，不自动下放给日常批量筛查模型。
 
-ML alert 默认属于 regulator-owned `PRIVATE` data，不能直接进入 consumer projection、改变 event validity、触发法律结论或公开企业风险标签。只有经授权人员复核并以 regulator organisation key 签署的 Inspection/Assessment event 才进入 canonical trace；是否形成 `PUBLIC` safety notice 还需要独立的监管发布流程。
+Analytics alert 默认属于 regulator-owned `PRIVATE` data，不能直接进入 consumer projection、改变 event validity、触发法律结论或公开企业风险标签。监管方可以按 B21 为特定 rule/finding 指定受限 disclosure scope，使平台向相关组织转达 preliminary advisory；该转达仍不是正式监管结论。只有经授权人员复核并以 regulator organisation key 签署的 Inspection/Assessment event 才进入 canonical trace；是否形成 `PUBLIC` safety notice 还需要独立的监管发布流程。
 
 **需要接受的代价：** 平台需要单独的 regulatory analytics projection、service identity、export audit 和 risk-alert store；监管人员调查 private evidence 时走另一条 case-specific authorization path，不能简单复用 ML 的批量数据接口。
 
@@ -1079,7 +1079,7 @@ Confirmed source assertions
 → optional regulator-signed Assessment/Inspection event
 ```
 
-监管方可以自行配置 duplicate-consumption、mass-balance、timing/location、correction-frequency、sensor-excursion 和 supplier-risk rules。它们遵守 B15 的最小化数据权限，输出保持 advisory/private；只有监管人员复核并签署的正式结论才进入 canonical trace。
+监管方可以自行配置 duplicate-consumption、mass-balance、timing/location、correction-frequency、sensor-excursion 和 supplier-risk rules。它们遵守 B15 的最小化数据权限，输出默认 regulator-private；经监管方显式批准的 finding 可以按 B21 作为 preliminary advisory 提供给平台转达。只有监管人员复核并签署的正式结论才进入 canonical trace。
 
 **需要接受的代价：** 没有启用监管分析时，核心系统会保存甚至展示明显矛盾的 source assertions。`CONFIRMED` 只能解释为“已签名、归档并锚定”，不能被 UI 或报告表达为“平台已验证业务真实、数量合理或合规”。Recall traversal 也必须保守处理所有相关 claims，而不能依赖一个平台判定的唯一正确路径。
 
@@ -1222,7 +1222,7 @@ Public-chain commitment 永久存在，因此 commitment input 不得包含 plai
 
 Consumer lookup 默认不要求登录，不收集精确 geolocation，不建立个人 scan history；IP/user-agent 只用于短期 security/rate-limiting，并在期限后删除或聚合。Duplicate-scan analytics 使用最小化或去标识数据，不能转为消费者画像。
 
-Regulatory exports 和 analytics inputs 必须记录 purpose、recipient service identity、schema/dataset version、confirmed watermark、expiry 和 legal-hold status。ML/rule outputs 保持 regulator-private；数据访问权不隐含训练、长期留存或其他目的再利用权。
+Regulatory exports 和 analytics inputs 必须记录 purpose、recipient service identity、schema/dataset version、confirmed watermark、expiry 和 legal-hold status。ML/rule outputs 默认 regulator-private；只有监管方明确签署 disclosure policy 的 findings 才能作为 B21 preliminary advisory 提供给指定 audience。数据访问权不隐含训练、长期留存或其他目的再利用权。
 
 ### Breach responsibility
 
@@ -1240,6 +1240,91 @@ Platform、participant 和 regulator 分别保留适用于自身控制数据的�
 - NSW Government Cloud Policy: <https://digital.nsw.gov.au/policy/cloud-policy>
 - NSW Food Authority recall guidance: <https://www.foodauthority.nsw.gov.au/help/recalls>
 - FSANZ food traceability guidance: <https://www.foodstandards.gov.au/business/food-safety/food-traceability>
+
+---
+
+## B21. Regulatory Analytics 是否只供监管方使用，还是也向平台提供辅助能力？
+
+**决定：** Regulatory Analytics 与 Traceability Core 是 peer subsystems。规则、统计分析和 optional ML 在 regulator-controlled environment 中运行；结果默认 regulator-private，但监管方可以通过明确的 disclosure policy，把选定的 rule/finding 作为 signed preliminary advisory 提供给平台。平台只负责验证、路由和展示获准结果，不继承监管系统的完整数据、模型或法定权限。
+
+```text
+Confirmed CONSORTIUM Projection
+→ Regulatory Analytics Module
+   ├─ regulator-only rules/models → private findings
+   └─ approved advisory rules → signed AdvisoryFinding
+                                     ↓
+Platform Advisory Ingestion → permitted participant reminders
+```
+
+### Rule/finding disclosure policy
+
+每个监管 rule 和输出 finding 明确指定：
+
+```text
+REGULATOR_ONLY
+→ regulator officers only
+
+SUBJECT_ORGANISATION
+→ disclose only to the organisation/object owner concerned
+
+CONSORTIUM_ADVISORY
+→ disclose to explicitly related consortium audiences
+
+PUBLIC
+→ not permitted for automatic analytics output;
+  requires a separate human-signed publication
+```
+
+高 correction frequency、跨组织 fraud score 或调查线索默认 `REGULATOR_ONLY`；sensor summary 超出监管建议范围可以由监管方批准为 `SUBJECT_ORGANISATION` preliminary reminder；正式 recall、违法结论或 public safety statement 必须经过 authorised officer 人工复核和签署。
+
+### Advisory contract
+
+```text
+AdvisoryFinding
+- findingId
+- sourceRegulatorId
+- ruleId / ruleVersion
+- affectedOrganisationIds
+- affectedObject/event references
+- severity / reasonCodes
+- humanReadableMessage
+- dataWatermark
+- generatedAt / expiresAt
+- disclosureScope
+- regulatorSignature
+```
+
+Platform Advisory Ingestion 验证 regulator identity、signature、rule/finding version、expiry 和 disclosure scope，再将结果路由给允许的组织或角色。平台不能扩大 audience、重新解释 severity、查看 regulator-only context，或把 advisory 与平台自己的判断混合。
+
+AdvisoryFinding 不进入 canonical trace，不影响 event validation、handover status、membership、consumer projection 或 recall status。它只能生成 preliminary reminder、建议查看 evidence 或联系监管方。如果一项规则要成为强制 submission/schema requirement，必须经独立治理流程发布新的 Product Profile/Regulatory Policy 和 effective date，不能通过隐藏 analytics rule 改变 write path。
+
+### Separate notification sources
+
+```text
+Platform Operational Notification
+→ stuck lifecycle, key/profile expiry, archive/anchor failure,
+  handover deadline, projection lag
+→ generated by platform from explicit state/deadline
+
+Regulatory Advisory
+→ regulator-approved heuristic/statistical/ML finding
+→ generated and disclosure-controlled by regulator
+
+Formal Regulatory Assessment
+→ human-reviewed and organisation-signed canonical statement
+```
+
+UI、API 和 audit log 必须显示来源与保证等级，不能把三者都呈现成“监管违规”。Notification delivery failure 不回滚原 event 或 finding，平台只重试并记录 delivery status。
+
+### Execution boundary
+
+第一版由平台导出最小化 Regulatory Analytics Projection，监管环境执行 rules/models，再返回获准 AdvisoryFindings。监管方不能向平台上传任意 executable code。未来若低延迟场景确有需要，可以另行评估 signed declarative rule package 和 sandbox，但不作为当前基线。
+
+Regulator Portal/Access Module 仍是核心平台的一等业务入口，负责 trace investigation、recall impact query、evidence access、exports 和 signed regulatory statement submission；Regulatory Analytics 是独立控制域，但能通过 advisory contract 为平台提供受监管方控制的辅助能力。关闭 Analytics 不影响 ingestion、trace query、consumer view 或监管人员手工调查。
+
+**需要接受的代价：** 系统需要 AdvisoryFinding schema、regulator signature verification、audience routing、expiry/revocation 和 delivery audit；同一问题可能同时存在 private finding、participant advisory 和后续 formal assessment，UI 必须避免混淆。
+
+**为什么可以接受：** 监管方保留规则和披露决定权，平台参与方又能及时获得获准的初步提醒。Peer integration 避免平台自行复制监管逻辑或看到全部调查结果，也避免把 optional analytics 变成 canonical write path 的可用性依赖。
 
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
@@ -1417,11 +1502,11 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 
 原始 IoT telemetry 默认作为 participant-controlled PRIVATE ProtectedResource，由参与方自管或选择平台托管；canonical trace 只保存 profile-required sensor summary、异常、provenance、reference 和 content commitment。一体化设备接入不改变数据分类和举证责任。
 
-监管机构与其 ML 工具使用不同身份和权限。监管方可以读取 confirmed consortium trace，并在具体案件中依据记录的法律或治理授权访问选定 private evidence、签署正式监管事件；ML 只读取最小化的 regulatory analytics projection，输出 regulator-private advisory alerts，不能访问任意 private resource、作出监管决定或直接写入 canonical trace。
+监管机构与其 Analytics/ML 工具使用不同身份和权限。监管方可以读取 confirmed consortium trace，并在具体案件中依据记录的法律或治理授权访问选定 private evidence、签署正式监管事件；Analytics 只读取最小化 projection，输出默认 regulator-private。监管方可以把选定 findings 作为 signed preliminary advisories 提供给平台转达，但 Analytics 不能访问任意 private resource、作出正式监管决定或直接写入 canonical trace。
 
 Human 和 IoT fleet identity 由外部/参与方 IAM 管理；核心只保存 organisation membership、organisation public keys、scoped user/machine delegations 和 signed governance history。Membership governance 只判断现实参与资格，高影响变更采用独立 dual control；它不能替成员签署事件或改写 public-chain finality，因此不取代区块链的完整性职责。
 
-核心只验证 EPCIS source assertion 的 schema、signature、authority、canonicalisation 和 idempotency，不判断 transformation、aggregation、quantity、timing 或 lineage 是否符合业务常识。监管方在独立 Regulatory Analytics System 中运行启发式规则、统计分析或可选 ML；其输出在人工签署前只是 regulator-private advisory alert。
+核心只验证 EPCIS source assertion 的 schema、signature、authority、canonicalisation 和 idempotency，不判断 transformation、aggregation、quantity、timing 或 lineage 是否符合业务常识。监管方在独立 Regulatory Analytics System 中运行启发式规则、统计分析或可选 ML；输出默认 regulator-private，经签名 disclosure policy 才能作为平台可转达的 preliminary advisory，且在 authorised officer 人工签署前不构成正式结论。
 
 Recall 是对 shared consortium lineage projection 的保守、带 watermark 的查询，并可展示 authorised party 提交的 signed recall status。平台不执行实际下架、封存、退货或销毁；confirmed impact 与 recent pending claims 分开展示，private evidence 只在后续调查时单独授权。
 
