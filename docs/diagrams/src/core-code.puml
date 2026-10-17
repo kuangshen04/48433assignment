@@ -1,4 +1,5 @@
 @startuml core-code
+!include ../vendor/style.puml
 title Code view (major classes and interfaces) — Traceability Core
 
 hide empty members

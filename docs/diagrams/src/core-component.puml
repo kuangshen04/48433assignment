@@ -1,5 +1,6 @@
 @startuml core-component
 !include ../vendor/C4_Component.puml
+!include ../vendor/style.puml
 
 title Component view — Traceability Core (inside the modular monolith)
 

@@ -1,4 +1,5 @@
 @startuml c4-dynamic
+!include ../vendor/style.puml
 title Dynamic view — one event from submission to CONFIRMED
 
 autonumber

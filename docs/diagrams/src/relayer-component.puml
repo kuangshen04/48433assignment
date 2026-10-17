@@ -1,5 +1,6 @@
 @startuml relayer-component
 !include ../vendor/C4_Component.puml
+!include ../vendor/style.puml
 
 title Component view — Batch Builder & Relayer
 

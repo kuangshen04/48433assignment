@@ -1,5 +1,6 @@
 @startuml analytics-component
 !include ../vendor/C4_Component.puml
+!include ../vendor/style.puml
 
 title Component view — Analytics Workspace (first-release scope)
 

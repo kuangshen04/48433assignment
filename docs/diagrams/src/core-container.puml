@@ -1,5 +1,6 @@
 @startuml core-container
 !include ../vendor/C4_Container.puml
+!include ../vendor/style.puml
 
 title Container view — Agricultural Supply Chain Tracker (first release)
 

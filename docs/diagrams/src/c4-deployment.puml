@@ -1,5 +1,6 @@
 @startuml c4-deployment
 !include ../vendor/C4_Deployment.puml
+!include ../vendor/style.puml
 
 title Deployment view — reference configuration
 

@@ -1,0 +1,11 @@
+' Shared diagram style — one place to change line routing for every diagram.
+'
+'   polyline  straight segments with bends (default; stable with the smetana engine)
+'   ortho     right angles; works, but on dense C4 diagrams labels collide with boxes
+'   splines   curved (PlantUML default; what we moved away from)
+'
+' Spacing can be tuned here as well:
+'   skinparam nodesep 25
+'   skinparam ranksep 30
+
+skinparam linetype polyline

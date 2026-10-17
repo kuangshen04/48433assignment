@@ -1,5 +1,6 @@
 @startuml c4-context
 !include ../vendor/C4_Context.puml
+!include ../vendor/style.puml
 
 title System context — Agricultural Supply Chain Tracker
 LAYOUT_LEFT_RIGHT()

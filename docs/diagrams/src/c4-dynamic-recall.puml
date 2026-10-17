@@ -1,4 +1,5 @@
 @startuml c4-dynamic-recall
+!include ../vendor/style.puml
 title Dynamic view — recall investigation, from scope to signed notice
 
 autonumber
