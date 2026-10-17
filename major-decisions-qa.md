@@ -435,6 +435,81 @@ Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 d
 
 **为什么可以接受：** 强迫所有小农场自行管理不可恢复的 PKI 会伤害可访问性，把所有密钥交给平台又会破坏 L2。统一 envelope 加分级 assurance 保留了共同事件模型，同时诚实暴露不同 custody mode 的信任差异。
 
+---
+
+## B6. 事件什么时候进入正式共享历史？
+
+**决定：** 保持所选 permissioned ledger 的标准 BFT consensus、finality 和 view-change 行为，不修改共识协议。事件只有作为有效交易进入 final block 后才成为 `CONFIRMED`；无法形成 quorum 时保持 `PENDING_LEDGER`，不降级为平台单方确认。
+
+PBFT/BFT 负责对有序状态变更达成共识，但不管理 PWA draft、EPCIS validation、托管签名、PostgreSQL submission 或 query projection。因此应用使用以下生命周期表达共识外围状态：
+
+```text
+DRAFT
+→ RECEIVED
+→ VALIDATED
+→ PENDING_SIGNATURE
+→ PENDING_LEDGER
+→ CONFIRMED
+```
+
+失败或终止状态包括：
+
+```text
+REJECTED
+SIGNING_REJECTED
+EXPIRED
+LEDGER_RETRY
+```
+
+### 各状态的权威含义
+
+- `DRAFT`：参与方本地意图，可以编辑或删除，不属于共享历史；
+- `RECEIVED/VALIDATED`：平台已接收并验证，但其他参与方不能据此认定事件已发生；
+- `PENDING_SIGNATURE`：托管签名尚未获得参与方/provider 批准；
+- `PENDING_LEDGER`：已有有效签名并等待 BFT finality，只对提交者显示为 pending；
+- `CONFIRMED`：已作为有效 transaction finalised，进入正式 trace、projection、recall 和 consumer-view 输入；
+- `REJECTED/EXPIRED`：不进入共享历史，也不使用 correction event 处理。
+
+### 权威关系
+
+```text
+Permissioned ledger
+→ confirmed consortium history 的权威来源
+
+PostgreSQL
+→ submission 状态、运营查询和 projection
+
+Participant/PWA storage
+→ 尚未共享的 draft
+```
+
+PostgreSQL 保存成功但 ledger 提交失败时，事件保持 `PENDING_LEDGER` 并使用稳定 event ID 幂等重试。Ledger 已 finalise 但 PostgreSQL 状态更新失败时，以 ledger 为准，恢复后修复数据库并重建 projection，不重新创建事件。
+
+普通查询和 projection 默认只使用 `CONFIRMED` events。Submission receipt 只证明平台收到或接受了一项提交，不能替代 ledger finality certificate。
+
+### 保持和不保持哪些默认行为
+
+直接沿用所选 BFT 实现的正常行为：
+
+- quorum 不足时停止产生新 final blocks；
+- faulty leader 由协议内置 view change 处理；
+- 达到 finality 后不再等待概率型 confirmations；
+- validators 按相同确定性规则验证和执行交易。
+
+不能盲目沿用部署向导的默认配置：
+
+- validator 数量和可容忍的 `f`；
+- 独立控制域划分；
+- governance threshold；
+- membership、identity 和 key-rotation policy；
+- block size、timeout 和运维参数。
+
+这些参数与 C1 的威胁保证和实际节点运营方直接相关。B6 不预设节点数量；C1 确定需要抵抗的 Byzantine domains 和现实可提供的独立控制域后，再选择 `n`、`f` 和 quorum。
+
+**代价：** Ledger quorum 故障期间，新事件不能成为 confirmed history，即使平台数据库仍然可用。
+
+**为什么可以接受：** 把 pending submission 暂时留在平台，比在共识不可用时制造一套平台私有的“正式历史”更安全。既有 confirmed trace 仍可查询，新提交则在网络恢复后幂等确认。
+
 # 第三层：仍需讨论的决定
 
 以下项目保留当前倾向和 trade-off，但尚未提升为架构基线。
