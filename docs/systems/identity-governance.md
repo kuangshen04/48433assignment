@@ -1,6 +1,6 @@
 # Identity & Governance
 
-> 主要决策：[B5](/decisions/catalog#b5)、[B11](/decisions/catalog#b11)、[B16](/decisions/catalog#b16)、[B20](/decisions/catalog#b20)、[B24](/decisions/catalog#b24)
+> 相关决策：[B5](/decisions/catalog#b5)、[B11](/decisions/catalog#b11)、[B16](/decisions/catalog#b16)、[B20](/decisions/catalog#b20)、[B24](/decisions/catalog#b24)
 
 ## 身份分层
 
@@ -63,10 +63,10 @@ Membership Governance 可以验证现实组织资格、批准角色和发布治�
 
 - 代表 self-custody 组织签署业务事件；
 - 修改已 finalise 的 public-chain commitment；
-- 删除独立 archive 中的历史；
+- 删除外部归档中的历史；
 - 把自身审批变成对业务声明真实性的证明。
 
-普通 onboarding 可由独立 authorised membership officer 批准。Regulator role、lost-key recovery、KMS recovery、profile publication、archive-operator change 和 chain migration 使用独立 dual control。
+普通 onboarding 可由独立 authorised membership officer 批准。Regulator role、lost-key recovery、KMS recovery、profile publication、外部归档持有者/账户变更 和 chain migration 使用独立 dual control。
 
 ## Governance effective gate
 

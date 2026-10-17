@@ -2,7 +2,7 @@
 
 ## 目标场景
 
-平台 application account、PostgreSQL、IAM 和 DNS 不可用，但 independent archive、KMS recovery authority 与 public blockchain 仍可由联盟/受托方控制的 Recovery Client 访问。
+平台 application account、PostgreSQL、IAM 和 DNS 不可用，但外部归档、KMS recovery authority 与 public blockchain 仍可由联盟/受托方控制的 Recovery Client 访问。
 
 ## 恢复路径
 
@@ -12,13 +12,13 @@
 3. Verify ArchiveAck signatures and stored envelope/ciphertext digests
 4. Authenticate authorised recovery organisation/regulator
 5. Determine the requester's scope（B3：成员仅恢复自身 scope；完整历史需全 scope 身份）
-5. Use non-platform KMS recovery identity to unwrap DEKs
-6. Decrypt payload and verify canonicalPayloadDigest
-7. Verify participant signatures, profile and key history
-8. Verify Merkle batches and public-chain inclusion/finality
-9. Rebuild governance, registries, event index and projections
-10. Recover receipted-but-unanchored intents
-11. Resume anchoring and service in priority order
+6. Use non-platform KMS recovery identity to unwrap DEKs
+7. Decrypt payload and verify canonicalPayloadDigest
+8. Verify participant signatures, profile and key history
+9. Verify Merkle batches and public-chain inclusion/finality
+10. Rebuild governance, registries, event index and projections
+11. Recover receipted-but-unanchored intents
+12. Resume anchoring and service in priority order
 ```
 
 ## 恢复优先级

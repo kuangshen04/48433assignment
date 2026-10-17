@@ -1,6 +1,6 @@
 # Traceability Core
 
-> 主要决策：[A1–A7](/decisions/catalog#a1)、[B6](/decisions/catalog#b6)、[B9–B11](/decisions/catalog#b9)、[B17–B19](/decisions/catalog#b17)
+> 相关决策：[A1–A7](/decisions/catalog#a1)、[B6](/decisions/catalog#b6)、[B9–B11](/decisions/catalog#b9)、[B17–B19](/decisions/catalog#b17)
 
 ## 责任
 
@@ -63,7 +63,7 @@ Core 只做 admission/protocol validation，有两条独立理由：平台既不
 | 某一冲突声明哪一方真实 | 只能以签署声明表达 |
 | 是否违反具体食品法规 | Regulatory Analytics 与官方结论 |
 
-`CONFIRMED` 只能解释为“声明已签名、独立归档并锚定”，不能显示为“平台已验证业务真实或合规”。
+`CONFIRMED` 只能解释为“声明已签名、已进入平台控制域之外的归档并锚定”，不能显示为“平台已验证业务真实或合规”。
 
 将规则放入 Regulatory Analytics 不会把它降为外围系统：它与 Core 同属系统边界内，只是处在监管方的独立运行时域（见[系统地图](/architecture/system-map)）。deterministic heuristics 是平台整体的核心领域能力，只有 ML 算法本身是可选的。Core 与 Analytics 使用异步 peer integration，是为了隔离规则故障并保留原始冲突证据，而不是让平台忽略领域风险。
 

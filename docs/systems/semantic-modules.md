@@ -1,6 +1,6 @@
 # Semantic Modules
 
-> 主要决策：[B25](/decisions/catalog#b25)、[B17](/decisions/catalog#b17)、[B18](/decisions/catalog#b18)、[B21](/decisions/catalog#b21)
+> 相关决策：[B25](/decisions/catalog#b25)、[B17](/decisions/catalog#b17)、[B18](/decisions/catalog#b18)、[B21](/decisions/catalog#b21)
 
 ## 定位
 
@@ -53,12 +53,12 @@ ModuleManifest
 
 | 模块 | 读什么 | 产出 | 缺依赖时失去什么 |
 |---|---|---|---|
-| **HandoverModule** | shipping/receiving claims + `requiresPairingKey = bizTransaction(desadv)` | handover projection（`AWAITING_RECEIPT` / `ACCEPTED` / `PARTIALLY_ACCEPTED` / `DISPUTED` / `UNACKNOWLEDGED`） | 缺数量 → 失去 `PARTIALLY_ACCEPTED`；收货方未引用发货方的 desadv → 退化为启发式匹配并进入 reconciliation |
+| **HandoverModule** | shipping/receiving claims + `requiresPairingKey = bizTransaction(desadv)` | handover projection（`AWAITING_RECEIPT` / `ACCEPTED` / `PARTIALLY_ACCEPTED` / `REJECTED` / `DISPUTED` / `UNACKNOWLEDGED`） | 缺数量 → 失去 `PARTIALLY_ACCEPTED`；收货方未引用发货方的 desadv → 退化为启发式匹配并进入 reconciliation |
 | **RecallModule** | transformation / aggregation / handover 边 + 时间范围 | 保守 impact 报告，带 watermark 与 `scope-limited` 标注 | 缺标识 → 无法遍历 |
 | **ComplianceModule** | `source`/`destination` + `bizTransaction` + profile 字段 | 一上一下重建、义务映射证据 | 缺 source/destination → 该辖区的一上一下不成立 |
 | **ConsumerModule** | allowlist 字段 | 版本化 `PUBLIC` 快照 | 缺字段 → 该字段不出现（fail-closed allowlist） |
 | **AnalyticsInputModule** | 最小化 confirmed projection | 交给 [Regulatory Analytics](/systems/regulatory-analytics) 的数据集 | 缺字段 → 对应 rule 类不可用于该产品线 |
-| **InsightsModule** | confirmed projection | warehouse / mart + dashboard serving | 缺字段 → 对应统计维度不可用 |
+| **InsightsModule** | confirmed projection（仅 `CONSORTIUM` 与公开字段） | warehouse / mart + dashboard serving；只出**无归属的跨组织聚合** | 缺字段 → 对应统计维度不可用 |
 
 ## 模块之间必须对齐 watermark
 
@@ -93,7 +93,7 @@ Confirmed Projection (watermark W)
 
 两条分支共享的只有 **`DatasetSnapshot` 契约**：schema version、purpose、recipient service identity、watermark、expiry、audit ID。
 
-- Insights 侧只读 `CONSORTIUM` 与公开投影字段，**不碰 PRIVATE**（B23）；
+- Insights 侧只读 `CONSORTIUM` 与公开投影字段，**不碰 PRIVATE**（B23）；聚合可以跨组织，但**不归属到具体组织**——点名排名、绩效画像、供应商评分不属于本模块能力（B25），因为那等于平台在没有授权的情况下给参与方打分；
 - Analytics 侧按 B15/B21 的字段最小化规则打包，不通过 reference 追取私有资源；
 - 首版不引入独立 data lake：受保护的短期 export object 暂代 staging 层，只有实测证明需要时才独立建。
 

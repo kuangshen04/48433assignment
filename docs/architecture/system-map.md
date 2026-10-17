@@ -2,7 +2,7 @@
 
 ## 一句话架构
 
-本系统是跨组织农业供应链追溯层：参与方发布可归责的 EPCIS source assertions；平台负责接收、查询和投影；独立归档、联盟控制的 KMS 与公共链共同限制平台运营者单方面改写或垄断历史的能力；监管分析在与平台并行的独立运行时域中判断领域风险，但同属一个系统边界，且不改写追溯历史。
+本系统是跨组织农业供应链追溯层：参与方发布可归责的 EPCIS source assertions；平台负责接收、查询和投影；平台控制域之外的归档、联盟控制的 KMS 与公共链共同限制平台运营者单方面改写或垄断历史的能力；监管分析在与平台并行的独立运行时域中判断领域风险，但同属一个系统边界，且不改写追溯历史。
 
 ## 两个有意选择的成立前提
 
@@ -39,7 +39,7 @@ System boundary
 
 Boundary 之外（外部系统与独立基础设施）
   Participant Environment：PWA / ERP / WMS / TMS / IoT Platform / Gateway
-  Independent WORM Archive  <-->  Consortium-controlled KMS
+  External Archive（平台控制域之外）  <-->  Consortium-controlled KMS
   Public Blockchain（由平台 relayer 提交 Merkle root）
   External IdP / 监管方既有公告渠道
 ```
@@ -54,7 +54,7 @@ Boundary 之外（外部系统与独立基础设施）
 | Identity & Governance | 组织资格、public key、delegation、profile/高权限变更历史；组织是唯一身份与租户单元 | 组织内部的员工目录、岗位、审批链；组织层级；设备 fleet IAM；替参与方签名 |
 | Evidence (PRIVATE) | 所有者一侧保存内容；平台只持加盐承诺；可选零知识托管 | 解密、检索、比对私有内容；密钥恢复；代为取证 |
 | Operational PostgreSQL | 热查询、状态机、outbox、可重建投影 | 作为唯一权威历史或唯一恢复副本 |
-| Independent Archive | 保存可验证的 encrypted archive envelope 并签发 ArchiveAck | 解密业务数据、判断内容真实性 |
+| External Archive | 保存可验证的 encrypted archive envelope 并签发 ArchiveAck | 解密业务数据、判断内容真实性 |
 | Consortium KMS | 保护 consortium KEK，向获授权 runtime/recovery identity 提供密码操作 | 参与业务审批或替组织签名 |
 | Public Blockchain | 保存 Merkle commitment，提供外部 existence/integrity checkpoint | 保存完整 EPCIS、证明 eventTime 或物理事实 |
 | Regulatory Analytics（边界内、监管方运行时域） | 运行启发式、统计或可选 ML，输出私有 finding 或获准 advisory；为平台提供基础审查能力 | 改写 trace、继承监管人员全部权限、自动执法、决定哪条冲突声明为真 |
@@ -76,13 +76,7 @@ Core 的职责边界可以压缩成一句规则：**平台记录断言，判定�
 
 ### 能验证到什么程度（验证 ≠ 重建）
 
-“任一成员可独立验证”这句话必须拆开，否则会被读成“任一成员能读全部历史”：
-
-| 能力 | 需要明文 | 谁可以做 |
-|---|---|---|
-| 验证历史是一条 append-only 日志、自己的记录已被纳入、批次序列无断裂 | 不需要 | 任一成员 |
-| 重建并验证某条记录的内容与签名 | 需要该事件 | 持有该事件 scope 的成员 |
-| 重建并验证完整联盟历史 | 需要全部 | 全 scope 方（监管方、审计者、受托恢复方） |
+“任一成员可独立验证”这句话必须拆开，否则会被读成“任一成员能读全部历史”：**验证**历史是 append-only、自己的记录已被纳入、批次序列无断裂，不需要明文；**重建并验证内容**需要明文，范围由 scope 决定；**完整历史**的重建只有全 scope 方（监管方、审计者、受托恢复方）能做。三者的准确划分与 KEK epoch 的时间边界见 [Data & Access](/systems/data-access)。
 
 关键在于：B1 的保证是**完整性**，而完整性验证不需要明文。扁平可见性额外提供的“我能读别人的全部记录”对防篡改没有贡献，它服务的是恢复能力；而恢复能力可以由全 scope 方承担。因此 v1 的 scope 取“全体 active 成员”，收窄只是治理参数，不是架构重写。
 
@@ -96,10 +90,10 @@ Traceability Core 保存可归责的 source assertions；Regulatory Analytics �
 
 | 数据类别 | 默认位置 | 默认访问 | 平台能否读明文 |
 |---|---|---|---|
-| Canonical EPCIS trace | 加密独立归档；PostgreSQL 索引/投影 | `CONSORTIUM` | 能（运行时被授权） |
+| Canonical EPCIS trace | 外部归档（加密）；PostgreSQL 索引/投影 | `CONSORTIUM` | 能（运行时被授权） |
 | Consumer projection | 版本化对象/CDN | `PUBLIC` | 能（它就是生成者） |
 | Raw IoT、报告、合同等证据 | 参与方一侧；可选零知识托管（只有密文） | `PRIVATE` | **不能**（B23） |
-| Membership/profile/key history | 独立归档并锚定；数据库 current projection | 受治理访问 | 能 |
+| Membership/profile/key history | 外部归档并锚定；数据库 current projection | 受治理访问 | 能 |
 | Analytics dataset/findings | Regulatory Analytics runtime（监管方运行时域，边界内） | 目的受限；默认 regulator-private | 不在平台侧 |
 | Public-chain commitment | 外部公共链 | 公开，但不得含可字典匹配的个人字段 | 不适用 |
 

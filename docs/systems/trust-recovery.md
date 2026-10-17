@@ -1,6 +1,6 @@
 # Trust & Recovery
 
-> 主要决策：[B1–B8](/decisions/catalog#b1)、[B20](/decisions/catalog#b20)、[B22](/decisions/catalog#b22)
+> 相关决策：[B1–B8](/decisions/catalog#b1)、[B20](/decisions/catalog#b20)、[B22](/decisions/catalog#b22)
 
 ## 目标与非目标
 
@@ -47,7 +47,7 @@ EncryptedArchiveEnvelope
   canonicalisationVersion / profileVersion
 ```
 
-事件身份、明文 digest、签名 digest、key epoch 和版本作为 authenticated metadata。Archive Operator 不解密业务内容，只对实际保存的 envelope/ciphertext bytes 签发 `ArchiveAck`。
+事件身份、明文 digest、签名 digest、key epoch 和版本作为 authenticated metadata。`archiveOperatorId` 指向的持有方不解密业务内容，只对实际保存的 envelope/ciphertext bytes 签发 `ArchiveAck`——它可以是一个成员/监管方 mirror，也可以是商用 WORM 服务，只要不在平台控制域内（B8）。
 
 `keyId/keyEpoch` 只是 envelope 元数据，不进入 canonical payload、签名输入或 Merkle leaf。因此将来增加第二类受众只需新增 key 与治理关系，不必变更 canonicalisation、签名、leaf 或 anchor 格式；但它同时是成员可解密范围的唯一依据，所以 epoch 的授予必须有治理记录。
 

@@ -13,7 +13,7 @@
 6. Validate idempotency, schema, signature, authority and time evidence
 7. Encrypt canonical payload with per-event DEK
 8. Wrap DEK using consortium KMS key epoch
-9. Store EncryptedArchiveEnvelope in independent WORM archive
+9. Store EncryptedArchiveEnvelope in External Archive (outside the platform control domain)
 10. Receive signed ArchiveAck
 11. Issue platform acceptance receipt
 12. Allocate deterministic Merkle leaf and batch
@@ -47,7 +47,7 @@ DRAFT
 |---|---|---|
 | Signature verified | 声明由对应 key 产生 | 签署时间可信、业务内容真实 |
 | Authority/time accepted | 提交符合当前或受治理迟到策略 | 归档持久性、外部不可改写性 |
-| ArchiveAck | 独立 operator 已保存特定 ciphertext/envelope bytes | 已达到 public-chain finality |
+| ArchiveAck | 平台控制域之外的持有方已保存特定 ciphertext/envelope bytes | 已达到 public-chain finality |
 | Acceptance receipt | 平台承诺接受并纳入指定 anchor window | commitment 已上链 |
 | Chain finality | commitment 达到所选外部 finality | 物理事实真实、参与方未串谋 |
 | CONFIRMED projection | 可进入标准 trace/query | Analytics 已完成最新风险分析 |

@@ -1,6 +1,6 @@
 # Regulatory Analytics
 
-> 主要决策：[B15](/decisions/catalog#b15)、[B17](/decisions/catalog#b17)、[B21](/decisions/catalog#b21)
+> 相关决策：[B15](/decisions/catalog#b15)、[B17](/decisions/catalog#b17)、[B21](/decisions/catalog#b21)
 
 ## 系统定位
 
@@ -8,7 +8,7 @@ Regulatory Analytics 与 Traceability Core 是本系统的两个 peer core subsy
 
 它不是只供监管人员“查东西”的附加报表工具，也不是 Traceability Core 的内部规则引擎。平台运营者不知道不同产品、地区和监管制度下的权威领域规则，因此 deterministic heuristics 与高级分析统一由监管方配置、版本化和审计。这里 optional 的是 ML 技术，而不是 Regulatory Analytics 这一核心业务能力。
 
-它也不是边界外的第三方黑盒：平台自身的基础审查能力（缺证据、跨断言冲突、handover 异常、recall 辅助范围）由它提供，否则合规只能靠“平台不判”来回答。因此 C4 的 container / component / code 三层都必须覆盖它。它的运行时、数据边界和治理权属于监管方；平台只实现并运维 runtime、registry 接口、export 入口和 advisory 接收端。
+它也不是边界外的第三方黑盒：平台自身的基础审查能力（缺证据、跨断言冲突、handover 异常、recall 辅助范围）由它提供，否则合规只能靠“平台不判”来回答。因此 C4 的 container / component / code 三层都必须覆盖它。它的运行时、数据边界和治理权属于监管方：**平台构建并交付 runtime 制品与 registry / export / advisory 接口，运行、部署与日常运维都在监管方账户内完成**，判据见 [Operations & Deployment](/systems/operations-deployment) 的「租户划分与"运维"的判据」。
 
 它也不是平台用来自动决定违法、召回或事件有效性的组件：规则执行结果必须保留来源、版本、watermark 和保证等级，正式监管结论仍需 authorised officer 签署；它同样不判断哪条冲突声明为真。
 
@@ -23,13 +23,9 @@ System boundary
         `-- 这条线即主要 trust boundary
 ```
 
-| C4 层 | 最少需要出现 |
-|---|---|
-| Container | Analytics Input/Export Gate、Rule & Model Registry、Screening Scheduler + Runner pool、Finding & Advisory Store、Disclosure & Advisory Publisher；ML 侧 Training Snapshot、Model Evaluation/Registry、Human Review Queue |
-| Component | 每 container 2–3 个：Watermark Verifier、Dataset Packager、Rule Version Loader、Rule Validator、Finding Evaluator、Dedup/Expiry、Audience Resolver、Advisory Signer |
-| Code | `Rule`、`RuleVersion`、`ScreeningRun`、`DatasetSnapshot`、`Finding`、`AdvisoryFinding`、`DisclosurePolicy`、`ModelVersion`、`ReviewDecision` |
+按 [B21](/decisions/catalog#b21)，本子系统必须出现在 container / component / code 三层；但首版只覆盖到边界自洽所需的粒度，**确切清单只有一份**，见本文末节「C4 最小覆盖范围」；扩展后才新增的部分也写在那里。
 
-规模控制在这个量级：再细会与“避免 feature concentration / dense structure”冲突，再粗则无法说明 rule 版本、watermark 和披露控制究竟落在哪个组件上。
+规模控制在那份清单的量级：再细会与“避免 feature concentration / dense structure”冲突，再粗则无法说明 rule 版本、watermark 和披露控制究竟落在哪个组件上。
 
 ## 规则所有权
 
@@ -190,7 +186,7 @@ Analytics 故障时，trace ingestion/query、recall traversal 和人工调查�
 | Screening Runner | 在固定 watermark 上执行 deterministic rules（首版不含 ML） |
 | Advisory Publisher | 套用 disclosure policy、签名、路由回平台的 Advisory Ingestion |
 
-### Code（对应 3.8）
+### Code（对应 3.8，共 8 类）
 
 `Rule`、`RuleVersion`、`RuleVersionManifest`、`DatasetSnapshot`、`ScreeningRun`、`Finding`、`AdvisoryFinding`、`DisclosurePolicy`
 
@@ -210,7 +206,7 @@ Analytics 故障时，trace ingestion/query、recall traversal 和人工调查�
 ### 首版明确不做
 
 - 模型训练管线、drift 监控、human review 队列 UI（属 ML 深度，见扩展条件）；
-- 多个监管域的多租户隔离（首版一个 NSW 监管域）；
+- 多个监管机构各自的隔离运行时（首版一个 NSW 监管域）。**注意这不影响多辖区规则**：`RegulationRequirement` 可以按辖区叠加，地板编译是"模块 manifest ∪ 适用辖区要求"，加一个州不等于加一套部署；
 - 流式或低延迟执行（B21 已定不做 provisional analytics path）。
 
 ### 什么时候才扩到完整设计
@@ -220,5 +216,13 @@ Analytics 故障时，trace ingestion/query、recall traversal 和人工调查�
 1. 4.B 需要 ML 深度（模型版本、训练快照、评估、HITL）才够分；
 2. 真出现第二个监管域或第二个监管机构；
 3. 首版 deterministic rules 的容量或时延被实测证明不足。
+
+扩展后才新增的部分（首版图上不出现）：
+
+| C4 层 | 扩展时新增 |
+|---|---|
+| Container | ML 侧 Training Snapshot、Model Evaluation/Registry、Human Review Queue；Analytics Input/Export Gate 可独立成 container |
+| Component | Watermark Verifier、Dedup/Expiry、Audience Resolver 从 Analytics Workspace 内拆出 |
+| Code | `ModelVersion`、`ReviewDecision` |
 
 当前判断：4.B 的加分可以用已有的 IoT 叙事获得（判分表措辞是 AI/ML **and/or** IoT），因此完整设计的投入产出比很低。

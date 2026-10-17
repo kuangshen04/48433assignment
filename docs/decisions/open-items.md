@@ -43,7 +43,7 @@
 - load/recovery test 如何证明 B22 数量假设；
 - 估算成本及低成本替代方案。
 
-## C3 · Independent Archive 与 KMS
+## C3 · 外部归档与 KMS
 
 已确定：
 

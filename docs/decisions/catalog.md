@@ -8,17 +8,9 @@
 - **Conditional baseline**：依赖显式业务/治理假设，报告必须写明；
 - **Open**：边界已确定，但产品、参数或运营主体仍需关闭。
 
-> 2026-10-18 修订：B17 改为“记录断言 / 签署判定”两分，并补上 non-collapsing 表示义务；B21 明确 Regulatory Analytics 位于系统边界内、但属监管方独立运行时域，因此承担 C4 分解责任。B15、B18 相应补充。
+> 修订记录只有一份，在[完整决策日志](/decisions/log)头部的修订说明里；本页只同步状态与结论，不重复写改动说明。
 >
-> 2026-10-18 修订（第二次）：B3 增加“验证与重建分开”的保证范围，并明确 KEK epoch 的历史访问语义；B2、B17、B18、B7 相应收窄。原因见日志 B3 的“保证范围”一节。
->
-> 2026-10-18 修订（第三次）：新增 **B23**（PRIVATE 零知识模型与证据层分享）与 **B24**（组织作为身份与租户单元）；B3、B14、B15、B16、B18、B20 中与“平台可读私有证据”“用户管理”相关的表述已同步。
->
-> 2026-10-18 修订（第四次）：B3 增加「核心字段地板」并把数量归类与标识粒度绑定；B11 增加 Profile 三条硬约束与 conformance check。
->
-> 2026-10-18 修订（第五次）：新增 **B25**（Core / Semantic Module 分层）；B3 地板改为由模块 manifest 编译、B9 补配对键义务、B18 明确遍历策略归属 RecallModule、B11 补编译与冻结步骤、B21 指明投影由 AnalyticsInputModule 生产。
->
-> 2026-10-18 文档治理：决策日志回到「定位 + 原因 + 舍弃什么」。字段地板、conformance 清单、`ProtectedResource` 字段、注册表与请求绑定、`QueryPort` / `ModuleManifest` / 模块清单等**设计内容已移入系统页**（[Data & Access](/systems/data-access)、[Traceability Core](/systems/traceability-core)、[Identity & Governance](/systems/identity-governance)、[Semantic Modules](/systems/semantic-modules)）。冲突时行为以系统页为准、理由以日志为准。
+> 2026-10-18 文档治理：决策日志回到「定位 + 原因 + 舍弃什么」。字段地板、conformance 清单、`ProtectedResource` 字段、注册表与请求绑定、`QueryPort` / `ModuleManifest` / 模块清单等**设计内容已移入系统页**（[Data & Access](/systems/data-access)、[Traceability Core](/systems/traceability-core)、[Identity & Governance](/systems/identity-governance)、[Semantic Modules](/systems/semantic-modules)）。冲突时行为以系统页为准、理由以日志为准；分权规则见[阅读方式](/architecture/reading-guide)。
 
 ## 第一层：背景充分支持的决定
 
@@ -45,7 +37,7 @@
 <a id="a5"></a>
 ### A5 · 完整 payload 不上链
 
-**Baseline.** 公共链只保存 commitment/Merkle root；完整 canonical payload 进入独立加密归档；高频或私有证据使用 ProtectedResource。
+**Baseline.** 公共链只保存 commitment/Merkle root；完整 canonical payload 进入外部归档（平台控制域之外的加密副本）；高频或私有证据使用 ProtectedResource。
 
 <a id="a6"></a>
 ### A6 · 正式历史 append-only correction
@@ -114,7 +106,7 @@
 **Baseline.** 平台 relayer 提交 versioned Merkle root；leaf 绑定 event identity、canonical digest、signature digest 和 ArchiveAck digest。首版不要求 secondary relayer。**批次序列本身必须可验证**：root 承诺前序 root（running hash chain）或采用支持 consistency proof 的 log 结构——只有独立 root 时无法证明"没有批次被跳过或重排"，而这是 B3 中成员可独立验证的那一半。
 
 <a id="b8"></a>
-### B8 · 一个强制独立归档 + 联盟控制 KMS
+### B8 · 一个平台控制域外的强制副本 + 联盟控制 KMS
 
 **Conditional baseline.** 至少一个位于平台控制域之外的持久副本；**持有者可以是成员或监管方 mirror，也可以是独立账户的商用 WORM，不要求专职 archive 服务商**——首版把"签约独立操作方"作为演进目标而非上线前置条件（理由见日志 B8）。额外 mirrors 可选。Consortium KEK 使用由联盟/受托方控制账户和 recovery authority 的专业 KMS。
 
@@ -193,15 +185,19 @@
 <a id="b21"></a>
 ### B21 · Regulatory Analytics 是边界内的 peer subsystem
 
-**Baseline.** 它与 Traceability Core 同属系统边界内的两个 peer core subsystems，但拥有独立运行时域、独立 service identity，以及由监管方持有的规则和模型所有权。Findings 默认 regulator-private；监管方可把指定基础 `ruleId/ruleVersion` 的输出授权为受限 signed AdvisoryFinding，由平台用于基础提醒。`RuleVersion` 由监管方密钥签署，平台不取得修改或扩大规则的权力。Analytics 有独立 watermark/health，规则未运行不能展示为“无风险”。行业协会当前不是 Regulatory Advisory issuer。
+**Baseline.** 它与 Traceability Core 同属系统边界内的两个 peer core subsystems，但拥有独立运行时域、独立 service identity，以及由监管方持有的规则和模型所有权。**它整体运行在监管方账户内**：平台构建并交付制品与接口，但不持运行时凭据、不能远程推送。Findings 默认 regulator-private；监管方可把指定基础 `ruleId/ruleVersion` 的输出授权为受限 signed AdvisoryFinding，由平台用于基础提醒。`RuleVersion` 由监管方密钥签署，平台不取得修改或扩大规则的权力。Analytics 有独立 watermark/health，规则未运行不能展示为“无风险”。行业协会当前不是 Regulatory Advisory issuer。
 
 **为什么不当成外部黑盒：** 平台自身的基础审查能力（缺证据、跨断言冲突、handover 异常、recall 辅助范围）由该子系统提供；若画在系统边界之外，合规只能靠“平台不判”回答，AI/ML 的模型版本、训练数据快照、评估与 human-in-the-loop 也没有可描述的架构位置。
 
-**由此产生的义务：** C4 3.2–3.10 必须覆盖该子系统（container / component / code 三层都要有），并把 Traceability Core ↔ Regulatory Analytics 标注为主要信任边界。关闭 Analytics 属于**系统内**降级：追溯、查询与人工调查照常，但 risk assessment 必须显示 `DELAYED/UNAVAILABLE`。首版只做**最小覆盖**（3 container / 4 component / 7 类），扩展条件写在 [Regulatory Analytics](/systems/regulatory-analytics)。
+**由此产生的义务：** C4 3.2–3.10 必须覆盖该子系统（container / component / code 三层都要有），并把 Traceability Core ↔ Regulatory Analytics 标注为主要信任边界。关闭 Analytics 属于**系统内**降级：追溯、查询与人工调查照常，但 risk assessment 必须显示 `DELAYED/UNAVAILABLE`。首版只做**最小覆盖**（3 container / 4 component / 8 类），扩展条件写在 [Regulatory Analytics](/systems/regulatory-analytics)。
+
+**租户归属由控制平面决定：** 判据不是"能不能登录数据库"，而是"谁掌握控制平面"——掌握者至少能通过 dump 进程内存、读宿主存储或替换镜像拿到明文，所以"同集群、只是没有 DB key"不构成隔离。因此 Analytics 整体搬进监管方账户，**runner 与 registry 不能拆**（runner 执行规则必须读规则正文，拆开就毁掉"只锚定 digest、正文不外泄"）。代价是平台失去远程运维能力：出问题只能出制品、由监管方上线。
 
 **`RuleVersion` 的锚定：** 规则正文留在监管域，只把 `RuleVersionManifest`（ruleId/version、issuer、effective、scope、`ruleBodyDigest`、disclosures、签名）放进 platform archive 与 Merkle 锚定——这样"当时依据哪条规则"可事后验证，又不会把筛查规则正文暴露给全体成员。撤回通过发布新版本实现，不回溯已签发的 finding。
 
 **跨租户接口（三条流）：** 平台 → 监管方送 `DatasetSnapshot`；监管方 → 平台送 `RegulationRequirement` / `RuleVersionManifest`（归档并锚定）与 signed `AdvisoryFinding`。**传输认证不是授权**——权威性来自监管方签名。finding 按 `findingId` 幂等、回显 `dataWatermark`、`expiresAt` 到期即停展示；撤回用同一 `findingId` 重签并带 `status: ACTIVE | RETRACTED`（追加不覆盖）。
+
+**`RegulationRequirement` 不是 profile 的别名：** 它是监管方签署、可独立定位的 artifact，只允许做两件事——绑定 profile 里已存在的字段，或用**同一套 primitive 类型系统**新声明字段。它不能引入平台不认识的类型，也不能改已冻结的 profile 版本。核心字段地板因此由「模块 manifest 的 `requiresFields` ∪ 适用辖区要求」编译而成：**加一个辖区是加约束，不是加架构**。
 
 **上链由法律效力决定：** 日常 advisory / ML 提示**不上链**（只供参照、无法律效力）；实质调查材料留在 regulator-private audit；正式 Assessment / Inspection / Recall Notice 上链——因为它们**本来就是 signed canonical event**，不是额外锚定。因此不新增 advisory 的 Merkle leaf；代价是 prelim advisory 无链上痕迹，靠发行方留底 + 平台 advisory store 不可覆盖缓解。`analysisHealth`（监管方自报）与 `advisoryChannelLiveness`（平台自观测）必须分开显示。
 
@@ -260,10 +256,12 @@
 **Open.** Australian primary region、单一 managed PostgreSQL 起步和 RPO/RTO target 已定；仍需给出具体 service、PITR/backup、成本和 load/recovery evidence。
 
 <a id="c3"></a>
-### C3 · Archive/KMS 运营主体与产品级恢复
+### C3 · 外部归档与 KMS 的运营主体与产品级恢复
 
-**Open.** 独立控制域和跨 Australian failure domain 已定；仍需选定 operator/account owner、产品、recovery identity、key deletion protection、restore runbook、relayer wallet 和 Participant Gateway 首版范围。
+**Open.** 独立控制域和跨 Australian failure domain 已定；仍需选定副本的持有者与账户归属（成员/监管方 mirror 或商用 WORM）、产品、recovery identity、key deletion protection、restore runbook、relayer wallet 和 Participant Gateway 首版范围。
 
 ## 已舍弃但保留的替代方案
 
-Permissioned Consortium Ledger 仍是技术上可行的替代方案，但当前缺少足够、愿意承担成本且真正独立的 validator operators。项目因此采用 public-chain commitment + independent archive + consortium-controlled KMS；不是因为 BFT 本身无效。
+Permissioned Consortium Ledger 仍是技术上可行的替代方案，但当前缺少足够、愿意承担成本且真正独立的 validator operators。项目因此采用 public-chain commitment + external archive + consortium-controlled KMS；不是因为 BFT 本身无效。
+
+> 日志里的 D1–D7 是**原方案的产品 / 数据 / 签名 / 共识 / 生命周期分析与舍弃理由**，属背景材料而不是决策，因此不在本页编号，也没有锚点；需要引用时用[完整决策日志的 D 段](/decisions/log#layer-d)。

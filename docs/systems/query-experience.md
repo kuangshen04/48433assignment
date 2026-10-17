@@ -1,6 +1,6 @@
 # Query & Experience
 
-> 主要决策：[B9–B10](/decisions/catalog#b9)、[B12–B13](/decisions/catalog#b12)、[B18–B19](/decisions/catalog#b18)、[B21](/decisions/catalog#b21)
+> 相关决策：[B9–B10](/decisions/catalog#b9)、[B12–B13](/decisions/catalog#b12)、[B18–B19](/decisions/catalog#b18)、[B21](/decisions/catalog#b21)
 
 ## 三个读取平面
 
@@ -57,6 +57,6 @@ Analytics freshness 与 trace freshness 分开：trace 当前不表示规则已�
 
 ## Official Safety Notice fast path
 
-授权监管方或 responsible organisation 签署的 Recall/Safety Notice，在获得 independent ArchiveAck 后可以立即以 `VERIFIED_PENDING_ANCHOR` 发布，不等待 15–60 分钟的普通 anchor/finality。
+授权监管方或 responsible organisation 签署的 Recall/Safety Notice，在获得平台控制域之外的 `ArchiveAck` 后可以立即以 `VERIFIED_PENDING_ANCHOR` 发布，不等待 15–60 分钟的普通 anchor/finality。
 
 该例外不适用于普通 event、ML finding 或 preliminary advisory。UI 必须显示 issuer、issuedAt、archive verification 和 pending-anchor 状态，并在链恢复后补齐 finality。

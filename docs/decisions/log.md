@@ -4,7 +4,7 @@ outline: false
 
 # 完整决策日志
 
-> 更新时间：2026-10-17（B17、B21 于 2026-10-18 修订）
+> 更新时间：2026-10-18（共九次修订，逐条见下）
 >
 > 用途：记录会改变系统边界、信任模型、数据责任或部署方式的重大决定，并保留每项决定背后的 trade-off。
 >
@@ -28,12 +28,14 @@ outline: false
 >
 > 2026-10-18 第八次修订：B21 补「跨租户接口」——三条流、六项契约、撤回按追加处理，并确定**上链与否由法律效力决定**（日常 advisory 不上链，正式 Assessment/Recall 作为 canonical event 自然上链）。租户划分与部署判据见 [Operations & Deployment](/systems/operations-deployment)。
 
+> 2026-10-18 第九次修订（报告前一致性检查）：把 **B21「租户归属由控制平面决定」** 补记进日志（此前只在修订说明里指向部署页，决策本身没有落到日志）；补记 `RegulationRequirement` 的约束与 **B25 的 Insights 聚合边界**；归档系统名统一为 **External Archive / 外部归档**；并修正 B4 的 PRIVATE 表述、B9 的 `handoverId` 残留、B12 的离线签名单、B20 的 `availabilityStatus` 取值、B5 已废弃的 L2 标签、多处以 `archive operator` 代替副本持有方的旧说法，以及 B22 的窗口区间被 C1 重新打开的一处。
+
 本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
 
 ## 本页结构
 
 - [第一层：背景充分支持的决定](#layer-a) — A1–A8
-- [第二层：已经接受的额外前提](#layer-b) — B1–B22
+- [第二层：已经接受的额外前提](#layer-b) — B1–B25
 - [已舍弃但保留的完整替代方案](#layer-d) — D1–D7
 - [第三层：仍需讨论的决定](#layer-c) — C1–C3
 - [当前总体结论](#summary)
@@ -193,11 +195,11 @@ Normative basis: <https://ref.gs1.org/standards/epcis/2.0.1/#ErrorDeclaration>
 
 - 已 finalise 的 commitment 必须位于平台控制域之外的公共链；
 - 在 active retention/legal hold 内，完整 canonical trace 必须至少有一个平台控制域之外的 immutable archive；
-- canonical payload 获得规定的独立 archive acknowledgement 后，平台签发绑定该 acknowledgement 的 receipt，anchor finalise 后提供 inclusion proof；
+- canonical payload 获得规定的 external archive acknowledgement 后，平台签发绑定该 acknowledgement 的 receipt，anchor finalise 后提供 inclusion proof；
 - 平台不能把自己的 acceptance receipt 当作 public-chain finality；
 - 平台仍可能在上链前拒绝或延迟事件，因此 censorship 与 tamper resistance 分开处理。
 
-**承受的代价：** 外部 existence/integrity checkpoint 依赖 public network；数据可用性依赖独立 archive；系统还要维护 relayer、gas、finality 和 chain migration。
+**承受的代价：** 外部 existence/integrity checkpoint 依赖 public network；数据可用性依赖外部归档；系统还要维护 relayer、gas、finality 和 chain migration。
 
 **为什么可以接受：** 这些职责比组织和维护自己的 BFT validator consortium 更标准化。平台风险被拆成可分别验证的 integrity、availability 和 ingestion-censorship 问题，而不是假装由一个账本同时解决。
 
@@ -254,7 +256,7 @@ Normative basis: <https://ref.gs1.org/standards/epcis/2.0.1/#ErrorDeclaration>
 Platform PostgreSQL
 → hot operational copy、query、projection
 
-Independent Immutable Trace Archive
+External Immutable Trace Archive
 → encrypted canonical EPCIS shared trace
 → platform-independent recovery
 
@@ -267,7 +269,7 @@ Public Blockchain
 
 ## B3. EPCIS 数据和证据采用什么权限模型？
 
-**决定：** 保留固定的 `PUBLIC / CONSORTIUM / PRIVATE` 三层语义，但公共链只看到 commitment；`CONSORTIUM` payload 加密保存在 independent archive，不把联盟 trace 明文公开到公链。
+**决定：** 保留固定的 `PUBLIC / CONSORTIUM / PRIVATE` 三层语义，但公共链只看到 commitment；`CONSORTIUM` payload 加密保存在 external archive，不把联盟 trace 明文公开到公链。
 
 **边界条件/假设：** 加入联盟意味着同意其他有效联盟成员读取 network EPCIS profile 中的最小 trace facts，但联盟外用户只能看到 public projection 和不可反推 payload 的 commitment。
 
@@ -357,7 +359,7 @@ Public Blockchain
 
 **profile 仍可决定的是**哪些扩展字段、哪些证据要求、哪条公开 allowlist；这些交给 schema 阶段由产品工作组识别，见 B11。
 
-**推论：没有消费者的字段不进地板。** 例如 `readPoint` 目前没有任何模块声明为必需，因此默认 optional，仅作为争议与审计证据存在；`bizLocation` 由 RecallModule 与 ConsumerModule 声明，仍是必填。新增模块会收紧地板，属治理变更（`GovernanceRecord`），不能由开发流程静默完成。
+**推论：没有消费者的字段不进地板**——`readPoint` 目前没有任何模块声明为必需，因此默认 optional（仅作争议与审计证据），`bizLocation` 由 RecallModule 与 ConsumerModule 声明故仍必填。哪些模块声明了哪些字段、为什么新增模块属于治理变更，见 B25 的「字段地板从哪来」，不在此复述。
 
 ### Consortium archive encryption
 
@@ -405,7 +407,7 @@ Epoch 同时定义了**时间维度上的访问边界**：新加入的成员默�
 - 在 commitment 上链前拒绝、延迟或遗漏事件；
 - 拒绝提供 participant-hosted evidence；
 - 控制平台 consumer projection，除非用户独立验证 archive/proof；
-- 泄露平台可以读取的 private data。
+- 泄露平台可以读取的 `CONSORTIUM` 明文（`PRIVATE` 内容平台从来拿不到明文，见 B23）。
 
 因此当前最简洁的保证仍是：
 
@@ -629,7 +631,7 @@ signerOrganisationId
 
 ### 统一接口不能抹去信任差异
 
-- `ENTERPRISE_SELF_CUSTODY`：平台不能在没有企业私钥的情况下代签，适用完整 L2 non-impersonation guarantee；
+- `ENTERPRISE_SELF_CUSTODY`：平台不能在没有企业私钥的情况下代签，适用 B4 的完整 non-impersonation 保证；
 - `DEVICE_BOUND_SELF_CUSTODY`：与上一档同为 self-custody，但**保证的是"这个组织"，不是"哪个自然人"**；设备丢失/共享会削弱 assurance，且该档位并非所有载体都可用；
 - `ASSISTED_EXTERNAL_CUSTODY`：只有 provider policy 确实要求参与方持有的 authenticator 或独立 key share 时，才能接近同等保证；
 - `DELEGATED_PLATFORM_CUSTODY`：平台理论上可以代签，只保证事件取得 finality 后不能被平台单方面静默修改。
@@ -638,7 +640,7 @@ Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 d
 
 **承受的代价：** 平台仍需维护一个默认托管服务 integration、异步 callback、key registry、rotation 和 revocation；不同参与方获得的 attribution guarantee 不完全相同。
 
-**为什么可以接受：** 强迫所有小农场自行管理不可恢复的 PKI 会伤害可访问性，把所有密钥交给平台又会破坏 L2。统一 envelope 加分级 assurance 保留了共同事件模型，同时诚实暴露不同 custody mode 的信任差异。
+**为什么可以接受：** 强迫所有小农场自行管理不可恢复的 PKI 会伤害可访问性，把所有密钥交给平台又会破坏上述 non-impersonation 保证。统一 envelope 加分级 assurance 保留了共同事件模型，同时诚实暴露不同 custody mode 的信任差异。
 
 ---
 
@@ -689,7 +691,7 @@ ANCHOR_RETRY
 ### 权威关系
 
 ```text
-Signed canonical EPCIS payload in Independent Archive
+Signed canonical EPCIS payload in External Archive
 → 可恢复的业务记录
 
 Finalised public-chain commitment
@@ -704,13 +706,13 @@ Participant/PWA storage
 
 完整权威记录是 `signed payload + archive copy + finalised commitment + inclusion proof` 的组合，而不是 PostgreSQL 行或单独一个 public-chain hash。
 
-canonical payload 完成签名并获得 independent archive acknowledgement 后，平台签发 acceptance receipt，其中包含 `captureRecordId`、`epcisEventId`、`canonicalPayloadDigest`、`ArchiveAckDigest`、archive reference、received time、预期 anchor window，以及 archive operator identity/signature。Finality 后再提供 chain transaction reference 与 inclusion proof。Receipt 能证明平台和 archive operator 已接受该归档记录并承诺纳入锚定，但不能替代 finality。
+canonical payload 完成签名并获得 external archive acknowledgement 后，平台签发 acceptance receipt，其中包含 `captureRecordId`、`epcisEventId`、`canonicalPayloadDigest`、`ArchiveAckDigest`、archive reference、received time、预期 anchor window，以及副本持有方的 identity/signature。Finality 后再提供 chain transaction reference 与 inclusion proof。Receipt 能证明平台和副本持有方已接受该归档记录并承诺纳入锚定，但不能替代 finality。
 
 食品安全公告是标准 consumer projection gate 的唯一明确例外：authorised regulator/responsible organisation 已签名且取得 archive acknowledgement 的 official Recall/Safety Notice 可以用 `VERIFIED_PENDING_ANCHOR` 状态立即发布，清楚标示尚未获得 chain finality，并在恢复后继续正常 anchoring。普通业务 event、ML finding 和 preliminary advisory 不获得此例外。
 
 Archive 已写入但 public-chain transaction 失败时，事件保持 `PENDING_ANCHOR` 并幂等重试；链上 commitment 已 finalise 但 PostgreSQL 更新失败时，根据 archive manifest 和 chain proof 修复运营数据库，不生成新事件。
 
-Merkle batch manifest 必须随 canonical payload 一样保存在 independent archive，使参与方能够验证某个 event 确实包含在 root 中。普通 projection 默认只使用 `CONFIRMED` events。
+Merkle batch manifest 必须随 canonical payload 一样保存在 external archive，使参与方能够验证某个 event 确实包含在 root 中。普通 projection 默认只使用 `CONFIRMED` events。
 
 **代价：** 公链费用、finality delay、reorganisation、relayer failure 或 archive replication failure 都可能延迟确认。
 
@@ -734,9 +736,9 @@ Signed canonical event
 → event inclusion proof
 ```
 
-Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、hash/canonicalisation algorithm、Merkle root 和 archive reference，并与 event payload 一起独立归档。每个 versioned Merkle leaf 绑定 `networkId + captureRecordId + epcisEventId + canonicalPayloadDigest + participantSignatureDigest + ArchiveAckDigest`；字段顺序、长度编码和 hash algorithm 由 canonicalisation version 固定。相同输入必须能够重建相同 root；参与方不需要信任平台提供的查询结果即可验证 inclusion proof。
+Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、hash/canonicalisation algorithm、Merkle root 和 archive reference，并与 event payload 一起进入外部归档。每个 versioned Merkle leaf 绑定 `networkId + captureRecordId + epcisEventId + canonicalPayloadDigest + participantSignatureDigest + ArchiveAckDigest`；字段顺序、长度编码和 hash algorithm 由 canonicalisation version 固定。相同输入必须能够重建相同 root；参与方不需要信任平台提供的查询结果即可验证 inclusion proof。
 
-第一版不设置 independent secondary relayer。平台漏提或延迟提交时，receipt、archive copy 和逾期的 expected anchor window 会留下可审计的不一致，但不会自动绕过平台的 censorship。若实际治理要求在平台失效时仍能继续提交，可在不改变 event、archive 和 proof 格式的前提下增加 archive operator 或 auditor relayer。
+第一版不设置 independent secondary relayer。平台漏提或延迟提交时，receipt、archive copy 和逾期的 expected anchor window 会留下可审计的不一致，但不会自动绕过平台的 censorship。若实际治理要求在平台失效时仍能继续提交，可在不改变 event、archive 和 proof 格式的前提下增加副本持有方或 auditor relayer。
 
 **批次序列必须可验证，而不是只有单批次可验证。** B3 把"成员可独立验证历史未被重写"写成了保证的一半，而彼此独立的 root 只提供 inclusion proof，不能证明"没有批次被跳过、没有批次被重排"。因此 root 必须构成可验证的 append-only 序列：每个 root 承诺其前序 root（running hash chain），或采用支持 consistency proof 的 transparency-log 结构。**这一条是 B3 保证范围的技术前提，不是可选优化。**
 
@@ -744,13 +746,13 @@ Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、h
 
 **需要接受的代价：** event 在所属窗口关闭并达到链上 finality 前只能保持 pending；manifest 和 inclusion-proof 服务成为必要组件；第一版只能检测平台未按承诺提交，不能保证在平台恶意停摆时自动完成提交。
 
-**为什么可以接受：** 完整 payload 已先进入独立归档，不会因为等待 batch 而只存在于平台数据库中。该作业的核心目标是让事后替换和已接受后漏锚定可被发现，而不是建立一条低延迟支付链。窗口长度可在得到事件量、gas 成本和可接受确认时延后再配置。
+**为什么可以接受：** 完整 payload 已先进入外部归档，不会因为等待 batch 而只存在于平台数据库中。该作业的核心目标是让事后替换和已接受后漏锚定可被发现，而不是建立一条低延迟支付链。窗口长度可在得到事件量、gas 成本和可接受确认时延后再配置。
 
 ---
 
-## B8. Independent Archive 与 Consortium KMS 由谁运营？
+## B8. External Archive 与 Consortium KMS 由谁运营？
 
-**决定：** Independent Archive 采用“一个强制外部副本 + 可选多方 mirror”的开放复制模型。副本持有者可以是联盟成员、监管方/审计方 mirror，或使用独立账户的商用 WORM 服务；**不要求由专职 archive 产品服务商承担**（理由与演进触发条件见下）。Consortium KEK 托管在由联盟或独立受托方控制的专业 managed KMS 中。二者都不能只存在于平台自己的 cloud account 和管理员权限域内。
+**决定：** External Archive 采用“一个强制外部副本 + 可选多方 mirror”的开放复制模型。副本持有者可以是联盟成员、监管方/审计方 mirror，或使用独立账户的商用 WORM 服务；**不要求由专职 archive 产品服务商承担**（理由与演进触发条件见下）。Consortium KEK 托管在由联盟或独立受托方控制的专业 managed KMS 中。二者都不能只存在于平台自己的 cloud account 和管理员权限域内。
 
 ### Archive replication baseline
 
@@ -778,7 +780,7 @@ EncryptedArchiveEnvelope
 - canonicalisationVersion / profileVersion
 ```
 
-使用 authenticated encryption；事件身份、canonical payload digest、signature digest、key epoch 和版本信息作为 authenticated metadata，防止不改 ciphertext 却替换 envelope context。`canonicalPayloadDigest` 绑定参与方已签署的明文；`ciphertextDigest` 绑定 archive operator 实际保存的字节。
+使用 authenticated encryption；事件身份、canonical payload digest、signature digest、key epoch 和版本信息作为 authenticated metadata，防止不改 ciphertext 却替换 envelope context。`canonicalPayloadDigest` 绑定参与方已签署的明文；`ciphertextDigest` 绑定副本持有方实际保存的字节。
 
 该 acknowledgement 必须可独立验证，而不是平台数据库中的布尔字段：
 
@@ -853,7 +855,7 @@ Recovery identity、KMS policy、archive catalogue/export endpoint、profile/key
 
 外部 KMS 把信任从平台转移给专业服务与 KMS account governance，并没有消除信任。Archive 全部存在但 KEK 永久丢失时，trace 仍不可恢复。因此 key deletion protection、region/provider outage、rotation、emergency recovery、retention expiry 和管理员交接必须纳入恢复设计；是否增加第二 provider escrow 或 threshold recovery 留到 RPO/RTO 与监管要求明确后决定。
 
-**需要接受的代价：** 平台需要跨控制域调用 archive 与 KMS，处理权限故障和外部服务不可用；至少一个独立 archive operator 与 KMS account owner 需要合同、审计和交接安排。
+**需要接受的代价：** 平台需要跨控制域调用 archive 与 KMS，处理权限故障和外部服务不可用；至少一个平台控制域之外的副本持有方与 KMS account owner 需要合同、审计和交接安排。
 
 **为什么可以接受：** 这些参与方只承担标准化存储或密钥托管职责，无需验证业务交易或参与共识。一个强制外部副本提供最低恢复保证，自愿 mirrors 可以逐步增加韧性，同时不会让小型参与方承担基础设施义务。
 
@@ -906,7 +908,7 @@ Transfer projection
 
 对方不是联盟注册组织时，不伪造无法获得的 receiver signature：联盟成员仍可发布单方 shipping/receiving source claim，handover 标为 `EXTERNAL_COUNTERPARTY`，并保留可用的外部单据/evidence reference。面向最终消费者的零售使用 retail-selling 等 EPCIS 表达，不要求消费者签名。这些边界声明可以进入历史，但不得显示为双边已接受。
 
-ReceivingEvent 不是简单的 approve flag。它必须能够记录实际收到的 identifiers、quantity/unit、time、condition 和差异原因，并引用 `handoverId`、ShippingEvent ID、sender、receiver 与相关 logistic units，以支持分批接收、短缺、损坏、错发和多目的地。无法确定匹配关系时进入 reconciliation/dispute workflow，不静默合并事件。
+ReceivingEvent 不是简单的 approve flag。它必须能够记录实际收到的 identifiers、quantity/unit、time、condition 和差异原因，并引用配对键（`bizTransaction(type=desadv)`）、ShippingEvent 的 `epcisEventId`、sender、receiver 与相关 logistic units，以支持分批接收、短缺、损坏、错发和多目的地。无法确定匹配关系时进入 reconciliation/dispute workflow，不静默合并事件。
 
 ### 查询和纠错规则
 
@@ -946,7 +948,7 @@ PostgreSQL transaction
 └── durable outbox job
 
 Idempotent workers
-├── write independent archive
+├── write external archive
 ├── issue acceptance receipt
 ├── allocate Merkle batch / submit anchor
 └── update targeted projections
@@ -1073,7 +1075,7 @@ Public consumer plane
 
 ### Public consumer plane
 
-消费者请求不得直接遍历 canonical events、调用 Consortium KMS 或读取 archive/internal tables。只有 `CONFIRMED` events 进入 Public Projection Builder，生成按 trace/product ID 定位的 versioned public snapshots，并通过 object storage/cache/CDN、WAF 和 rate limiting 对互联网提供。
+消费者请求不得直接遍历 canonical events、调用 Consortium KMS 或读取 archive/internal tables。除 B18 的 official Recall/Safety Notice fast path（`VERIFIED_PENDING_ANCHOR` 可以先发布）之外，只有 `CONFIRMED` events 进入 Public Projection Builder，生成按 trace/product ID 定位的 versioned public snapshots，并通过 object storage/cache/CDN、WAF 和 rate limiting 对互联网提供。
 
 Correction event 生成新的 projection version，再更新 current-version pointer 和 cache；不在缓存中无痕覆盖历史版本。消费者并发主要由 CDN/edge cache 和可水平扩容的 stateless API 承担，不要求因此拆分整个后台为微服务。
 
@@ -1094,7 +1096,7 @@ Edge sync lag
 = participant creates event → platform RECEIVED
 
 Platform processing lag
-= RECEIVED → independent archive acknowledgement / receipt
+= RECEIVED → external archive acknowledgement / receipt
 
 Anchor lag
 = archived event → Merkle batch public-chain finality
@@ -1102,11 +1104,11 @@ Anchor lag
 
 农村连接主要影响 edge sync lag。`LOCAL_DRAFT`、`QUEUED_OFFLINE` 和 `SYNCING` 不属于平台已接受的共享历史，也不能生成 acceptance receipt。平台恢复连接后使用稳定 `captureRecordId`、idempotency key 和 causal references 去重并处理依赖；participant `eventTime` 与 repository-generated `recordTime`、平台 `receivedAt` 分开记录，不能信任设备时钟决定全局顺序。
 
-离线能力遵守 B5 的 custody boundary：enterprise self-custody gateway 可以离线签名后排队；需要 external/device approval 或 platform custody 的 PWA event 只能离线保存 draft，联网并重新认证后完成签名。离线缓存不应长期保存整个 consortium trace，尤其不能在共享设备上复制不必要的敏感数据。
+离线能力遵守 B5 的 custody boundary，分三档：**enterprise self-custody gateway 可以离线签名后排队**；**`DEVICE_BOUND_SELF_CUSTODY`（组织的设备密钥）在支持的载体上也可以离线签名**，但 assurance 低于 enterprise 档，且 iOS 等载体可能不支持；**assisted external custody 与 platform custody 只能离线保存 draft**，联网并重新认证后完成签名。离线缓存不应长期保存整个 consortium trace，尤其不能在共享设备上复制不必要的敏感数据。
 
 ### Storage and scaling path
 
-第一版以一个 managed PostgreSQL 保存 operational state、event index、outbox 和 projections；完整 payload 同时受 independent archive 保护。扩展顺序是 query/index tuning、connection pooling、vertical scaling、consumer CDN/cache、read replicas，再根据实测的表大小、projection rebuild 时间和 lineage/export workload 决定 partitioning、broker 或专用 read store，而不是预先部署全部组件。
+第一版以一个 managed PostgreSQL 保存 operational state、event index、outbox 和 projections；完整 payload 同时受 external archive 保护。扩展顺序是 query/index tuning、connection pooling、vertical scaling、consumer CDN/cache、read replicas，再根据实测的表大小、projection rebuild 时间和 lineage/export workload 决定 partitioning、broker 或专用 read store，而不是预先部署全部组件。
 
 当前 workload assumptions 是：正常写入频率较低但必须承受离线设备恢复后的 burst；内部交互读取低并发但 export 可能覆盖大量事件；消费者读取具有高并发和活动/召回导致的突发峰值；设备可能离线数小时至数天；平台 processing lag 预计为秒级到几十秒，public-chain confirmation 为分钟级并由最后选择的 anchor window 决定。这些是可验证的设计假设，不声称是客户提供的事实。
 
@@ -1166,9 +1168,9 @@ Regulatory Analytics 独立发布 `analysisInputWatermark`、`lastSuccessfulEval
 
 ### Backpressure and receipts
 
-平台可以在 archive 暂时故障时有界保存 `RECEIVED/PENDING_ARCHIVE` submissions，但在获得至少一个 qualified independent archive acknowledgement 前不得签发 acceptance receipt。Pending queue 达到容量或最大等待时间后，停止接收并返回 retryable failure，由 participant offline queue 保留原 event。
+平台可以在 archive 暂时故障时有界保存 `RECEIVED/PENDING_ARCHIVE` submissions，但在获得至少一个 qualified external archive acknowledgement 前不得签发 acceptance receipt。Pending queue 达到容量或最大等待时间后，停止接收并返回 retryable failure，由 participant offline queue 保留原 event。
 
-Public chain 故障时 payload 已在独立 archive 中，因此可以签发 receipt 并积累 `PENDING_ANCHOR` backlog；系统必须监控 oldest pending age 和 backlog size，但不能因超时自动提升为 `CONFIRMED`。B18 official safety notice 可以按 `VERIFIED_PENDING_ANCHOR` 展示，但该 publication status 不改变 canonical event finality。
+Public chain 故障时 payload 已在外部归档中，因此可以签发 receipt 并积累 `PENDING_ANCHOR` backlog；系统必须监控 oldest pending age 和 backlog size，但不能因超时自动提升为 `CONFIRMED`。B18 official safety notice 可以按 `VERIFIED_PENDING_ANCHOR` 展示，但该 publication status 不改变 canonical event finality。
 
 **需要接受的代价：** 所有异步步骤都需要明确 state、idempotency、retry policy、dead-letter/reconciliation、backpressure 和可观测性；用户界面必须同时表达 submission progress 与 read freshness。
 
@@ -1191,7 +1193,7 @@ Public chain 故障时 payload 已在独立 archive 中，因此可以签发 rec
 | Device identity、calibration status/reference | `CONSORTIUM` when required | network profile |
 | 消费者可理解的合规声明 | `PUBLIC` | allowlisted confirmed projection |
 
-独立 archive 保存 shared summary、provenance、reference 和 hash，但不强制复制全部高频 readings。参与方后续提供 raw bundle 时，系统以已确认的 content commitment 验证内容是否与当时承诺一致；无法提供时标记 `UNAVAILABLE`，由发布方承担举证后果。
+外部归档保存 shared summary、provenance、reference 和 hash，但不强制复制全部高频 readings。参与方后续提供 raw bundle 时，系统以已确认的 content commitment 验证内容是否与当时承诺一致；无法提供时标记 `UNAVAILABLE`，由发布方承担举证后果。
 
 ### Hosting does not change ownership or classification
 
@@ -1200,8 +1202,8 @@ PARTICIPANT_HOSTED
 → raw telemetry remains in participant/IoT-provider store
 → canonical event stores reference + commitment
 
-PLATFORM_HOSTED
-→ platform stores raw telemetry as an optional managed service
+PLATFORM_HOSTED_ZERO_KNOWLEDGE
+→ platform stores raw telemetry as an optional managed service (ciphertext only)
 → still participant-owned PRIVATE ProtectedResource
 ```
 
@@ -1376,11 +1378,11 @@ Public-chain commitment
 
 普通 participant onboarding 可以由一个独立 authorised membership officer 批准；regulator role、lost-key recovery、KMS recovery、profile publication、archive-operator change 和 chain migration 等高影响操作使用独立 dual control。这里的审批是低频治理流程，不是新的 BFT network，也不要求所有联盟成员逐项投票。
 
-Membership/key/profile changes 使用签名的 `GovernanceRecord`，进入 independent archive 和 Merkle anchoring；PostgreSQL current registry 是可重建 projection。平台不能仅修改数据库就无痕激活虚假组织、授予 regulator role 或替换历史 public key。
+Membership/key/profile changes 使用签名的 `GovernanceRecord`，进入 external archive 和 Merkle anchoring；PostgreSQL current registry 是可重建 projection。平台不能仅修改数据库就无痕激活虚假组织、授予 regulator role 或替换历史 public key。
 
 ### Governance effective gate
 
-普通 organisation activation、key rotation/recovery、regulator-role grant、Product Profile publication 和其他扩权变更只有在 GovernanceRecord 完成签名、获得 independent ArchiveAck 并达到 public-chain finality 后才进入 current registry 的 `EFFECTIVE` projection。依赖该新身份、key 或 profile 的 business event 在此之前不得取得 receipt/CONFIRMED。
+普通 organisation activation、key rotation/recovery、regulator-role grant、Product Profile publication 和其他扩权变更只有在 GovernanceRecord 完成签名、获得 external ArchiveAck 并达到 public-chain finality 后才进入 current registry 的 `EFFECTIVE` projection。依赖该新身份、key 或 profile 的 business event 在此之前不得取得 receipt/CONFIRMED。
 
 ```text
 PROPOSED
@@ -1547,7 +1549,7 @@ recentPendingClaims
 
 ### Safety publication fast path
 
-Authorised regulator/responsible organisation 的 official Recall/Safety Notice 与普通 trace event 的 finality gate 分开处理。Notice 在 organisation/regulator signature 验证通过并取得 independent ArchiveAck 后即可用 `VERIFIED_PENDING_ANCHOR` 状态进入 consumer/regulator view，不等待 15–60 分钟 anchor window 或 public-chain recovery；UI 必须显示 issuer、issuedAt、archive verification 和 pending-anchor status。
+Authorised regulator/responsible organisation 的 official Recall/Safety Notice 与普通 trace event 的 finality gate 分开处理。Notice 在 organisation/regulator signature 验证通过并取得 external ArchiveAck 后即可用 `VERIFIED_PENDING_ANCHOR` 状态进入 consumer/regulator view，不等待 15–60 分钟 anchor window 或 public-chain recovery；UI 必须显示 issuer、issuedAt、archive verification 和 pending-anchor status。
 
 ```text
 SIGNED_OFFICIAL_NOTICE
@@ -1595,7 +1597,7 @@ Consumer scan logs 是 platform-private operational/analytics data，不进入 c
 
 ## B20. NSW trial 的 privacy、retention 和 data residency 基线是什么？
 
-**决定：** NSW 作为首个 trial jurisdiction。Primary application/PostgreSQL、participant/private evidence、independent archive 和 Consortium KMS 默认部署在 Australian regions；至少一个恢复副本位于不同 Australian failure domain。Public chain 只保存不直接识别个人的 commitment/Merkle root，`PUBLIC` consumer projection 可以通过全球 CDN 分发。
+**决定：** NSW 作为首个 trial jurisdiction。Primary application/PostgreSQL、participant/private evidence、external archive 和 Consortium KMS 默认部署在 Australian regions；至少一个恢复副本位于不同 Australian failure domain。Public chain 只保存不直接识别个人的 commitment/Merkle root，`PUBLIC` consumer projection 可以通过全球 CDN 分发。
 
 选择 Australian residency 是降低 APP 8/cross-border、regulator procurement 和 incident-coordination 风险的架构政策，不声称澳大利亚法律绝对禁止所有海外处理。海外复制、support access 或 analytics 默认关闭；未来启用时必须单独完成 privacy、contractual 和 jurisdiction assessment。
 
@@ -1651,9 +1653,9 @@ ACTIVE_RETENTION
 
 七年是 NSW pilot canonical trace 的默认 retention/capacity assumption；product/jurisdiction policy 可以设置更长期限，legal hold 暂停到期删除。平台外完整 payload recovery guarantee 只在 active retention/legal hold 内成立；到期后只能证明曾存在某 commitment 以及按何种 policy 完成删除，不能再恢复 payload。
 
-Profile、canonicalisation、organisation/public-key、revocation 和 governance history 至少保留到最后一个依赖它们的 canonical payload 到期。删除操作由 authorised retention worker 请求，Archive operator 执行并签署 deletion acknowledgement；该 minimal deletion record 进入后续 Merkle anchoring。平台不能单方面提前删除 WORM object。
+Profile、canonicalisation、organisation/public-key、revocation 和 governance history 至少保留到最后一个依赖它们的 canonical payload 到期。删除操作由 authorised retention worker 请求，副本持有方执行并签署 deletion acknowledgement；该 minimal deletion record 进入后续 Merkle anchoring。平台不能单方面提前删除 WORM object。
 
-Mutable user/account/contact data 支持 access、correction、deletion 或 de-identification；private evidence 到期后可以删除，并把引用状态更新为 `EXPIRED/DELETED/UNAVAILABLE`，但不回写或伪造仍在 retention 内的原 canonical event。按 B23，平台能删的只是自己名下的密文对象；所有者自己的副本不在范围内，删除也无法证明内容在其他位置已消失。Legal hold 必须记录 authority、case、scope、effective/expiry time 和 audit trail。
+Mutable user/account/contact data 支持 access、correction、deletion 或 de-identification；private evidence 到期后可以删除——retention 进入 `RETENTION_EXPIRED` 终态，`availabilityStatus` 随之不再有 `OBJECT_PRESENT`（平台不再持有该对象），引用本身保留并留下签名的 minimal deletion audit，但不回写或伪造仍在 retention 内的原 canonical event。按 B23，平台能删的只是自己名下的密文对象；所有者自己的副本不在范围内，删除也无法证明内容在其他位置已消失。Legal hold 必须记录 authority、case、scope、effective/expiry time 和 audit trail。
 
 Public-chain commitment 永久存在，因此 commitment input 不得包含 plaintext personal identifier，也不能把短小个人字段直接当作可被字典匹配的公开 hash。减少不可变 PII 的主要手段是 schema allowlist 和 ingestion-time data minimisation，而不是承诺以后从 WORM/public chain 中擦除。
 
@@ -1715,23 +1717,31 @@ Trust boundary = Traceability Core ↔ Regulatory Analytics
 
 1. 平台需要的基础审查能力（缺证据、跨断言冲突、handover 异常、recall 辅助范围）由这一子系统提供。若把它画在系统边界之外，本架构就只保证证据完整性而不提供任何审查能力，“compliance with food safety regulations” 只能靠“我们不判”来回答。
 2. 只有作为边界内子系统，ML 的模型版本、训练数据快照与 watermark、评估与漂移、human-in-the-loop、finding 的披露控制才有可描述的架构位置；画在边界外，这些内容不属于本架构。
-3. Traceability Core ↔ Regulatory Analytics 是本威胁模型中最需要专门标注的信任边界（B15 的权限分离、B18 的 case-specific evidence request gate）；其余边界（参与方/API 入口、独立 archive、公链 relayer、KMS）属于常规外部接口，按 4.18 的正常方式标注即可，不承担区分治理域的作用。
+3. Traceability Core ↔ Regulatory Analytics 是本威胁模型中最需要专门标注的信任边界（B15 的权限分离与 case-specific evidence request gate）；其余边界（参与方/API 入口、外部归档、公链 relayer、KMS）属于常规外部接口，按 4.18 的正常方式标注即可，不承担区分治理域的作用。
 
-**术语澄清：** “peer core subsystem” 指**整体系统**中与 Traceability Core 对等的两个子系统，不代表 Regulatory Analytics 是平台运营者拥有的另一个 container，也不代表平台对它的规则有所有权。它的运行时、数据边界和治理权属于监管方；平台只实现并运维其 runtime、registry 接口、export 入口和 advisory 接收端。B15 的权限分离、B8 的 KMS 边界不变。
+**术语澄清：** “peer core subsystem” 指**整体系统**中与 Traceability Core 对等的两个子系统，不代表 Regulatory Analytics 是平台运营者拥有的另一个 container，也不代表平台对它的规则有所有权。它的运行时、数据边界和治理权属于监管方：平台构建并交付 runtime 制品与 registry / export / advisory 接口，但**运行与运维在监管方账户内**（判据见下），平台不持运行时凭据、不能远程推送。B15 的权限分离、B8 的 KMS 边界不变。
+
+### 租户归属由控制平面决定
+
+Analytics 整体运行在监管方自己的 cloud account 里，与平台账户分开。理由不是合规姿态，而是一条可检验的判据：
+
+> 决定隔离的不是"能不能登录数据库"，而是**谁掌握控制平面**。
+
+掌握控制平面的人至少有三条路径拿到明文：dump 进程内存、直接读宿主存储、替换镜像。所以"和平台同集群、只是没有 DB key"不构成隔离——平台仍然能在运行时看到解密后的数据。这条判据把"心理上隔离、物理上同域"的方案全部排除。
+
+**已否决：把 runner 与 registry 拆开**（runner 在平台、registry 在监管方）。runner 执行规则必须读规则正文，平台一旦跑 runner，下面「`RuleVersion` 的发布、锚定与撤回」里"只锚定 `ruleBodyDigest`、正文不外泄"就失效了。整体搬迁是唯一自洽的切法。
+
+**"想要一个集群"的动机不必靠共享租户满足**：第一版两边都用托管容器服务，都不需要运维节点，区别只是账户归属。
+
+**承受的代价：** 平台失去远程运维能力——缺陷只能通过发版修复、由监管方在自己账户上线；原本的内部调用变成跨租户网络调用，因此才有了下面的三条签名流和两个独立健康信号。反过来说，如果部署时把 Analytics 放回平台账户，这条决策就退回"平台可读全部 finding"，必须在报告里显式承认。
 
 ### Analytics 子系统的 C4 分解责任
 
-因为它位于系统边界内，3.2–3.10 必须覆盖它。规模控制在下表量级，超出会伤及“避免 feature concentration / dense structure”：
+因为它位于系统边界内，3.2–3.10 必须覆盖它。首版确切的 container / component / code 清单**只有一份**，写在 [Regulatory Analytics](/systems/regulatory-analytics) 的「C4 最小覆盖范围」；本决策只保留规模约束：再细会伤及“避免 feature concentration / dense structure”，再粗则说不清 rule 版本、watermark 与披露控制落在哪个组件上。
 
-| C4 层 | 最少需要出现 | 对应视图 |
-|---|---|---|
-| Container | Analytics Input/Export Gate（watermark 校验、数据集打包）、Rule & Model Registry、Screening Scheduler + Runner pool、Finding & Advisory Store、Disclosure & Advisory Publisher；ML 侧 Training Snapshot、Model Evaluation/Registry、Human Review Queue | 3.2–3.4 |
-| Component | 每 container 2–3 个：Watermark Verifier、Dataset Packager、Rule Version Loader、Rule Validator、Finding Evaluator、Dedup/Expiry、Audience Resolver、Advisory Signer | 3.5–3.7 |
-| Code | `Rule`、`RuleVersion`、`ScreeningRun`、`DatasetSnapshot`、`Finding`、`AdvisoryFinding`、`DisclosurePolicy`、`ModelVersion`、`ReviewDecision` | 3.8–3.10 |
+**规则所有权必须在图上可见。** `RuleVersion` 由监管方密钥签署后进入 Registry；平台只交付 runtime 制品与 registry 接口，不 author、不改规则、不扩大适用范围。这与“平台跑账本、但由组织签交易”是同一个模式，用来回答“平台团队实现了规则引擎，是否等于平台在定义规则”。
 
-**规则所有权必须在图上可见。** `RuleVersion` 由监管方密钥签署后进入 Registry，平台只提供 runtime 与 registry，不 author、不改规则、不扩大适用范围。这与“平台跑账本、但由组织签交易”是同一个模式，用来回答“平台团队实现了规则引擎，是否等于平台在定义规则”。
-
-**关闭 Analytics 只影响审查能力，不影响追溯。** 内部化之后这是**系统内**的降级路径，而不是外部依赖故障：ingestion、trace query、consumer view 和监管人员手工调查继续运行，risk assessment 标记为 `DELAYED/UNAVAILABLE`，过期 finding 停止当前态展示（B13、B17）。这同时是可用性战术的正面例证：异步解耦 + 可选依赖 + advisory 不参与写入路径。
+**关闭 Analytics 只影响审查能力，不影响追溯。** 内部化之后这是**系统内**的降级路径，而不是外部依赖故障（降级的具体语义见本节末的 freshness 小节）。这同时是可用性战术的正面例证：异步解耦 + 可选依赖 + advisory 不参与写入路径。
 
 ### 合规能力的三层分工
 
@@ -1816,7 +1826,7 @@ RuleVersionManifest（进 platform archive + Merkle 锚定）
 
 ### 跨租户接口：三条流与"什么才上链"
 
-Analytics 在监管方租户里（见系统地图的部署划分），因此原本的内部调用变成三条跨租户流：
+Analytics 在监管方租户里（见上「租户归属由控制平面决定」），因此原本的内部调用变成三条跨租户流：
 
 ```text
 平台 → 监管方    DatasetSnapshot（最小化 + purpose + expiry + watermark）
@@ -1827,6 +1837,8 @@ Analytics 在监管方租户里（见系统地图的部署划分），因此原�
 **传输认证不是授权。** mTLS/token 只证明"谁连上来了"；权威性来自 finding 上的监管方签名，平台用 `EventSignatureVerifier` + Organisation Key Registry 验，不为这条流新设信任机制。
 
 契约另外五项：按 `findingId` 幂等；finding 必须回显 `dataWatermark` 且平台不能用当前 watermark 替代；`expiresAt` 到期后停止当前态展示但保留历史；通道活性由平台自己观测；**撤回**按追加处理——同一 `findingId` 重新签名并带 `status: ACTIVE | RETRACTED`，不新增消息类型、不覆盖历史。
+
+**`RegulationRequirement` 不是 profile 的别名。** 它必须是监管方签署、可独立定位的 artifact，而不是"让监管方去改平台 profile"：① 责任形状不同——profile 是联盟治理对所有产品线的基线，requirement 是某辖区对某品类追加的举证要求；② 它只允许绑定已有字段，或用**同一套 primitive 类型系统**新声明字段，不能引入平台不认识的类型；③ 地板因此是「模块 manifest 的 `requiresFields` ∪ 适用辖区要求」的编译结果，**加一个辖区是加约束，不是加架构**。若让监管方直接改 profile，平台就成了规则作者——B17/B21 都不允许。
 
 #### 上链与否由"法律效力"决定
 
@@ -1927,9 +1939,9 @@ Offline burst 明显高于日均写入，用于验证多个 rural gateways 恢�
 
 Projection 正常 lag 目标为 30 秒；达到五分钟 safety threshold 时，recall/food-safety query 等待追平、回查 eligible source index 或返回 `STALE/INCOMPLETE`。这里的五分钟衡量“某记录达到其可发布 gate 后到 projection 可见”的延迟，不包含普通 event 的 15–60 分钟 anchor/finality 等待。Official Recall/Safety Notice 按 B18 的 `VERIFIED_PENDING_ANCHOR` fast path 计入 safety projection；Dashboard/consumer view 显示相应 watermark 和 assurance status，不把缺失结果当成“没有风险”。
 
-Logical RPO=0 是设计目标，仅适用于已经获得可验证 independent ArchiveAck 并签发 receipt，或已经 `CONFIRMED` 的 canonical event，并以 archive/KMS durability、retention 尚未到期和成功 restore drill 为前提。`LOCAL_DRAFT/QUEUED_OFFLINE/SYNCING` 由 participant device/gateway 负责；PostgreSQL 中可重建 operational state 使用五分钟 RPO 目标。Core RTO 四小时优先恢复 ingestion、trace query 和 regulatory access；大型 exports/analytics 可以在完整区域重建的二十四小时目标内后恢复。
+Logical RPO=0 是设计目标，仅适用于已经获得可验证 external ArchiveAck 并签发 receipt，或已经 `CONFIRMED` 的 canonical event，并以 archive/KMS durability、retention 尚未到期和成功 restore drill 为前提。`LOCAL_DRAFT/QUEUED_OFFLINE/SYNCING` 由 participant device/gateway 负责；PostgreSQL 中可重建 operational state 使用五分钟 RPO 目标。Core RTO 四小时优先恢复 ingestion、trace query 和 regulatory access；大型 exports/analytics 可以在完整区域重建的二十四小时目标内后恢复。
 
-Logical RPO=0 的必测场景是：event 已取得 independent ArchiveAck 并向参与方签发 receipt，但尚未进入 Merkle batch 时平台 PostgreSQL 和运行账户全部丢失。Recovery Client 必须能从 independent archive catalogue 发现该对象，重建 receipt/outbox/anchor intent，在不重复签发 receipt 和不重复分配 leaf 的前提下继续 anchoring。该演练未成功前，receipted trace 的 logical RPO=0 仍只是目标。
+Logical RPO=0 的必测场景是：event 已取得 external ArchiveAck 并向参与方签发 receipt，但尚未进入 Merkle batch 时平台 PostgreSQL 和运行账户全部丢失。Recovery Client 必须能从 external archive catalogue 发现该对象，重建 receipt/outbox/anchor intent，在不重复签发 receipt 和不重复分配 leaf 的前提下继续 anchoring。该演练未成功前，receipted trace 的 logical RPO=0 仍只是目标。
 
 ### Scaling triggers
 
@@ -1955,7 +1967,7 @@ Logical RPO=0 的必测场景是：event 已取得 independent ArchiveAck 并向
 
 **为什么这样定：**
 
-- 平台看不到内容，就不需要为它设计字段级权限、租户隔离、KMS 策略和争议裁定；
+- 平台看不到**内容**，就不需要为内容设计字段级权限、内容级 KMS 策略和争议裁定（运维元数据上的租户隔离仍然需要，见 B24）；
 - 举证义务本来就在发布方（A4/B19），把内容收进平台反而让责任变模糊；
 - commitment 进入锚定历史后，"参与方事后替换证据"从免责声明变成**可被检测**（见"承诺的可执行性"）。
 
@@ -2079,8 +2091,6 @@ owner encrypts evidence to:
 | 合作社与成员农场的关系 | 参与方之间的商业安排：写成多个 `organisationId` + delegation，不建组织层级 |
 | 多站点企业的站点结构 | 同上；站点可写成不同 `bizLocation`，但仍属同一 organisation |
 
-平台可以提供一个**很简易的用户界面**（查看/编辑本组织的 delegation 列表），但那个界面是 delegation 注册表的编辑器，不是权威用户目录；组织更换 HR 系统时平台不感知，也不需要同步。
-
 ### 组织层级显式 out of scope
 
 不建 `parentOrganisationId`。一旦层级存在，`CONSORTIUM` 可见范围、scope 计算、KMS epoch 和签名归因都要沿层级继承，复杂度和治理成本立刻上升；而农业场景中的层级关系（合作社、集团、代工、代销）差异太大，平台无法给出通用语义。
@@ -2147,6 +2157,12 @@ owner encrypts evidence to:
 推论：**没有消费者的字段不进地板。** 例如 `readPoint` 目前没有任何模块声明为必需，因此默认 optional，仅作为争议与审计证据存在；`bizLocation` 由 RecallModule 与 ConsumerModule 声明，仍是必填。
 
 新增模块会收紧地板，属治理变更，必须走 `GovernanceRecord`（B16），不能由开发流程静默完成。
+
+### Insights 能聚合什么、不能聚合什么
+
+InsightsModule 服务的是**监管问责与召回**，不是参与方绩效管理。允许：无归属的跨组织聚合（某品类在某区域的损耗分布、某类告警的时间趋势）。禁止：能指回具体组织的排名、评分与绩效画像。
+
+理由是 B17：Core 不裁决真伪，平台也就不该在没有授权的情况下替参与方打分。一旦出现"供应商评分"，平台就等于用自己的聚合口径制造了一个没有签署者的判定——而这种判定本该由监管方签署发布。检验句：这个指标能不能只用 confirmed trace 算出来，且不指向具体组织的优劣？两条都满足才做。
 
 ### 两个必须避免的误读
 
@@ -2237,7 +2253,7 @@ DRAFT
 2. **完整 L2 的独立域成本过高。** 若目标为 `f=2`，经典 BFT 需要至少七个独立控制域；七个容器或同一服务商代管的七个节点并不构成七个故障域。
 3. **治理问题无法由节点数量解决。** Membership、profile、key rotation、validator replacement 和 emergency upgrade 都需要长期章程、预算和投票机制。
 4. **少数节点方案的保证容易被夸大。** 三至五个节点可能降低单方控制，但不能诚实宣称完整抵抗平台与另一个 validator 同时 Byzantine。
-5. **主要目标只是防止事后无痕修改。** 使用成熟公链提供外部 commitment，并用独立 archive 提供数据可用性，可以更直接地解决已确认的 integrity/availability 问题。
+5. **主要目标只是防止事后无痕修改。** 使用成熟公链提供外部 commitment，并用外部归档提供数据可用性，可以更直接地解决已确认的 integrity/availability 问题。
 
 ## D7. 从原方案保留的设计
 
@@ -2259,7 +2275,7 @@ DRAFT
 Public Blockchain
 → integrity and external existence checkpoint
 
-Independent Immutable Archive
+External Immutable Archive
 → full canonical trace availability
 
 Consortium Key Service
@@ -2281,7 +2297,7 @@ Consortium Key Service
 
 **需要接受的代价：** 系统依赖外部网络的 gas、finality、validator/stake security、治理升级和长期可用性；平台需要 relayer、transaction monitor、proof service 和 chain migration procedure。
 
-**最后再回答：** 选择哪一个 public network；窗口是分钟级还是小时级；commitment contract 是否 immutable；如何迁移到新链并保持 anchor continuity；允许多长的 anchor/finality delay。
+**最后再回答：** 选择哪一个 public network；窗口取 15/30/60 分钟中的哪一个（B22 的 15–60 分钟目标区间内）；commitment contract 是否 immutable；如何迁移到新链并保持 anchor continuity；允许多长的 anchor/finality delay。
 
 ---
 
@@ -2303,21 +2319,21 @@ NSW pilot 采用 B22 假设：10,000 canonical events/day、50 events/s offline-
 
 ## C3. 独立控制域的恢复目标和具体运营安排是什么？
 
-**已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Regulator-Operated Analytics Environment、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。其中 Shared SaaS Application Plane 与 Regulator-Operated Analytics Environment 同属系统边界内（B21），但运行时、数据边界和治理权分离；至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
+**已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Regulator-Operated Analytics Environment、External Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。其中 Shared SaaS Application Plane 与 Regulator-Operated Analytics Environment 同属系统边界内（B21），但运行时、数据边界和治理权分离；至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
 
 NSW trial 的 mandatory archive 和 Consortium KMS 位于 Australian regions；恢复副本至少跨 Australian failure domain。Public chain 可以是 global network，因为链上只保存不直接识别个人的 commitment/Merkle root。
 
-已经获得可验证 independent ArchiveAck/receipt 且仍处于 active retention/legal hold 的 canonical trace 采用 logical RPO=0 target；core service RTO 为四小时，完整 regional rebuild RTO 为二十四小时。该目标仍依赖选定 archive/KMS product、account governance、KMS recovery identity 和恢复演练证明能够达到。
+已经获得可验证 external ArchiveAck/receipt 且仍处于 active retention/legal hold 的 canonical trace 采用 logical RPO=0 target；core service RTO 为四小时，完整 regional rebuild RTO 为二十四小时。该目标仍依赖选定 archive/KMS product、account governance、KMS recovery identity 和恢复演练证明能够达到。
 
 故障语义也已经确定：write path 在失败步骤 fail closed 并可幂等续跑；既有 confirmed data 尽可能继续读取并暴露 freshness/degradation；ArchiveAck 之前不签 receipt，public-chain finality 之前不进入 `CONFIRMED`。B18 authorised official Recall/Safety Notice 可以 `VERIFIED_PENDING_ANCHOR` 快速发布，但不得冒充链上 finality。
 
-**为什么部分内容尚未定案：** 权力边界、Australian residency、retention terminal state 和 target RPO/RTO 已经确定，但背景没有给出愿意签约的 archive operator、联盟治理实体或具体产品，不能虚构组织和供应商，也不能在恢复测试前把 targets 写成已实现 SLA。
+**为什么部分内容尚未定案：** 权力边界、Australian residency、retention terminal state 和 target RPO/RTO 已经确定，但背景没有给出愿意承接副本的组织、联盟治理实体或具体产品，不能虚构组织和供应商，也不能在恢复测试前把 targets 写成已实现 SLA。
 
 **已否决：** 仅罗列云服务品牌而不说明谁控制账号、密钥和恢复；也否决要求每个小型参与方部署完整基础设施。
 
 **需要接受的代价：** 跨控制域部署增加网络、安全、监控、升级和故障协调成本。
 
-**待回答：** 强制 archive operator 和 KMS account owner 的具体组织；Australian replica/failure-domain 选择；archive/KMS 产品级 failover 与 restore procedure 能否满足 B22 RPO/RTO；KEK deletion protection、rotation 和 emergency recovery；是否需要第二 provider escrow；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
+**待回答：** 强制副本持有者与 KMS account owner 的具体组织；Australian replica/failure-domain 选择；archive/KMS 产品级 failover 与 restore procedure 能否满足 B22 RPO/RTO；KEK deletion protection、rotation 和 emergency recovery；是否需要第二 provider escrow；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
 
 ### C1–C3 在最终报告中的关闭条件
 
@@ -2332,7 +2348,7 @@ Q&A 阶段可以保留产品选型待定，但最终 deployment/infrastructure v
 
 其中有两个不能在报告压缩时省略的成立前提。第一，B1 是为了让题目明确要求的 blockchain 承担真实的外部完整性职责；如果参与方完全信任平台，数据库加 WORM backup 已足够，区块链会退化为 theatre。第二，B17/B21 不是取消领域校验，而是把“记录断言”和“签署判定”分开：Traceability Core 只记录断言，判定只能由有权主体以签署声明进入历史；普通领域启发式与高级分析在**系统边界内**的 Regulatory Analytics 子系统中执行，该系统与 Traceability Core 对等但拥有独立运行时与治理域，规则和模型所有权属于监管方。投影层不得把竞争断言折叠成单一路径。只有 ML 算法本身是可选的。
 
-Canonical shared trace 使用 per-event DEK 加密，并在确认前取得至少一个平台控制域之外 WORM archive operator 的 signed ArchiveAck；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的 external existence/integrity checkpoint。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台有运行所需的 decrypt 使用权但没有密钥管理权，因此本方案不声称防止被攻破的平台 runtime 泄露 consortium plaintext。
+Canonical shared trace 使用 per-event DEK 加密，并在确认前取得至少一个位于平台控制域之外的副本持有者的 signed ArchiveAck（B8）；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的 external existence/integrity checkpoint。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台有运行所需的 decrypt 使用权但没有密钥管理权，因此本方案不声称防止被攻破的平台 runtime 泄露 consortium plaintext。
 
 联盟内注册组织之间的 B2B 实物交接由 sender-signed shipping claim 与 receiver-signed receiving claim 两份独立声明组成，在 EPCIS 中映射为标准 events 加 shipping/receiving bizStep；二者分别确认，平台只派生 handover status。网络外对手方使用明确标注的单方 boundary claim，消费者零售不要求消费者签名。缺少接收确认不会抹去发货声明，争议、未确认和 `EXTERNAL_COUNTERPARTY` edges 仍进入 recall/audit 查询并明确标记保证等级。
 
@@ -2356,7 +2372,7 @@ Recall 是对 shared consortium lineage projection 的保守、带 watermark 的
 
 参与方负责分配标准 product/logistics identifiers，平台只为缺少外部 scheme 的参与方提供 network-scoped fallback，并验证 syntax、namespace、resolution 和 attribution。Consumer QR 只解析 public projection，不证明标签物理真实性或提供防伪保证。
 
-NSW 是首个 trial jurisdiction。非公开 operational data、independent archive 和 Consortium KMS 默认位于 Australian regions；immutable trace 排除自然人直接标识，canonical payload 默认保留至少七年并可由 product/jurisdiction policy 或 legal hold 延长。Retention 到期后删除 archive ciphertext/DEK envelope 和可重建 payload，只永久保留非个人 public-chain commitment 与 signed minimal deletion audit。Mutable personal data 支持 correction/deletion/de-identification。
+NSW 是首个 trial jurisdiction。非公开 operational data、external archive 和 Consortium KMS 默认位于 Australian regions；immutable trace 排除自然人直接标识，canonical payload 默认保留至少七年并可由 product/jurisdiction policy 或 legal hold 延长。Retention 到期后删除 archive ciphertext/DEK envelope 和可重建 payload，只永久保留非个人 public-chain commitment 与 signed minimal deletion audit。Mutable personal data 支持 correction/deletion/de-identification。
 
 NSW pilot 的 reference workload 为 200 个初始组织、2,000 名内部用户和日均 10,000 canonical events；农村恢复峰值按 50 events/s、消费者 CDN 峰值按 5,000 requests/s 设计。Active-retention 内已取得可验证 ArchiveAck 的 trace 以 logical RPO=0 为目标，PostgreSQL RPO 五分钟，core RTO 四小时，regional rebuild 二十四小时；这些都是待测试验证的 architecture assumptions，而不是生产 SLA。
 

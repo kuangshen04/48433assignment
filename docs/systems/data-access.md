@@ -1,6 +1,6 @@
 # Data & Access
 
-> 主要决策：[A5–A6](/decisions/catalog#a5)、[B2–B3](/decisions/catalog#b2)、[B10–B12](/decisions/catalog#b10)、[B20](/decisions/catalog#b20)、[B23](/decisions/catalog#b23)
+> 相关决策：[A5–A6](/decisions/catalog#a5)、[B2–B3](/decisions/catalog#b2)、[B10–B12](/decisions/catalog#b10)、[B20](/decisions/catalog#b20)、[B23](/decisions/catalog#b23)
 
 ## 三类可见性
 
@@ -16,11 +16,11 @@
 
 扁平可见性不等于“任一成员能读全部历史”。按 B3：
 
-| 能力 | 谁可以做 |
-|---|---|
-| 验证日志 append-only、自己的记录已纳入批次、批次序列无断裂 | 任一成员（inclusion + consistency proof） |
-| 重建并验证某条记录 | 持有该事件 scope 的成员 |
-| 重建并验证完整历史 | 全 scope 方：监管方、审计者、受托恢复方 |
+| 能力 | 需要明文 | 谁可以做 |
+|---|---|---|
+| 验证日志 append-only、自己的记录已纳入批次、批次序列无断裂 | 不需要 | 任一成员（inclusion + consistency proof） |
+| 重建并验证某条记录 | 该事件 | 持有该事件 scope 的成员 |
+| 重建并验证完整历史 | 全部 | 全 scope 方：监管方、审计者、受托恢复方 |
 
 KEK epoch 同时构成时间边界：新成员默认只拿到当前及之后的 epoch，加入前的历史明文访问需要显式治理授予。**这是对能力声明的收窄，不影响完整性保证**——完整性验证不需要明文。
 
@@ -109,6 +109,17 @@ owner encrypts to: owner itself / regulator scope / named trading partners
 
 两条使用规则：**`OBJECT_PRESENT ≠ 可读`**、**`UNKNOWN ≠ 不存在`**。调查不能把"平台查不到"写成"对方没提供"，只能表述为"平台侧无法确认"并走 evidence request。
 
+### `evidencePresence` 与 `availabilityStatus` 回答两个不同问题
+
+两个枚举都带 "available" 味道，但一个讲**事件里有没有这份证据引用**，一个讲**引用指向的内容现在能不能拿到**。不要混用：
+
+| 枚举 | 层 | 取值 | 谁判定 | 回答的问题 |
+|---|---|---|---|---|
+| `evidencePresence` | canonical event（profile 视角） | `PRESENT` / `MISSING` / `DELAYED` / `UNAVAILABLE` | Core 机械比对 profile 要求与事件内容 | 这条声明是否按 profile 附上了要求的证据 |
+| `availabilityStatus` | `ProtectedResource`（内容视角） | `OWNER_ASSERTED` / `OBJECT_PRESENT` / `UNKNOWN` | 平台自动判断 + 所有者声明 | 内容此刻在不在、平台能不能确认 |
+
+`DELAYED` 只表示"超过 profile 窗口仍无引用"，是时间对比，不是风险结论；`evidencePresence=MISSING` 也不等于对方违规——是否构成风险或违规由 [Regulatory Analytics](/systems/regulatory-analytics) 或监管人员判断。
+
 ### `ENCRYPTION` 密钥的生命周期与签名密钥相反
 
 | | `SIGNING` | `ENCRYPTION` |
@@ -122,7 +133,7 @@ owner encrypts to: owner itself / regulator scope / named trading partners
 ## Operational 与 canonical 数据
 
 ```text
-Independent Archive
+External Archive（平台控制域之外）
   authoritative encrypted payload and verification material
 
 PostgreSQL
@@ -164,4 +175,4 @@ ACTIVE_RETENTION
 
 ## Residency
 
-非公开 operational data、independent archive 和 Consortium KMS 默认位于 Australian regions，并至少跨一个 Australian failure domain。海外复制、support access 或 analytics 需要独立 privacy、contractual 和 jurisdiction assessment。
+非公开 operational data、外部归档和 Consortium KMS 默认位于 Australian regions，并至少跨一个 Australian failure domain。海外复制、support access 或 analytics 需要独立 privacy、contractual 和 jurisdiction assessment。

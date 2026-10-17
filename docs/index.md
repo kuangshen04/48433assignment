@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Agricultural Supply Chain Tracker
   text: 架构决策手册
-  tagline: 在保留 Q&A 决策追溯的同时，按系统边界和端到端流程重新组织设计。
+  tagline: 决策理由、系统边界与端到端流程分开维护，同一个问题只有一个权威。
   actions:
     - theme: brand
       text: 查看系统地图
@@ -27,9 +27,9 @@ features:
 [完整决策日志](/decisions/log) 是完整的决策记录，适合回答“为什么这样决定”。随着决策增多，同一个系统的职责会分散在多个问题中，不适合直接用来理解“这个系统到底做什么”。
 
 ::: warning 两个不能被弱化的架构前提
-**B1 — 平台运营者不被完全信任。** 题目明确要求 blockchain；若平台仍控制唯一数据、密钥和证明，普通数据库加 WORM backup 已经足够，区块链就只是 theatre。公共链、独立 archive 和非平台控制的 KMS/recovery authority 必须实际改变信任边界。
+**B1 — 平台运营者不被完全信任。** 题目明确要求 blockchain；若平台仍控制唯一数据、密钥和证明，普通数据库加 WORM backup 已经足够，区块链就只是 theatre。因此公共链、平台控制域之外的归档、非平台控制的 KMS/recovery authority 必须实际改变信任边界。
 
-**B17/B21 — 核心只记录断言，判定必须被签署。** Traceability Core 既不掌握也无权发明产品、地区和监管规则，同时无法观察现实，所以它不裁决哪条冲突声明为真；判定只能由持钥的权威主体以签署声明进入历史。普通业务启发式与高级统计/ML 由**系统边界内**的 Regulatory Analytics 子系统执行，该子系统拥有自己的运行时域和监管方的规则所有权。投影层不得把竞争断言折叠成单一路径；ML 可选，不代表 Regulatory Analytics 可有可无。
+**B17/B21 — 核心只记录断言，判定必须被签署。** Core 既不掌握也无权发明产品、地区和监管规则，同时无法观察现实，所以不裁决哪条冲突声明为真；判定只能由持钥的权威主体以签署声明进入历史。投影层不得把竞争断言折叠成单一路径。普通启发式与 ML 由**系统边界内**的 Regulatory Analytics 执行——ML 可选，不代表该子系统可有可无。展开见[系统地图](/architecture/system-map)。
 :::
 
 本站提供四个互补入口：

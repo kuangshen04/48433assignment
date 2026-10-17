@@ -1,6 +1,6 @@
 # IoT & Edge
 
-> 主要决策：[A8](/decisions/catalog#a8)、[B12](/decisions/catalog#b12)、[B14](/decisions/catalog#b14)、[B16](/decisions/catalog#b16)
+> 相关决策：[A8](/decisions/catalog#a8)、[B12](/decisions/catalog#b12)、[B14](/decisions/catalog#b14)、[B16](/decisions/catalog#b16)
 
 ## 两种接入模式
 
@@ -29,7 +29,7 @@ Small participant
 
 Device/provider signature 可以说明 bundle 的技术来源，但 canonical EPCIS publication 仍由 organisation 或其注册 gateway/machine actor 承担责任。设备签名、校准和防拆提高 assurance，不能证明设备实际位置或测量的物理真实性。
 
-Product Profile 只定义 required evidence 的字段、单位、结构和引用格式。Traceability Core 记录 `PRESENT/MISSING/DELAYED/UNAVAILABLE`；缺失是否构成风险或违规由 Regulatory Analytics 或监管人员判断。
+Product Profile 只定义 required evidence 的字段、单位、结构和引用格式。Traceability Core 按 profile 对比后记录 `evidencePresence`（`PRESENT/MISSING/DELAYED/UNAVAILABLE`，语义见 [Data & Access](/systems/data-access)）；缺失是否构成风险或违规由 Regulatory Analytics 或监管人员判断。
 
 ## 离线与农村网络
 

@@ -36,6 +36,7 @@
 | 组织是唯一身份与租户单元，每请求显式绑定 acting organisation | Identity/Governance | Core、KMS、Projections |
 | Profile 不得弱化核心字段地板；class-lot 级必须带数量与单位 | Profile/Core（B3 + B11） | IoT、Analytics、Recall |
 | Core 不产生业务状态；结论只能由语义模块产出并标注能力边界 | Core（B25） | 所有模块、UI、报告 |
+| Insights 只产出无归属的跨组织聚合，不做组织排名或绩效画像 | Semantic Modules（B25、B17） | Dashboard、报告 |
 
 ## 两个反误读测试
 
@@ -53,7 +54,7 @@
 
 ### B21：把 Regulatory Analytics 画在系统边界外，还能自圆其说吗？
 
-不能。平台的基础审查能力、模型/规则版本、训练数据快照和 human-in-the-loop 都会失去架构位置，合规就只能用“平台不判”回答。代价是必须为它提供 C4 三层视图，并注明它由监管方运营、平台只提供 runtime 与 registry。
+不能。平台的基础审查能力、模型/规则版本、训练数据快照和 human-in-the-loop 都会失去架构位置，合规就只能用“平台不判”回答。代价是必须为它提供 C4 三层视图，并注明它运行在监管方账户内、平台只交付制品与接口而不代运维。
 
 ## 容易混淆的边界
 
@@ -65,7 +66,7 @@ Core 判断结构、签名、权限和可重建关系，并负责让冲突可见
 
 Governance 决定谁有现实参与资格；公共链限制确认后历史被静默替换。错误批准恶意成员不会让其获得其他组织的 self-custody key。
 
-### Independent Archive vs PostgreSQL
+### External Archive vs PostgreSQL
 
 Archive 保存可验证 canonical bytes；PostgreSQL 提供热状态和索引。Archive 没有完整 query 功能，PostgreSQL 也不能单独兑现 platform-independent recovery。
 

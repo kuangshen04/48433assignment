@@ -1,6 +1,6 @@
 # Operations & Deployment
 
-> 主要决策：[A7](/decisions/catalog#a7)、[B7–B8](/decisions/catalog#b7)、[B10](/decisions/catalog#b10)、[B12–B13](/decisions/catalog#b12)、[B20](/decisions/catalog#b20)、[B22](/decisions/catalog#b22)、[C1–C3](/decisions/open-items)
+> 相关决策：[A7](/decisions/catalog#a7)、[B7–B8](/decisions/catalog#b7)、[B10](/decisions/catalog#b10)、[B12–B13](/decisions/catalog#b12)、[B20](/decisions/catalog#b20)、[B22](/decisions/catalog#b22)、[C1–C3](/decisions/open-items)
 
 ## 第一版部署形态
 
@@ -12,7 +12,7 @@ Australian primary region
   object snapshots and public origin
   Insights warehouse / mart
 
-Independent Australian control domains
+Australian control domains outside the platform account
   external archive replica + cross-failure-domain recovery copy
   consortium/trustee-controlled KMS and recovery identity
 
@@ -95,4 +95,4 @@ Core RTO 优先恢复 ingestion、trace query 和 regulatory access；大型 exp
 
 ## 最终报告仍需选定
 
-Q&A 保留产品选型待定是合理的，但 deployment view 必须给出一套可实施 reference deployment，包括 public network、anchor window、Australian cloud/region、managed PostgreSQL、WORM archive、KMS ownership/recovery、relayer wallet 和恢复验证路径。详见[待定事项](/decisions/open-items)。
+决策阶段保留产品选型待定是合理的，但 deployment view 必须给出一套可实施 reference deployment，包括 public network、anchor window、Australian cloud/region、managed PostgreSQL、外部归档产品、KMS ownership/recovery、relayer wallet 和恢复验证路径。详见[待定事项](/decisions/open-items)。
