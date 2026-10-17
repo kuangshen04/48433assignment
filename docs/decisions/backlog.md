@@ -16,6 +16,7 @@
 | B24 新增 | 组织是唯一身份、访问与租户单元；每请求显式绑定 acting organisation；组织层级 out of scope |
 | **T1 决策部分** | 数量归类：`quantityList` 进 `CONSORTIUM`，但**与粒度绑定**——`class-lot` 级必填（+ UN/CEFACT `uom`），`instance` 级可用标识计数、重量退化为证据引用。核心字段地板写入 B3；Profile 三条硬约束 + 扩展字段判据写入 B11 |
 | **B25 新增** | Core 收缩为机制（含强制 scope / non-collapsing / watermark 的 `QueryPort`）；handover、召回遍历、合规重建、分析输入、洞察改为同进程语义模块；字段地板改由模块 manifest 编译；B9 补配对键义务、B18 明确遍历策略归属、B11 补编译冻结、B21 投影归 AnalyticsInputModule |
+| **范围冻结（2026-10-18）** | Analytics 的 C4 取**最小覆盖**（3 container / 4 component / 7 类），并框定 Insights 与 AnalyticsInput 共用的 `DatasetSnapshot` 数据平面；两者合并为 T2+T3，扩展条件写在系统页 |
 | 文档迁移 | `major-decisions-qa.md` 移入本站为[完整决策日志](/decisions/log) |
 
 ---
@@ -27,9 +28,10 @@
 | 编号 | 事项 | 动作 | 影响 |
 |---|---|---|---|
 | T1 | **Profile conformance check 与模板**（决策已于 2026-10-18 完成，剩下工程化） | 把 B11 的失败条件做成 profile 发布前的校验组件，并提供 profile 模板（粒度声明 + 核心字段 + allowlist + evidence requirements） | 3.5–3.7；也是「profile 不能弱化追溯」的可执行证据 |
-| T2 | **平台侧 Insights 数据层** | 定义 ELT（confirmed projection → 列式 warehouse / mart）+ dashboard / serving 容器；只读 `CONSORTIUM`，不碰 PRIVATE；与 Regulatory Analytics 的「判断」明确分离 | 4.6–4.9（5 分）+ brief 第 6 条 |
-| T3 | **Analytics 子系统的 C4 设计** | 落实 B21 的债：5–6 个 container、约 10 个 component、9 个类，命名 + 职责 + 接口；Core ↔ Analytics 作为信任边界 | 3.2–3.10；4.B 加分的基础 |
+| T2+T3 | **数据平面最小覆盖设计**（两者合并） | **已完成范围框定**：Insights 与 AnalyticsInput 共用一条 `DatasetSnapshot` 路径，见 [Semantic Modules](/systems/semantic-modules)；Analytics 侧只做 3 container / 4 component / 7 类，见 [Regulatory Analytics](/systems/regulatory-analytics)。剩余：把它画进 container 与 component 图 | 4.6–4.9、3.2–3.7；4.B 主要靠 IoT 叙事，不依赖这里做深 |
 | T4 | **运营数据的租户隔离** | registry / job / outbox / export 的 `organisationId` 谓词 + RLS 兜底；export 绑定 tenant 或 case scope；运维访问 break-glass | 2.7 / 4.18（B23 只解决了内容，没解决运维数据） |
+
+**T2/T3 的扩展条件**（当前不触发，写在系统页里）：4.B 需要 ML 深度才够分、出现第二个监管域、或 deterministic rules 的容量/时延被实测证明不足。三条都不成立就维持最小覆盖。
 
 ## 第二批：把已有材料写成论证
 

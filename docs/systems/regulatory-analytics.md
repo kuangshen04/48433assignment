@@ -125,3 +125,44 @@ analysisHealth = CURRENT | DELAYED | UNAVAILABLE
 ```
 
 Analytics 故障时，trace ingestion/query、recall traversal 和人工调查继续运行。UI 必须显示 `Risk assessment delayed/unavailable`；“没有当前 finding”只能表示对已成功评估到的 watermark 未产生提示，不能解释为没有食品安全风险。
+
+## C4 最小覆盖范围（首版）
+
+按 [B21](/decisions/catalog#b21)，本子系统必须出现在 container / component / code 三层；但首版只覆盖到**边界自洽**所需的粒度，不追求内部完备。
+
+### Containers
+
+| Container | 职责 |
+|---|---|
+| Analytics Workspace | 接收数据集、在固定 watermark 上执行规则、产出 finding、发布 advisory |
+| Rule & Model Registry | 保存监管方签署的 `RuleVersion`（以及将来的 `ModelVersion`） |
+| Finding & Advisory Store | 保存 private finding 与已授权 advisory，携带 watermark 与 expiry |
+
+### Components（Analytics Workspace 内）
+
+| Component | 职责 |
+|---|---|
+| Dataset Intake | 校验 dataset schema/version、调用方 service identity、watermark、purpose 与 expiry |
+| Rule Loader & Validator | 从 registry 装载 `RuleVersion`，校验监管方签名与适用范围 |
+| Screening Runner | 在固定 watermark 上执行 deterministic rules（首版不含 ML） |
+| Advisory Publisher | 套用 disclosure policy、签名、路由回平台的 Advisory Ingestion |
+
+### Code（对应 3.8）
+
+`Rule`、`RuleVersion`、`DatasetSnapshot`、`ScreeningRun`、`Finding`、`AdvisoryFinding`、`DisclosurePolicy`
+
+### 首版明确不做
+
+- 模型训练管线、drift 监控、human review 队列 UI（属 ML 深度，见扩展条件）；
+- 多个监管域的多租户隔离（首版一个 NSW 监管域）；
+- 流式或低延迟执行（B21 已定不做 provisional analytics path）。
+
+### 什么时候才扩到完整设计
+
+满足任一条件才扩，否则维持最小覆盖：
+
+1. 4.B 需要 ML 深度（模型版本、训练快照、评估、HITL）才够分；
+2. 真出现第二个监管域或第二个监管机构；
+3. 首版 deterministic rules 的容量或时延被实测证明不足。
+
+当前判断：4.B 的加分可以用已有的 IoT 叙事获得（判分表措辞是 AI/ML **and/or** IoT），因此完整设计的投入产出比很低。

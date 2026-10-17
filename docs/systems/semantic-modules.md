@@ -71,6 +71,34 @@ ModuleManifest
 
 需要同时看多个模块结论的界面（召回工作台、监管调查视图）必须在一次查询里固定 watermark，而不是分别取最新值。
 
+## 数据平面：InsightsModule 与 AnalyticsInputModule 共用
+
+这两个模块消费同一份 confirmed projection，差别只在消费者与披露规则，因此共用一条路径，首版不建两套：
+
+```text
+Confirmed Projection (watermark W)
+   │
+   ├─ InsightsModule ─→ nightly ELT ─→ Insights warehouse / mart ─→ dashboards
+   │                                    （平台运行时域，仅 CONSORTIUM + PUBLIC）
+   │
+   └─ AnalyticsInputModule ─→ minimised DatasetSnapshot
+                                 （schema version + purpose + expiry + watermark + audit）
+                                      │ export
+                                      ▼
+                            Regulatory Analytics Workspace
+                                      │
+                                      ├─→ private Finding（REGULATOR_ONLY）
+                                      └─→ signed AdvisoryFinding ─→ 平台 Advisory Ingestion
+```
+
+两条分支共享的只有 **`DatasetSnapshot` 契约**：schema version、purpose、recipient service identity、watermark、expiry、audit ID。
+
+- Insights 侧只读 `CONSORTIUM` 与公开投影字段，**不碰 PRIVATE**（B23）；
+- Analytics 侧按 B15/B21 的字段最小化规则打包，不通过 reference 追取私有资源；
+- 首版不引入独立 data lake：受保护的短期 export object 暂代 staging 层，只有实测证明需要时才独立建。
+
+Analytics 侧容器的具体范围（首版最小覆盖）见 [Regulatory Analytics](/systems/regulatory-analytics)。
+
 ## 与 Core 的边界
 
 | 归属 | 例子 | 判定依据 |
