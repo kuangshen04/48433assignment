@@ -1,12 +1,14 @@
 # 当前重大架构决策 Q&A
 
-> 更新时间：2026-10-17
+> 更新时间：2026-10-17（B17、B21 于 2026-10-18 修订）
 >
 > 用途：记录会改变系统边界、信任模型、数据责任或部署方式的重大决定，并保留每项决定背后的 trade-off。
 >
 > 依据：case brief、EPCIS 背景、行业平台调研，以及后续架构讨论。背景没有直接给出的内容会明确标记为补充假设。
 >
 > 阅读方式：第一层是背景直接支持的决定；第二层是已经接受的额外假设；第三层是仍待讨论的选择。
+>
+> 2026-10-18 修订说明：B17 改为"记录断言 / 签署判定"两分，并补上 non-collapsing 表示性质；B21 明确 Regulatory Analytics 位于系统边界内但属监管方独立运行时域，因此需要承担 C4 分解责任。受影响的下游表述已在总体结论、一分钟版本、B11、B15、B18、C3 同步。
 
 每项决定都会说明必要的边界和理由。只有当真实存在竞争方案、责任转移或显著负面后果时，才进一步记录被否决方案、代价及其可接受性；不为了形式完整而人为制造 trade-off。
 
@@ -813,7 +815,7 @@ Consumer view、dashboard、lineage visualisation、handover summary 和 analyti
 - consumer projection 的显式字段 allowlist；
 - 通用表单控件所需的 label、help text 和 display metadata。
 
-以下内容不能由任意 profile 重写：EPCIS event core semantics、Shipping/Receiving handover、correction/append-only rules、canonical digest、signature assurance、archive/anchor lifecycle、organisation authorization 和 recall traversal。Yield、mass balance、fraud heuristics、cross-event plausibility 和 compliance conclusions 不放入 profile，也不转移到核心领域代码，而由 regulator-controlled analytics 处理。
+以下内容不能由任意 profile 重写：EPCIS event core semantics、Shipping/Receiving handover、correction/append-only rules、canonical digest、signature assurance、archive/anchor lifecycle、organisation authorization 和 recall traversal。Yield、mass balance、fraud heuristics、cross-event plausibility 和 compliance conclusions 不放入 profile，也不转移到核心领域代码，而由 Regulatory Analytics 子系统处理（B21）。
 
 Profile 不引入任意 field-level access policy。Profile 中的 shared trace fields 默认属于 `CONSORTIUM`；消费者只能读取 allowlisted `PUBLIC` projection；不能向联盟公开的文件或数据继续作为 `PRIVATE` ProtectedResource。
 
@@ -1024,6 +1026,8 @@ IoT vendor/参与方负责完整 device fleet identity、certificate provisionin
 
 **决定：** 不拥有相同权限。Regulator organisation/authorised officer 是具有法定或联盟治理职责的正式主体；Regulatory Analytics service（包括 deterministic heuristics、statistics 和 optional ML）是目的受限的辅助工具和独立 service identity。Analytics service 不继承监管方人员的全部权限，也不能以“由监管方运营”为理由获得任意 archive、KMS 或 `PRIVATE` data access。
 
+该子系统位于系统边界内，但属于监管方独立运行时域（B21）：边界内不代表平台可以获得它的规则、模型或 finding 数据，也不代表监管方可以借它取得平台侧的运行权限。两侧的接口只有 B21 的 analytics projection 导出与 signed `AdvisoryFinding` 返回。
+
 ### Permission matrix
 
 | Capability | Regulator / authorised officer | Regulatory Analytics/ML service |
@@ -1181,23 +1185,58 @@ APPLICANT → ACTIVE → SUSPENDED → ACTIVE / EXITED / REVOKED
 
 ## B17. 核心平台是否判断 Transformation、Aggregation 或数量关系异常？
 
-**决定：** 不判断。核心平台只验证 event 的 schema/profile shape、signature、organisation authority、canonicalisation、idempotency 和 envelope/lifecycle validity。只要一项声明在技术和权限上有效，就保留发布方签署的原始 claim；平台不生成官方 anomaly、fraud、mass-balance 或 compliance status，也不因跨事件关系看起来不合理而拒绝归档和锚定。
+**决定：** Traceability Core 不判定现实真伪，只记录断言。核心平台只验证 event 的 schema/profile shape、signature、organisation authority、canonicalisation、idempotency 和 envelope/lifecycle validity。只要一项声明在技术和权限上有效，就保留发布方签署的原始 claim；平台不生成官方 anomaly、fraud、mass-balance 或 compliance status，也不因跨事件关系看起来不合理而拒绝归档和锚定。
 
-**这是领域知识与规则权威的架构前提，不是为了减少实现工作。** 平台运营者不知道不同产品、地区和监管制度下什么数量、时序、温度、加工损耗或关系组合才算合理，也无权自行发明这些规则。把普通领域启发式校验和高级 statistical/ML analysis 一起放入 regulator-controlled Regulatory Analytics，可让监管方配置、版本化和审计规则，并对规则结论负责。这里 optional 的只是 ML 技术；deterministic regulatory heuristics、rule evaluation、freshness 和 controlled disclosure 使 Regulatory Analytics 成为平台整体的一等核心业务子系统，而不只是供监管人员“查东西”的外围报表工具。
+**这是领域知识与规则权威的架构前提，不是为了减少实现工作。** 平台运营者不知道不同产品、地区和监管制度下什么数量、时序、温度、加工损耗或关系组合才算合理，也无权自行发明这些规则。把普通领域启发式校验和高级 statistical/ML analysis 一起放入 Regulatory Analytics，可让监管方配置、版本化和审计规则，并对规则结论负责。这里 optional 的只是 ML 技术；deterministic regulatory heuristics、rule evaluation、freshness 和 controlled disclosure 使 Regulatory Analytics 成为与 Traceability Core 对等的核心业务子系统，而不只是供监管人员“查东西”的外围报表工具。
 
-### Admission validation only
+### 记录断言与签署判定是两个不同职责
+
+即使同一序列化对象被两项 transformation 分别声称消耗，核心也无法判断哪一项为真：这不是实现不足，而是可观测性边界。EPCIS 本身就允许不同组织分别作出互相不兼容的声明，并不规定谁正确（见 `epcis-model-notes.md` §11），因此核心若选其一或判其错，等于在无授权的情况下代替现实作出裁决。
+
+由此得到本系统的判定规则：
+
+> 平台记录断言；判定只能由有权主体以签署声明的方式进入历史。
+
+判定进入历史的通道目前只有三条：A6 的 EPCIS `ErrorDeclaration`、B18 的 signed Recall/Safety Notice、B15/B21 的 regulator-signed Inspection/Assessment。三者都要求一个具名的、持钥的权威主体。由平台自行推断并写入历史的“错误”或“违规”结论一律不允许，因为平台既没有观察现实的能力，也没有裁决权。
+
+### Admission validation（阻断性校验）
 
 核心可以拒绝：无法解析的 EPCIS/profile payload、缺失 schema-required fields、非法数据类型或 vocabulary、无法 canonicalise 的内容、无效 signature、无权 publisher、同一 `captureRecordId` 对应不同 digest、违反 A6 Error Declaration 特例的重复 EPCIS eventID、损坏的 signature/archive envelope，以及非法 lifecycle transition。
 
 核心不判断：input 是否被重复消耗、output/yield 是否合理、损耗是否异常、时间地点是否可疑、同一对象是否被多个 transformation 声称、aggregation 是否冲突、关系是否形成业务上可疑的 cycle，或某组织 correction 是否过于频繁。EPCIS schema 明确禁止的结构仍不接收，但平台不添加超出 schema 的业务合理性门槛。
 
+### 两类“校验”必须分开
+
+```text
+Admission validation（阻断）
+→ schema/profile shape、signature、authority、canonicalisation、
+  idempotency、envelope/lifecycle validity
+
+In-domain structural representability（不阻断）
+→ 某对象被多个 transformation 声称消耗、存在竞争 parent、
+  引用了网络内未知标识、lineage 关系在时间上成环
+→ 只决定投影如何呈现，不决定事件是否有效
+```
+
+第二类不是业务合理性判断，而是关于**已提交断言集合**的、无需领域知识的事实：它可以计算、可以复现、不含价值判断。它不得成为拒收条件、不得生成 verdict 状态、不得阻塞归档与锚定，但必须被如实呈现（见下节）。把这两类混在一起，会要么让核心越权裁决，要么让平台对自相矛盾的历史保持沉默。
+
 ### Preserve conflicting claims
 
 互相冲突或不完整的 signed events 仍分别进入 canonical history，并保留 publisher、event time、record/received time、profile version 和 signature。平台不选择“哪一条是真的”，也不使用 first-writer-wins 让先提交者阻止其他组织留下相反声明。
 
-Lineage/query projection 必须容忍 unknown references、多条竞争关系和 graph cycles，使用 visited set、depth/result limit 和 provenance-per-edge 防止无限遍历。它可以如实显示“没有更早的网络内事件”或多条声明，但不创建 `UNRESOLVED_INPUT`、`MASS_BALANCE_WARNING` 等官方业务判断状态。
+Lineage/query projection 必须容忍 unknown references、多条竞争关系和 graph cycles，使用 visited set、depth/result limit 和 provenance-per-edge 防止无限遍历。它必须如实显示“没有更早的网络内事件”或多条声明，但不创建 `UNRESOLVED_INPUT`、`MASS_BALANCE_WARNING` 等官方业务判断状态。
 
-Shipping/Receiving 的 `ACCEPTED/PARTIALLY_ACCEPTED/DISPUTED` 是对两份明确声明的机械关联结果，而不是异常检测；同理，correction relationship 和 recall traversal 是结构处理，不代表平台认定声明真实。
+### 默认视图不得折叠竞争断言
+
+“不创建判断状态”和“必须暴露断言冲突”并不矛盾：前者是 platform verdict，禁止；后者是关于已提交断言集合的 provenance fact，必须可见。
+
+对同一对象的全部已确认断言，lineage、recall impact、handover 和 audit 的**默认视图不得折叠为一条路径**，也不得为竞争边排序、打分或选择“代表路径”（平台不产生置信度）。每条边至少保留 B18 定义的 provenance 字段。
+
+Recall/food-safety 查询尤其不能折叠：任何“受影响 / 未受影响”的结论都必须能追溯到它所依赖的断言集合和 watermark；当依赖集合包含竞争边时，结果必须显示该竞争关系，而不是取其一。Consumer projection 受 `PUBLIC` allowlist 约束，但同样不得在存在竞争断言时呈现为单一路径；具体披露措辞可与消费者视图的合规审查一并确定。
+
+这条要求也是“transparency”这一业务目标在查询层的落点：如果只有监管方能看到历史自相矛盾，参与者与消费者就没有获得透明性。
+
+Shipping/Receiving 的 `ACCEPTED/PARTIALLY_ACCEPTED/DISPUTED` 是对两份明确声明的机械关联结果，而不是异常检测；同理，correction relationship 和 recall traversal 是结构处理，不代表平台认定声明真实。这也是 non-collapsing 的一个特例：handover status 可以机械派生，但派生依据必须能回到原始的两份声明。
 
 ### No authoritative material-balance model
 
@@ -1205,12 +1244,12 @@ Shipping/Receiving 的 `ACCEPTED/PARTIALLY_ACCEPTED/DISPUTED` 是对两份明确
 
 Product Profile 只定义字段结构、required references、vocabulary、units、consumer allowlist 和 UI metadata，不配置 yield tolerance、mass-balance、fraud heuristics 或 automatic compliance conclusion。
 
-### Analysis belongs outside the core
+### Analysis belongs outside the Traceability Core, but inside the system boundary
 
 ```text
 Confirmed source assertions
 → Regulatory Analytics Projection
-→ regulator-controlled deterministic rules / statistics / optional ML
+→ regulator-owned deterministic rules / statistics / optional ML
 → regulator-private alert
 → human investigation
 → optional regulator-signed Assessment/Inspection event
@@ -1220,7 +1259,7 @@ Confirmed source assertions
 
 **需要接受的代价：** 没有启用监管分析时，核心系统会保存甚至展示明显矛盾的 source assertions。`CONFIRMED` 只能解释为“已签名、归档并锚定”，不能被 UI 或报告表达为“平台已验证业务真实、数量合理或合规”。Recall traversal 也必须保守处理所有相关 claims，而不能依赖一个平台判定的唯一正确路径。
 
-**为什么可以接受：** 区块链和 EPCIS 在本系统中提供 attribution、trace reconstruction 和 post-confirmation integrity，而不是通用欺诈检测。把产品、地区和监管机构特有的启发式规则留在 regulator-controlled analytics，可以避免 Traceability Core 变成由平台擅自维护的规则权威，也避免错误规则阻止冲突证据进入历史；受控披露又让平台仍能使用监管方批准的基础结果提供及时提醒。
+**为什么可以接受：** 区块链和 EPCIS 在本系统中提供 attribution、trace reconstruction 和 post-confirmation integrity，而不是通用欺诈检测。把产品、地区和监管机构特有的启发式规则留在 Regulatory Analytics 子系统（B21：系统边界内、监管方运行时域），可以避免 Traceability Core 变成由平台擅自维护的规则权威，也避免错误规则阻止冲突证据进入历史；受控披露又让平台仍能使用监管方批准的基础结果提供及时提醒。
 
 ---
 
@@ -1254,7 +1293,7 @@ Shipping/Receiving: object → all claimed destinations/custodians
 Association: not automatically treated as product-impact propagation
 ```
 
-平台不判断哪条冲突路径真实，也不决定某种加工是否消除污染。查询返回所有可能相关的 source assertions 和 edge provenance，结果语义是 `possibly affected based on available claims`，不是平台认证的污染结论。产品/风险特有的停止规则、cross-contamination 和 process-effectiveness 判断属于监管分析或人工调查。
+平台不判断哪条冲突路径真实，也不决定某种加工是否消除污染。查询返回所有可能相关的 source assertions 和 edge provenance，结果语义是 `possibly affected based on available claims`，不是平台认证的污染结论。结果按 B17 的 non-collapsing 规则呈现：竞争边并存显示，不选代表路径，也不为边打分。产品/风险特有的停止规则、cross-contamination 和 process-effectiveness 判断属于监管分析或人工调查。
 
 Aggregation/custody relations 具有时间范围；重复使用的 pallet、container 或 location 不能形成永久影响关系。Lineage edge projection 至少保留 `fromObjectId`、`toObjectId`、`edgeType`、`sourceEventId`、publisher、event time、effective interval、confirmation status 和 handover status。
 
@@ -1412,7 +1451,7 @@ Platform、participant 和 regulator 分别保留适用于自身控制数据的�
 
 ## B21. Regulatory Analytics 是否只供监管方使用，还是也向平台提供辅助能力？
 
-**决定：** Regulatory Analytics 与 Traceability Core 是 peer core subsystems，而不是只供监管人员查询的附加报表模块。普通领域启发式规则、统计分析和 optional ML 都在 regulator-controlled environment 中运行；结果默认 regulator-private，但监管方可以通过明确的 disclosure policy，把选定基础 rule/version 的输出作为 signed preliminary advisory 提供给平台用于基础提醒。平台只负责验证、路由和展示获准结果，不继承监管系统的完整数据、模型或法定权限。
+**决定：** Regulatory Analytics 与 Traceability Core 是本系统的两个 peer core subsystems，**都在系统边界之内**。Regulatory Analytics 拥有独立运行时域、独立 service identity，以及由监管方持有的规则和模型所有权，但它不是本架构之外的黑盒：它必须为平台自身提供基础审查能力（baseline review service）。普通领域启发式规则、统计分析和 optional ML 都在这一子系统内运行；结果默认 regulator-private，但监管方可以通过明确的 disclosure policy，把选定基础 rule/version 的输出作为 signed preliminary advisory 提供给平台用于基础提醒。平台只负责验证、路由和展示获准结果，不继承监管系统的完整数据、模型或法定权限。
 
 ```text
 Confirmed CONSORTIUM Projection
@@ -1422,6 +1461,56 @@ Confirmed CONSORTIUM Projection
                                      ↓
 Platform Advisory Ingestion → permitted participant reminders
 ```
+
+### 一个架构，两个控制域
+
+```text
+System boundary（本架构）
+├── Traceability Core（平台运行时域）
+│   ├── ingestion / validation / signature / archive / anchor
+│   ├── lineage / handover / recall / consumer projection
+│   └── regulator portal 与 investigation access
+└── Regulatory Analytics（监管方运行时域）
+    ├── rule / model registry（监管方签署并持有）
+    ├── screening / evaluation
+    └── finding store / advisory publisher
+
+Trust boundary = Traceability Core ↔ Regulatory Analytics
+```
+
+**为什么在边界内，而不是画成外部系统：**
+
+1. 平台需要的基础审查能力（缺证据、跨断言冲突、handover 异常、recall 辅助范围）由这一子系统提供。若把它画在系统边界之外，本架构就只保证证据完整性而不提供任何审查能力，“compliance with food safety regulations” 只能靠“我们不判”来回答。
+2. 只有作为边界内子系统，ML 的模型版本、训练数据快照与 watermark、评估与漂移、human-in-the-loop、finding 的披露控制才有可描述的架构位置；画在边界外，这些内容不属于本架构。
+3. Traceability Core ↔ Regulatory Analytics 是本威胁模型中最需要专门标注的信任边界（B15 的权限分离、B18 的 case-specific evidence request gate）；其余边界（参与方/API 入口、独立 archive、公链 relayer、KMS）属于常规外部接口，按 4.18 的正常方式标注即可，不承担区分治理域的作用。
+
+**术语澄清：** “peer core subsystem” 指**整体系统**中与 Traceability Core 对等的两个子系统，不代表 Regulatory Analytics 是平台运营者拥有的另一个 container，也不代表平台对它的规则有所有权。它的运行时、数据边界和治理权属于监管方；平台只实现并运维其 runtime、registry 接口、export 入口和 advisory 接收端。B15 的权限分离、B8 的 KMS 边界不变。
+
+### Analytics 子系统的 C4 分解责任
+
+因为它位于系统边界内，3.2–3.10 必须覆盖它。规模控制在下表量级，超出会伤及“避免 feature concentration / dense structure”：
+
+| C4 层 | 最少需要出现 | 对应视图 |
+|---|---|---|
+| Container | Analytics Input/Export Gate（watermark 校验、数据集打包）、Rule & Model Registry、Screening Scheduler + Runner pool、Finding & Advisory Store、Disclosure & Advisory Publisher；ML 侧 Training Snapshot、Model Evaluation/Registry、Human Review Queue | 3.2–3.4 |
+| Component | 每 container 2–3 个：Watermark Verifier、Dataset Packager、Rule Version Loader、Rule Validator、Finding Evaluator、Dedup/Expiry、Audience Resolver、Advisory Signer | 3.5–3.7 |
+| Code | `Rule`、`RuleVersion`、`ScreeningRun`、`DatasetSnapshot`、`Finding`、`AdvisoryFinding`、`DisclosurePolicy`、`ModelVersion`、`ReviewDecision` | 3.8–3.10 |
+
+**规则所有权必须在图上可见。** `RuleVersion` 由监管方密钥签署后进入 Registry，平台只提供 runtime 与 registry，不 author、不改规则、不扩大适用范围。这与“平台跑账本、但由组织签交易”是同一个模式，用来回答“平台团队实现了规则引擎，是否等于平台在定义规则”。
+
+**关闭 Analytics 只影响审查能力，不影响追溯。** 内部化之后这是**系统内**的降级路径，而不是外部依赖故障：ingestion、trace query、consumer view 和监管人员手工调查继续运行，risk assessment 标记为 `DELAYED/UNAVAILABLE`，过期 finding 停止当前态展示（B13、B17）。这同时是可用性战术的正面例证：异步解耦 + 可选依赖 + advisory 不参与写入路径。
+
+### 合规能力的三层分工
+
+把 Analytics 放在边界内之后，brief 的 “Compliance with food safety regulations” 由三层能力共同回答，而不是“平台不判”：
+
+| 层 | 机制 | 权威来源 | 是否阻断写入 |
+|---|---|---|---|
+| 准入层 | regulation profile 的 mandatory evidence requirements（B11）、EPCIS 结构与 vocabulary | 联盟治理发布的 profile | 是 |
+| 筛查层 | deterministic rules / statistics / optional ML → `AdvisoryFinding` | 监管方持有并签署的 `RuleVersion` | 否 |
+| 结论层 | Inspection/Assessment、Recall/Safety Notice | 监管方或责任组织的组织密钥 | 否（追加记录） |
+
+三层共同的前提是 Traceability Core 提供可核验、不可静默改写的证据链（A5、A6、B6）；判定权始终留在第二层（规则 owner）和第三层（签署者），平台不自行添加业务门槛（B17）。
 
 ### Rule/finding disclosure policy
 
@@ -1497,7 +1586,7 @@ UI、API 和 audit log 必须显示来源与保证等级，不能把三者都呈
 
 第一版由平台导出最小化 Regulatory Analytics Projection，监管环境执行 rules/models，再返回获准 AdvisoryFindings。监管方不能向平台上传任意 executable code。未来若低延迟场景确有需要，可以另行评估 signed declarative rule package 和 sandbox，但不作为当前基线。
 
-Regulator Portal/Access Module 仍是核心平台的一等业务入口，负责 trace investigation、recall impact query、evidence access、exports 和 signed regulatory statement submission；Regulatory Analytics 是独立控制域，但能通过 advisory contract 为平台提供受监管方控制的辅助能力。关闭 Analytics 不影响 ingestion、trace query、consumer view 或监管人员手工调查。
+Regulator Portal/Access Module 仍是核心平台的一等业务入口，负责 trace investigation、recall impact query、evidence access、exports 和 signed regulatory statement submission；Regulatory Analytics 与 Traceability Core 同属系统边界内，但拥有监管方独立运行时域和规则/模型所有权（见上）。关闭 Analytics 不影响 ingestion、trace query、consumer view 或监管人员手工调查。
 
 **需要接受的代价：** 系统需要 AdvisoryFinding schema、regulator signature verification、audience routing、expiry/revocation 和 delivery audit；同一问题可能同时存在 private finding、participant advisory 和后续 formal assessment，UI 必须避免混淆。
 
@@ -1702,7 +1791,7 @@ NSW pilot 采用 B22 假设：10,000 canonical events/day、50 events/s offline-
 
 ## C3. 独立控制域的恢复目标和具体运营安排是什么？
 
-**已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
+**已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Regulator-Operated Analytics Environment、Independent Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。其中 Shared SaaS Application Plane 与 Regulator-Operated Analytics Environment 同属系统边界内（B21），但运行时、数据边界和治理权分离；至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
 
 NSW trial 的 mandatory archive 和 Consortium KMS 位于 Australian regions；恢复副本至少跨 Australian failure domain。Public chain 可以是 global network，因为链上只保存不直接识别个人的 commitment/Merkle root。
 
@@ -1728,7 +1817,7 @@ Q&A 阶段可以保留产品选型待定，但最终 deployment/infrastructure v
 
 > 本系统是跨组织农业供应链追溯层，而不是农业 ERP。参与方通过 PWA 或既有系统发布联盟 profile 约束的 EPCIS events。消费者只读取公开 projection；联盟成员共享足以重建路径和定位潜在责任方的 canonical EPCIS trace core；商业详情和原始证据作为 participant-owned ProtectedResources，由参与方保存或选择平台托管。系统不声称区块链证明物理事实真实，但要求平台运营者不能单方面静默重写或垄断已经确认的历史。
 
-其中有两个不能在报告压缩时省略的成立前提。第一，B1 是为了让题目明确要求的 blockchain 承担真实的外部完整性职责；如果参与方完全信任平台，数据库加 WORM backup 已足够，区块链会退化为 theatre。第二，B17/B21 不是取消领域校验，而是把平台无权定义的普通领域启发式与高级分析统一交给 regulator-controlled Regulatory Analytics；该系统是一等核心业务子系统，监管方可将选定基础 rule findings 授权给平台用于提醒，只有 ML 算法本身是可选的。
+其中有两个不能在报告压缩时省略的成立前提。第一，B1 是为了让题目明确要求的 blockchain 承担真实的外部完整性职责；如果参与方完全信任平台，数据库加 WORM backup 已足够，区块链会退化为 theatre。第二，B17/B21 不是取消领域校验，而是把“记录断言”和“签署判定”分开：Traceability Core 只记录断言，判定只能由有权主体以签署声明进入历史；普通领域启发式与高级分析在**系统边界内**的 Regulatory Analytics 子系统中执行，该系统与 Traceability Core 对等但拥有独立运行时与治理域，规则和模型所有权属于监管方。投影层不得把竞争断言折叠成单一路径。只有 ML 算法本身是可选的。
 
 Canonical shared trace 使用 per-event DEK 加密，并在确认前取得至少一个平台控制域之外 WORM archive operator 的 signed ArchiveAck；大型成员和监管方可以自愿维护额外 encrypted mirrors。公共链只保存 event commitment 或 Merkle root，提供平台不能改写的 external existence/integrity checkpoint。平台 PostgreSQL 负责 hot query 和 projection；由联盟或独立受托方控制 account 的专业 KMS 保护 Consortium KEK，平台有运行所需的 decrypt 使用权但没有密钥管理权，因此本方案不声称防止被攻破的平台 runtime 泄露 consortium plaintext。
 
@@ -1748,7 +1837,7 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前取得至少
 
 Human 和 IoT fleet identity 由外部/参与方 IAM 管理；核心只保存 organisation membership、organisation public keys、scoped user/machine delegations 和 signed governance history。Membership governance 只判断现实参与资格，高影响变更采用独立 dual control；它不能替成员签署事件或改写 public-chain finality，因此不取代区块链的完整性职责。
 
-核心只验证 EPCIS source assertion 的 schema、signature、authority、canonicalisation 和 idempotency，不判断 transformation、aggregation、quantity、timing 或 lineage 是否符合业务常识。监管方在独立 Regulatory Analytics System 中运行启发式规则、统计分析或可选 ML；输出默认 regulator-private，经签名 disclosure policy 才能作为平台可转达的 preliminary advisory，且在 authorised officer 人工签署前不构成正式结论。
+核心只验证 EPCIS source assertion 的 schema、signature、authority、canonicalisation 和 idempotency，不判断 transformation、aggregation、quantity、timing 或 lineage 是否符合业务常识；但它必须如实呈现已提交断言之间的冲突——lineage/recall 的默认视图不得折叠为单一路径，也不为竞争边排序或选择代表路径。启发式规则、统计分析或可选 ML 在系统边界内的 Regulatory Analytics 子系统中运行，该子系统属于监管方独立运行时域并持有规则与模型所有权；输出默认 regulator-private，经签名 disclosure policy 才能作为平台可转达的 preliminary advisory，且在 authorised officer 人工签署前不构成正式结论。合规能力由三层共同承担：准入层的 regulation profile 强制证据要求、筛查层的 advisory finding、结论层的签署事件。
 
 Recall 是对 shared consortium lineage projection 的保守、带 watermark 的查询，并可展示 authorised party 提交的 signed recall status。Official Recall/Safety Notice 在 signature + ArchiveAck 后可作为 `VERIFIED_PENDING_ANCHOR` 紧急发布，随后补 chain finality；平台不执行实际下架、封存、退货或销毁。Confirmed impact 与 recent pending claims 分开展示，private evidence 只在后续调查时单独授权。
 
@@ -1762,4 +1851,4 @@ NSW pilot 的 reference workload 为 200 个初始组织、2,000 名内部用户
 
 # 答辩时的一分钟版本
 
-> We are building a cross-organisation agricultural traceability layer rather than an ERP. Because the assignment explicitly requires blockchain, we make platform-operator distrust an explicit scenario: otherwise a managed database and WORM backup would be sufficient and blockchain would be theatre. Before confirmation, the encrypted canonical trace receives a signed acknowledgement from an independently controlled WORM archive, the consortium key is administered outside the platform account, and a public blockchain stores periodic Merkle roots so post-confirmation replacement is externally detectable. The Traceability Core validates structure, signatures and authority but does not invent product- or jurisdiction-specific plausibility rules. Those deterministic heuristics, statistics and optional ML belong to a regulator-controlled Regulatory Analytics peer subsystem, which can authorise selected signed findings for platform reminders while retaining rule ownership and formal decision authority. Consumers receive an allowlisted public projection, detailed evidence remains participant-owned, and an independent recovery path can rebuild retained trace data without the platform database. Neither blockchain nor analytics is presented as proof of physical truth.
+> We are building a cross-organisation agricultural traceability layer rather than an ERP. Because the assignment explicitly requires blockchain, we make platform-operator distrust an explicit scenario: otherwise a managed database and WORM backup would be sufficient and blockchain would be theatre. Before confirmation, the encrypted canonical trace receives a signed acknowledgement from an independently controlled WORM archive, the consortium key is administered outside the platform account, and a public blockchain stores periodic Merkle roots so post-confirmation replacement is externally detectable. The Traceability Core records assertions and never adjudicates reality: verdicts enter history only as signed declarations, and lineage or recall views must keep competing claims side by side instead of collapsing them into one path. Deterministic heuristics, statistics and optional ML run in a Regulatory Analytics peer subsystem that sits inside the system boundary but in the regulator's own runtime and governance domain; it owns the rules and models, can authorise selected signed findings for platform reminders, and never decides which claim is true. Consumers receive an allowlisted public projection, detailed evidence remains participant-owned, and an independent recovery path can rebuild retained trace data without the platform database. Neither blockchain nor analytics is presented as proof of physical truth.
