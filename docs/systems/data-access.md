@@ -107,7 +107,7 @@ owner encrypts to: owner itself / regulator scope / named trading partners
 | `OWNER_ASSERTED` | 所有者声明 | 所有者声称持有；平台无法核实 |
 | `UNKNOWN` | 初值（典型为参与方自托管且未声明） | 平台既无对象也无声明 |
 
-两条使用规则：**`OBJECT_PRESENT ≠ 可读`**、**`UNKNOWN ≠ 不存在`**。调查不能把"平台查不到"写成"对方没提供"，只能表述为"平台侧无法确认"并走 evidence request。
+两条使用规则：**`OBJECT_PRESENT ≠ 可读`**、**`UNKNOWN ≠ 不存在`**。调查不能把"平台查不到"写成"对方没提供"，只能表述为"平台侧无法确认"并走 evidence request。它只是运营元数据，不影响任何 canonical event 的有效性、handover 状态或 finding。
 
 ### `evidencePresence` 与 `availabilityStatus` 回答两个不同问题
 
@@ -124,9 +124,10 @@ owner encrypts to: owner itself / regulator scope / named trading partners
 
 | | `SIGNING` | `ENCRYPTION` |
 |---|---|---|
-| 撤销后果 | 阻止未来签署 | 只阻止"再加密给它"，已加密的密文仍可解 |
+| 撤销后果 | 阻止未来签署；已签事件按 B5 的时间证据规则处理 | 只阻止"再加密给它"，已加密的密文仍可解 |
 | 轮换后旧私钥 | 保留以验证历史签名 | **保留到最后一份用它加密的密文被删除** |
-| 丢失后果 | 无法再签，走 recovery | 对应密文永久不可解，无 escrow |
+| 丢失后果 | 无法再签，走 dual-control recovery | 对应密文永久不可解，无 escrow、无平台侧恢复 |
+| 公开方式 | 公钥进注册表供验签 | 公钥进注册表供所有者加密；轮换发布新 `keyId`，旧 `keyId` 保持可查 |
 
 因此 `recipientKeyRefs` 必须带 `keyId`，否则轮换后无法判断该用哪把私钥；销毁旧私钥要与 retention 终态联动。
 
@@ -159,7 +160,19 @@ Immutable trace 默认排除 employee name、email/phone、home address、creden
 
 Public-chain commitment 不得直接包含个人字段，也不能公开短小个人字段的可字典匹配 hash。
 
-## Retention terminal
+## Retention
+
+保留期按数据类定义，不按"统一期限"：
+
+| 数据类 | 保留依据 |
+|---|---|
+| Confirmed canonical trace | product / jurisdiction retention policy；容量假设 ≥ 7 年 |
+| Profile / canonicalisation / key / revocation / governance history | 至少保留到最后一个依赖它的 payload 到期 |
+| Platform-hosted PRIVATE evidence / raw IoT | 所有者 + 产品/监管政策 |
+| Regulatory export / analytics dataset | 短期、purpose-bound、自动过期；仅调查或 legal hold 可延长 |
+| Consumer scan / security logs | 最小采集、短保留、聚合或删除 |
+
+### Retention terminal
 
 ```text
 ACTIVE_RETENTION
@@ -171,7 +184,7 @@ ACTIVE_RETENTION
         -> retain signed minimal deletion audit
 ```
 
-七年是 NSW pilot 的默认 capacity/retention assumption，不是所有食品记录的统一法定最低期。Profile、canonicalisation、key、revocation 和 governance history 至少保留到最后一个依赖 payload 到期。
+七年是 NSW pilot 的默认 capacity/retention assumption，不是所有食品记录的统一法定最低期。到期后系统只能证明"曾存在某 commitment、并按何种 policy 完成删除"，不再能恢复 payload。
 
 ## Residency
 

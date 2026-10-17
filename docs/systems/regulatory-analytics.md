@@ -135,7 +135,23 @@ advisoryChannelLiveness   平台自观测：最后一次成功接收时间
 
 任一为 stale，UI 必须显示"提示可能不完整"，不能因为"最近没收到 advisory"就暗示"没有风险"。
 
-`AdvisoryFinding` 至少绑定 issuer、rule/version、affected references、severity/reason codes、data watermark、generated/expiry time、disclosure scope 和 regulator signature。它不进入 canonical trace，不改变 event validity，也不自动成为 recall。
+```text
+AdvisoryFinding
+- findingId
+- sourceRegulatorId
+- ruleId / ruleVersion
+- affectedOrganisationIds
+- affectedObject/event references
+- severity / reasonCodes
+- humanReadableMessage
+- dataWatermark
+- generatedAt / expiresAt
+- disclosureScope            REGULATOR_ONLY | SUBJECT_ORGANISATION | CONSORTIUM_ADVISORY
+- regulatorSignature
+- status                     ACTIVE | RETRACTED（撤回时同 findingId 重签）
+```
+
+它不进入 canonical trace，不改变 event validity，也不自动成为 recall。
 
 ### 基础规则如何授权给平台
 
@@ -194,8 +210,9 @@ Analytics 故障时，trace ingestion/query、recall traversal 和人工调查�
 
 ```text
 监管域：规则正文（Rule）+ 签署后的 RuleVersion
-平台侧：RuleVersionManifest（ruleId/version、issuer、effective、scope、
-        ruleBodyDigest、disclosuresAllowed、regulatorSignature）
+平台侧：RuleVersionManifest（ruleId/version、issuer、effectiveFrom/supersedes、
+        scope（适用 profile / event types / jurisdictions）、ruleBodyDigest、
+        disclosuresAllowed、regulatorSignature）
         → 进 archive + Merkle 锚定
 ```
 

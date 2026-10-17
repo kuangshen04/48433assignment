@@ -39,7 +39,19 @@ DRAFT
   -> CONFIRMED
 ```
 
-`REVIEW_REQUIRED` 不签 acceptance receipt。通常需要当前有效 key 对相同 canonical digest 重新签名，或取得明确负责主体签署的治理/监管例外，才能继续。
+`REVIEW_REQUIRED` 不签 acceptance receipt。通常需要当前有效 key 对相同 canonical digest 重新签名，或取得明确负责主体签署的治理/监管例外，才能继续；否则转为 `REJECTED`。
+
+### 状态含义
+
+- `DRAFT`：参与方本地意图，可编辑可删，不属于共享历史；
+- `QUEUED_OFFLINE` / `SYNCING`：仍在 participant device/gateway 或传输中，平台尚未接受，不得显示 acceptance receipt；
+- `RECEIVED` / `VALIDATED`：平台已接收并验证，尚无外部证明。repository 在 capture 时生成可信 `recordTime`，忽略客户端提供的 EPCIS `recordTime`，另存 participant-asserted `eventTime` 与平台 `receivedAt`；
+- `PENDING_SIGNATURE`：仅 managed/assisted custody 进入；pre-signed self-custody 验证通过后直接到 `PENDING_ARCHIVE`；
+- `PENDING_ARCHIVE`：等待平台控制域之外的合格副本持有方签发 acknowledgement；
+- `PENDING_ANCHOR`：archive object 已持久化，等待生成 commitment 或进入 Merkle batch；
+- `SUBMITTED_ON_CHAIN` / `INCLUDED`：已广播或已进块，尚未满足最终性规则；
+- `FINALISED`：已达到所选 finality；
+- `CONFIRMED`：finality、archive location 与 inclusion proof 已关联，正式进入标准 trace、projection、recall 与 consumer view。
 
 ## 每个 gate 的保证
 

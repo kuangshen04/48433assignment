@@ -60,13 +60,14 @@ Participant signature
 ArchiveAck
   binds archiveObjectId + archiveEnvelopeDigest + ciphertextDigest
   + retentionPolicyId + storedAt + archiveOperatorId
+  + operatorSignature
 
 Merkle leaf
   binds event identity + canonicalPayloadDigest
   + participantSignatureDigest + ArchiveAckDigest
 ```
 
-Recovery Client 必须验证整条关系，不能只检查链上 inclusion proof。
+`operatorSignature` 覆盖 archive object identity、envelope digest、ciphertext digest、retention commitment、`storedAt` 与 operator identity。Acceptance receipt 绑定 `ArchiveAckDigest` 与 `canonicalPayloadDigest`，所以参与方可以证明平台是在取得外部持久化确认之后才承诺接收。Recovery Client 必须验证整条关系，不能只检查链上 inclusion proof。
 
 ## KMS 权力边界
 

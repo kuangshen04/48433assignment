@@ -53,7 +53,7 @@ ModuleManifest
 
 | 模块 | 读什么 | 产出 | 缺依赖时失去什么 |
 |---|---|---|---|
-| **HandoverModule** | shipping/receiving claims + `requiresPairingKey = bizTransaction(desadv)` | handover projection（`AWAITING_RECEIPT` / `ACCEPTED` / `PARTIALLY_ACCEPTED` / `REJECTED` / `DISPUTED` / `UNACKNOWLEDGED`） | 缺数量 → 失去 `PARTIALLY_ACCEPTED`；收货方未引用发货方的 desadv → 退化为启发式匹配并进入 reconciliation |
+| **HandoverModule** | shipping/receiving claims + `requiresPairingKey = bizTransaction(desadv)` | handover projection（`AWAITING_RECEIPT` / `ACCEPTED` / `PARTIALLY_ACCEPTED` / `RECEIPT_REJECTED` / `DISPUTED` / `UNACKNOWLEDGED`） | 缺数量 → 失去 `PARTIALLY_ACCEPTED`；收货方未引用发货方的 desadv → 退化为启发式匹配并进入 reconciliation |
 | **RecallModule** | transformation / aggregation / handover 边 + 时间范围 | 保守 impact 报告，带 watermark 与 `scope-limited` 标注 | 缺标识 → 无法遍历 |
 | **ComplianceModule** | `source`/`destination` + `bizTransaction` + profile 字段 | 一上一下重建、义务映射证据 | 缺 source/destination → 该辖区的一上一下不成立 |
 | **ConsumerModule** | allowlist 字段 | 版本化 `PUBLIC` 快照 | 缺字段 → 该字段不出现（fail-closed allowlist） |

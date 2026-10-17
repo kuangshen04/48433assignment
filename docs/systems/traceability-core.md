@@ -32,6 +32,20 @@ SignatureEnvelope            attribution and custody assurance
 optional evidence references protected resources, not embedded files
 ```
 
+`SignatureEnvelope` 是四种 custody 模式的统一出口，字段固定：
+
+```text
+SignatureEnvelope
+  signerOrganisationId / keyId / keyPurpose = SIGNING
+  algorithm / payloadDigest / signature
+  assertedSignedAt        (可选，本身不可信)
+  signingTimeEvidence     (可选)
+  custodyMode / assuranceLevel
+  providerReceipt
+```
+
+**`actorId` 不在 envelope 里，也不在 canonical trace 里**（B5）：归因只由 organisation + `keyId` + `custodyMode` + `assuranceLevel` 承担；"谁操作了"留在可变 operational audit。四种模式输出同一个 envelope，但 `custodyMode` 与 `assuranceLevel` 不能省，否则统一接口会抹掉信任差异。
+
 证据引用一律是**平台侧记录**：reference、owner、加盐 `plaintextCommitment`、可选密文位置（B23）。平台不接收、不解析、不解密私有内容；需要按字段查询的内容必须进 `CONSORTIUM`，没有中间地带。
 
 相同 `captureRecordId` 重试必须具有相同 digest，否则拒绝。相同非空 `epcisEventId` 通常也拒绝重复，唯一标准例外是合法的 EPCIS Error Declaration。
@@ -101,7 +115,7 @@ receiver-signed receiving claim
 HandoverModule（B25）派生 status —— 不在 Core 内
 ```
 
-状态包括 `AWAITING_RECEIPT`、`ACCEPTED`、`PARTIALLY_ACCEPTED`、`REJECTED`、`DISPUTED`、`UNACKNOWLEDGED`。网络外对手方使用 `EXTERNAL_COUNTERPARTY` 单方边界声明；消费者零售不要求消费者签名。
+状态包括 `AWAITING_RECEIPT`、`ACCEPTED`、`PARTIALLY_ACCEPTED`、`RECEIPT_REJECTED`、`DISPUTED`、`UNACKNOWLEDGED`。网络外对手方使用 `EXTERNAL_COUNTERPARTY` 单方边界声明；消费者零售不要求消费者签名。
 
 **Core 只存两份 claim 与配对引用，不产生交接状态。** 配对键由 profile 指定，收货方必须引用发货方签发的键（候选：`bizTransaction` 的 desadv）；配不上则进入 reconciliation，不静默合并。缺数量时 HandoverModule 无法给出 `PARTIALLY_ACCEPTED`，这是能力降级而非 Core 故障。
 

@@ -229,7 +229,7 @@ Normative basis: <https://ref.gs1.org/standards/epcis/2.0.1/#ErrorDeclaration>
 
 **为什么这样定：** 公链 commitment 只能验证拿到的内容是否匹配，不能从 hash 恢复 payload；只有平台 PostgreSQL 保存完整事件时，平台仍然是唯一数据可用性来源。
 
-**否决的方案一：公链只保存 hash，完整事件只在平台数据库。** 可以检测拿到的 payload 是否被改，但拿不到 payload 时无法恢复任何 trace。
+**否决的方案一：公链只保存 hash，完整事件只在平台数据库。** 缺陷与 A5 否决的方案二相同——拿不到 payload 时无法恢复任何 trace。
 
 **否决的方案二：共享网络强制保管所有原始 IoT、证书、照片、合同和内部记录。** 会把平台变成通用证据仓库并承担不必要的隐私、保留和法规责任。
 
@@ -481,24 +481,9 @@ Device Key（私钥在手机上，不可导出）
 
 ### 统一的是 SignatureEnvelope
 
-无论签名来自企业 KMS、外部托管服务、设备密钥还是平台 KMS，提交到追溯系统的结果统一为：
+无论签名来自企业 KMS、外部托管服务、设备密钥还是平台 KMS，提交到追溯系统的结果统一为同一个 `SignatureEnvelope`；字段清单与"为什么 `actorId` 不在里面"见 [Traceability Core](/systems/traceability-core) 的核心写入契约。
 
-```text
-SignatureEnvelope
-- signerOrganisationId
-- keyId
-- keyPurpose = SIGNING
-- algorithm
-- payloadDigest
-- signature
-- assertedSignedAt (optional; not trusted by itself)
-- signingTimeEvidence (optional)
-- custodyMode
-- assuranceLevel
-- providerReceipt
-```
-
-**`actorId` 不在 envelope 里，也不在 canonical trace 里。** 理由三条：
+**统一的是形状，不是保证等级。** 而 `actorId` 既不进 envelope 也不进 canonical trace——理由三条：
 
 1. EPCIS 的五个维度是 what/when/where/why/how，**没有 who**——归因本来就由发布组织承担；
 2. 平台承诺的是"这个组织发布了什么"，不是"哪个员工点了一下"（B24：组织是唯一身份单元，人员管理在外围）；
@@ -649,44 +634,14 @@ Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 d
 **决定：** 事件只有在 canonical payload 已进入**平台控制域之外**的 immutable archive（副本持有者可以是成员/监管方 mirror 或独立账户 WORM，见 B8），并且对应 commitment 已按所选 public network 的规则达到 finality 后，才成为 `CONFIRMED`。门禁比较的是"是否已离开平台控制域"，不是"是否由某类专职机构保管"。
 
 ```text
-DRAFT
-├── online submit ────────────┐
-└── QUEUED_OFFLINE → SYNCING ───┤
-                              → RECEIVED
-→ VALIDATED
-  ├── pre-signed/self-custody ───────────────┐
-  └── managed custody → PENDING_SIGNATURE ──┤
-                                            → PENDING_ARCHIVE
-→ PENDING_ANCHOR
-→ SUBMITTED_ON_CHAIN
-→ INCLUDED
-→ FINALISED
-→ CONFIRMED
+DRAFT / QUEUED_OFFLINE / SYNCING → RECEIVED → VALIDATED
+  → [PENDING_SIGNATURE] → PENDING_ARCHIVE → PENDING_ANCHOR
+  → SUBMITTED_ON_CHAIN → INCLUDED → FINALISED → CONFIRMED
 ```
 
-失败或终止状态包括：
+失败或终止状态：`REJECTED`、`SIGNING_REJECTED`、`EXPIRED`、`ARCHIVE_RETRY`、`ANCHOR_RETRY`，以及不签发 receipt 的隔离态 `REVIEW_REQUIRED`。
 
-```text
-REJECTED
-SIGNING_REJECTED
-EXPIRED
-REVIEW_REQUIRED (non-terminal quarantine)
-ARCHIVE_RETRY
-ANCHOR_RETRY
-```
-
-### 各状态的含义
-
-- `DRAFT`：参与方本地意图，可以编辑或删除，不属于共享历史；
-- `QUEUED_OFFLINE/SYNCING`：事件仍位于 participant device/gateway 或正在传输，平台尚未接受，不得显示 acceptance receipt；
-- `RECEIVED/VALIDATED`：平台已经接收和验证，尚未形成外部证明；repository 在 capture 时生成可信 `recordTime`，忽略客户端提供的 EPCIS `recordTime`，并另存 participant-asserted `eventTime` 与平台 `receivedAt`；
-- `REVIEW_REQUIRED`：迟到/离线 submission 使用已撤销或过期 key，且没有足以证明撤销前签署的可信时间证据；该状态不签发 acceptance receipt。只有使用当前有效 key 重新签署同一 canonical digest，或取得有明确责任主体的 signed governance/regulatory exception 后才能继续，否则转为 `REJECTED`；
-- `PENDING_SIGNATURE`：仅 managed/assisted custody 路径进入，等待参与方或 signing provider 批准；pre-signed self-custody submission 验证通过后直接进入 `PENDING_ARCHIVE`；
-- `PENDING_ARCHIVE`：等待 encrypted canonical payload 获得位于平台控制域之外的合格副本持有者的 signed acknowledgement；
-- `PENDING_ANCHOR`：archive object 已持久化，等待生成 event commitment 或进入 Merkle batch；
-- `SUBMITTED_ON_CHAIN/INCLUDED`：交易已广播或进入区块，但尚未满足最终性规则；
-- `FINALISED`：public network 已达到所选 finality；
-- `CONFIRMED`：finality、archive location 和 inclusion proof 已关联，正式进入标准 trace、projection、recall 与 consumer-view 输入。
+完整状态机、每个状态的精确含义和每个 gate 的保证见[事件接收与确认](/flows/event-acceptance)。本决策只保留门禁本身：**`CONFIRMED` 要求"archive 已离开平台控制域"与"达到所选 finality"同时成立**，任何一侧故障都停在对应状态，不得降级确认。
 
 ### 权威关系
 
@@ -764,39 +719,9 @@ Batch manifest 至少记录 batch ID、window boundaries、ordered leaf list、h
 
 **不要求该副本由一家专职的"archive 产品服务商"签发 ack。** 首版把"签约的独立 archive 操作方"作为演进目标而不是上线前置条件——原因见下面的可行性说明。系统同样不假设监管方一定愿意承担 mirror 职责，也不等待所有自愿 mirror 才确认事件。
 
-归档对象不只是一段无上下文的 ciphertext，而是 versioned `EncryptedArchiveEnvelope`：
+归档对象不是一段无上下文的 ciphertext，而是 versioned `EncryptedArchiveEnvelope`；对应的 acknowledgement 也不是平台数据库里的布尔字段，而是可独立验证的签名。两者的字段清单属于设计内容，见 [Trust & Recovery](/systems/trust-recovery)。
 
-```text
-EncryptedArchiveEnvelope
-- envelopeVersion
-- networkId
-- captureRecordId / epcisEventId
-- canonicalPayloadDigest
-- participantSignatureDigest / signature reference
-- ciphertextDigest
-- wrappedDEK
-- keyId / keyEpoch
-- encryptionAlgorithm / nonce
-- canonicalisationVersion / profileVersion
-```
-
-使用 authenticated encryption；事件身份、canonical payload digest、signature digest、key epoch 和版本信息作为 authenticated metadata，防止不改 ciphertext 却替换 envelope context。`canonicalPayloadDigest` 绑定参与方已签署的明文；`ciphertextDigest` 绑定副本持有方实际保存的字节。
-
-该 acknowledgement 必须可独立验证，而不是平台数据库中的布尔字段：
-
-```text
-ArchiveAck
-- archiveObjectId
-- captureRecordId / epcisEventId
-- archiveEnvelopeDigest
-- ciphertextDigest
-- retentionPolicyId
-- storedAt
-- archiveOperatorId
-- operatorSignature
-```
-
-`operatorSignature` 覆盖 archive object identity、envelope digest、ciphertext digest、retention commitment、storedAt 和 operator identity。Acceptance receipt 绑定 `ArchiveAckDigest` 与 `canonicalPayloadDigest`，使参与方可以证明平台是在获得外部持久化确认后才承诺接收。Archive operator 不需要解密或判断业务内容，只证明按约定保存了特定 envelope/ciphertext bytes。
+留在本决策里的只有绑定关系：使用 authenticated encryption，事件身份、payload digest、signature digest、key epoch 与版本信息都是 authenticated metadata，防止不改 ciphertext 却替换 envelope context；`canonicalPayloadDigest` 绑定参与方已签署的明文，`ciphertextDigest` 绑定副本持有方实际保存的字节。因此 acceptance receipt 能证明"平台是在取得外部持久化确认之后才承诺接收"，而副本持有方既不需要解密，也不判断内容真伪。
 
 ```text
 Platform operational copy
@@ -895,7 +820,7 @@ Receiver-signed ReceivingEvent
 
 Transfer projection
 → AWAITING_RECEIPT / ACCEPTED / PARTIALLY_ACCEPTED
-  / REJECTED / DISPUTED / UNACKNOWLEDGED
+  / RECEIPT_REJECTED / DISPUTED / UNACKNOWLEDGED
   / EXTERNAL_COUNTERPARTY
 ```
 
@@ -903,6 +828,8 @@ Transfer projection
 
 - event lifecycle 的 `CONFIRMED` 表示某一组织的声明已经签名、归档并锚定，不表示另一方同意；
 - handover status 表示双方声明能否匹配以及 receiver 是否接受交接。
+
+三个状态词各自属于不同机器，不要混用：handover 用 `RECEIPT_REJECTED`（收货方声明拒收）、submission lifecycle 用 `REJECTED`/`SIGNING_REJECTED`（校验或签署失败）、签名 provider 审批用 `REJECTED`（人工拒绝批准）。
 
 缺少 ReceivingEvent 不会阻止或删除 ShippingEvent。发货声明可以独立 `CONFIRMED`，但 transfer 保持 `AWAITING_RECEIPT`；超过 profile 定义的期限后变为 `UNACKNOWLEDGED`，不能自动视为接受。这样 receiver 无法通过不响应抹去 sender 的声明，sender 也不能用单方声明制造一条被表示为双方已接受的路径。
 
@@ -1613,47 +1540,15 @@ Canonical `CONSORTIUM` trace 默认只保存 organisation/business location、pr
 
 Small-farm business identifiers/location 仍可能间接识别个人，因此详细 contact data 保存在受控、可更正的 operational organisation registry。既然 `actorId` 不再进入 immutable 历史，自然人维度的更正与删除就可以完全在可变层完成，不需要和 WORM 保留期讨价还价。
 
-### Retention is data-class and policy based
+### Retention 与删除终态
 
-```text
-Confirmed canonical trace
-→ product/jurisdiction retention policy
-→ capacity planning assumption: at least seven years
+在 active retention period 内，confirmed organisation-level business trace **不接受物理删除**，错误通过 correction event 处理。到期不是静默改写历史，而是进入显式终态；各类数据按什么保留、终态状态图见 [Data & Access](/systems/data-access) 的「Retention」。
 
-Profile/key/governance/canonicalisation history
-→ retained at least as long as dependent trace
+留在本决策里的有三条：
 
-Platform-hosted PRIVATE evidence / raw IoT
-→ owner + product/regulatory policy
-
-Regulatory export / analytics dataset
-→ short-lived, purpose-bound, automatic expiry
-→ extend only for recorded investigation/legal hold
-
-Consumer scan/security logs
-→ minimum collection and short retention
-→ aggregate/de-identify or delete
-```
-
-“至少七年”是 storage capacity 和 trial policy assumption，不是对所有 NSW food records 的法定最低期限声明。实际 retention policy 由 data class、product profile、jurisdiction 和 legal hold 共同决定，发布前需由联盟/法律与监管代表批准。
-
-### Deletion and immutability
-
-在 active retention period 内，confirmed organisation-level business trace 不接受物理删除，错误通过 correction event 处理。Retention 到期不是静默改写历史，而是进入显式终态：
-
-```text
-ACTIVE_RETENTION
-├── LEGAL_HOLD → 保留 ciphertext、wrapped DEK 和验证依赖
-└── RETENTION_EXPIRED
-    → 删除 archive ciphertext 和对应 DEK envelope/object
-    → 删除可重建 operational payload/projection
-    → 保留 non-personal public-chain commitment
-    → 保留 signed minimal deletion audit
-```
-
-七年是 NSW pilot canonical trace 的默认 retention/capacity assumption；product/jurisdiction policy 可以设置更长期限，legal hold 暂停到期删除。平台外完整 payload recovery guarantee 只在 active retention/legal hold 内成立；到期后只能证明曾存在某 commitment 以及按何种 policy 完成删除，不能再恢复 payload。
-
-Profile、canonicalisation、organisation/public-key、revocation 和 governance history 至少保留到最后一个依赖它们的 canonical payload 到期。删除操作由 authorised retention worker 请求，副本持有方执行并签署 deletion acknowledgement；该 minimal deletion record 进入后续 Merkle anchoring。平台不能单方面提前删除 WORM object。
+- **"至少七年"是容量与试点政策假设，不是 NSW 食品记录的法定最低期。** 实际 policy 由 data class、product profile、jurisdiction 与 legal hold 共同决定，发布前需由联盟/法律与监管代表批准。
+- **删除由副本持有方签署，并进入后续 Merkle anchoring。** authorised retention worker 只能发起请求，不能单独完成；平台也不能单方面提前删除 WORM object——这样"删了什么、谁批准"本身也可被外部验证。
+- **完整 payload recovery 只在 active retention / legal hold 内成立。** 到期后只能证明曾存在某 commitment 以及按何种 policy 完成删除，不能再恢复 payload。
 
 Mutable user/account/contact data 支持 access、correction、deletion 或 de-identification；private evidence 到期后可以删除——retention 进入 `RETENTION_EXPIRED` 终态，`availabilityStatus` 随之不再有 `OBJECT_PRESENT`（平台不再持有该对象），引用本身保留并留下签名的 minimal deletion audit，但不回写或伪造仍在 retention 内的原 canonical event。按 B23，平台能删的只是自己名下的密文对象；所有者自己的副本不在范围内，删除也无法证明内容在其他位置已消失。Legal hold 必须记录 authority、case、scope、effective/expiry time 和 audit trail。
 
@@ -1778,20 +1673,7 @@ PUBLIC
 
 ### Advisory contract
 
-```text
-AdvisoryFinding
-- findingId
-- sourceRegulatorId
-- ruleId / ruleVersion
-- affectedOrganisationIds
-- affectedObject/event references
-- severity / reasonCodes
-- humanReadableMessage
-- dataWatermark
-- generatedAt / expiresAt
-- disclosureScope
-- regulatorSignature
-```
+`AdvisoryFinding` 的字段清单见 [Regulatory Analytics](/systems/regulatory-analytics)（含 `dataWatermark`、`expiresAt`、`disclosureScope` 与 `status`）。这里只保留契约行为：
 
 Platform Advisory Ingestion 验证 regulator identity、signature、rule/finding version、expiry 和 disclosure scope，再将结果路由给允许的组织或角色。平台不能扩大 audience、重新解释 severity、查看 regulator-only context，或把 advisory 与平台自己的判断混合。
 
@@ -1801,20 +1683,9 @@ AdvisoryFinding 不进入 canonical trace，不影响 event validation、handove
 
 当前基线不把 industry association 视为 Regulatory `AdvisoryFinding` 签发主体。行业机构可以通过联盟治理提议 Product Profile、vocabulary 或行业指导，但只有按 GovernanceRecord 流程发布后才影响平台。若未来允许行业机构直接发布提示，必须新建与 Regulatory Advisory 明确分开的 authority type、适用成员范围和 UI 语义，不通过泛化 `sourceRegulatorId` 默认扩权。
 
-### RuleVersion 的发布、锚定与撤回
+### `RuleVersion` 的发布、锚定与撤回
 
-`RuleVersion` 由监管方签署，但平台必须能事后证明"当时依据的是哪条规则且它未被替换"。因此：
-
-```text
-RuleVersionManifest（进 platform archive + Merkle 锚定）
-- ruleId / ruleVersion
-- issuerRegulatorId
-- effectiveFrom / supersedes
-- scope（适用 profile、event types、jurisdictions）
-- ruleBodyDigest            规则正文的摘要
-- disclosuresAllowed        REGULATOR_ONLY / SUBJECT_ORGANISATION / CONSORTIUM_ADVISORY
-- regulatorSignature
-```
+`RuleVersion` 由监管方签署，但平台必须能事后证明"当时依据的是哪条规则且它未被替换"。进 archive 与 Merkle 锚定的是 `RuleVersionManifest`，字段清单见 [Regulatory Analytics](/systems/regulatory-analytics) 的「RuleVersion 的两处存放」。
 
 **规则正文不进 archive，只锚定 digest 与 manifest。** 理由：`CONSORTIUM` 层对全体成员可见，把筛查规则正文公开等于告诉参与方"哪里会被查"，会同时伤害筛查效果和监管方的调查利益。平台验证时只比对 digest，需要复核时才由监管方向审计方出示正文。
 
@@ -1980,22 +1851,11 @@ Logical RPO=0 的必测场景是：event 已取得 external ArchiveAck 并向参
 1. **不再有由平台执行的 `accessScope`。** 平台没有明文，无法执行内容级授权；访问权只能由所有者通过"加密给谁"来表达。
 2. **没有"结构化 private detail 存 PostgreSQL JSONB"这条路。** 一旦平台需要按结构化字段查询，它就必须是 `CONSORTIUM`，没有中间地带。
 
-### `availabilityStatus` 是两种独立事实的并集
+### `availabilityStatus` 为什么压不成一个布尔值
 
-平台既不能读内容，也不能替所有者保证它有货，所以"证据是否可用"不能压成一个布尔值。三个状态由**两个独立来源**产生：
+平台既不能读内容，也不能替所有者保证它有货，所以"证据是否可用"必须由**两个独立来源**（平台自动判断 / 所有者声明）合成三个状态。取值、来源与两条使用规则（`OBJECT_PRESENT ≠ 可读`、`UNKNOWN ≠ 不存在`）见 [Data & Access](/systems/data-access) 的「`availabilityStatus` 是两个独立事实的并集」。
 
-| 状态 | 来源 | 含义 |
-|---|---|---|
-| `OBJECT_PRESENT` | 平台自动判断（仅 `PLATFORM_HOSTED_ZERO_KNOWLEDGE` 且对象存在） | 平台确实保管着一份密文；**不代表能解密** |
-| `OWNER_ASSERTED` | 所有者声明 | 所有者声称自己持有该材料；平台无法核实内容 |
-| `UNKNOWN` | 初值（典型为 `PARTICIPANT_HOSTED` 且所有者未声明） | 平台既没有对象也没有声明 |
-
-两条使用规则，写进 UI 与调查流程：
-
-1. **`OBJECT_PRESENT` 不等于可读。** 没有 key 就打不开，UI 不能因为平台存着密文就显示"证据可用"。
-2. **`UNKNOWN` 不等于不存在。** 调查结论不能把"平台查不到"写成"对方没有提供"；正确的表述是"平台侧无法确认"，然后走 B15 的 evidence request 向所有者索取。
-
-`availabilityStatus` 只是运营元数据，**不影响任何 canonical event 的有效性、handover 状态或 finding**。所有者后续提供材料时，用已确认的 `plaintextCommitment` 校验内容是否与当时承诺一致；校验通过也不改变历史，只改变举证结果。
+留在本决策里的只有一条边界：`availabilityStatus` 只是运营元数据，**不影响任何 canonical event 的有效性、handover 状态或 finding**。所有者后续提供材料时，用已确认的 `plaintextCommitment` 校验内容是否与当时承诺一致；校验通过也不改写历史，只改变举证结果。
 
 ### 承诺的可执行性（这是收益，不是限制）
 
@@ -2028,14 +1888,7 @@ owner encrypts evidence to:
 
 ### `ENCRYPTION` 密钥的生命周期与签名密钥不同
 
-加密密钥与签名密钥共用 `Organisation Key Registry`，但生命周期规则**必须分开**，否则会互相污染：
-
-| | 签名密钥（`SIGNING`） | 加密密钥（`ENCRYPTION`） |
-|---|---|---|
-| 撤销的后果 | 阻止未来签署；已签事件按 B5 的时间证据规则处理 | **只阻止"再加密给它"**；已加密给它的密文仍然可解 |
-| 轮换后旧私钥 | 需保留以验证历史签名（B5 已要求 key history） | **必须保留到"最后一份用它加密的密文被删除"为止**，否则历史证据永久不可读 |
-| 丢失的后果 | 无法再签；走 dual-control recovery | 对应密文永久不可解，**没有 escrow、没有平台侧恢复**（B23 不承诺清单） |
-| 公开方式 | 公钥进注册表，供验签 | 公钥进注册表，供所有者加密；轮换对外发布新 `keyId`，旧 `keyId` 保持可查 |
+加密密钥与签名密钥共用 `Organisation Key Registry`，但生命周期规则**必须分开**，否则会互相污染。两个用途在撤销、轮换、丢失、公开方式上的逐行对照见 [Data & Access](/systems/data-access) 的「`ENCRYPTION` 密钥的生命周期与签名密钥相反」。
 
 三条推论，写进实现与运营：
 
@@ -2293,7 +2146,7 @@ Consortium Key Service
 
 **为什么部分参数尚未定案：** 网络选择与窗口长度不会改变 event、archive、receipt、manifest 或 proof 的逻辑边界。它们主要取决于实际事件量、gas 成本、finality 特性、生态稳定性和业务可接受的确认时延，因此可以在部署设计阶段比较后确定。
 
-**已否决：** 完整 EPCIS plaintext/ciphertext 默认上公链；以及由平台数据库保存唯一 payload、公链只留无法恢复内容的 opaque hash。
+**已否决：** 完整 EPCIS plaintext/ciphertext 默认上公链；以及"平台数据库保存唯一 payload、公链只留 opaque hash"（否决理由见 A5 的方案二）。
 
 **需要接受的代价：** 系统依赖外部网络的 gas、finality、validator/stake security、治理升级和长期可用性；平台需要 relayer、transaction monitor、proof service 和 chain migration procedure。
 
