@@ -313,6 +313,128 @@ n >= 3f + 1
 
 **为什么可以接受：** 明确保证边界比用模糊的“区块链防串谋”更有价值。系统优先解决单方或少数节点篡改、身份冒充和历史垄断，同时承认多数治理串谋和物理事实共谋需要外部审计、法律责任与证据机制，而不是继续堆叠无法兑现的技术承诺。
 
+---
+
+## B5. 参与方签名和托管密钥如何统一接入？
+
+**决定：** 采用分级 custody/assurance，并统一签名结果、验证格式和状态机；不要求企业 self-custody 与托管服务共享相同的私钥调用方式。
+
+三种支持模式是：
+
+```text
+ENTERPRISE_SELF_CUSTODY
+→ 企业 Gateway/KMS 本地签名
+
+ASSISTED_EXTERNAL_CUSTODY
+→ 外部 signing provider 托管或分割密钥
+→ 参与方使用 passkey/device approval 授权
+
+DELEGATED_PLATFORM_CUSTODY
+→ 平台 KMS 代管并调用签名
+→ 保证等级最低
+```
+
+### 统一的是 SignatureEnvelope
+
+无论签名来自企业 KMS、外部托管服务、设备密钥还是平台 KMS，提交到追溯系统的结果统一为：
+
+```text
+SignatureEnvelope
+- signerOrganisationId
+- actorId
+- keyId
+- algorithm
+- payloadDigest
+- signature
+- signedAt
+- custodyMode
+- assuranceLevel
+- providerReceipt
+```
+
+所有模式使用同一个 `EventSignatureVerifier`：
+
+```text
+canonical event digest
+→ lookup registered public key
+→ verify signature
+→ check key validity and revocation
+→ check actor/organisation authority
+→ check assurance level required by event policy
+```
+
+Ledger 和领域规则依赖标准 envelope，不依赖 AWS、Azure、Turnkey、Fireblocks、Vault 或某个本地 KMS 的专有格式。
+
+### Self-custody 与托管签名使用不同入口
+
+企业 self-custody 时，平台不调用企业私钥服务：
+
+```text
+Enterprise Gateway
+→ canonicalise event
+→ sign locally
+→ submit event + SignatureEnvelope
+```
+
+平台只验证结果。因此所有模式共享 `EventSignatureVerifier`，但只有平台协助的托管模式使用：
+
+```text
+ManagedSigningPort
+- createRequest(context, digest)
+- getStatus(requestId)
+- getResult(requestId)
+- cancel(requestId)
+```
+
+托管接口必须是异步 workflow，而不是简单的 `sign(hash)`，因为外部服务可能需要 passkey、手机确认、多人审批或 MPC 后才能返回签名。统一状态至少包括：
+
+```text
+PENDING_APPROVAL
+APPROVED
+REJECTED
+EXPIRED
+```
+
+### 平台需要维护的 provider adapters
+
+Core API 始终允许参与方直接提交 vendor-neutral 的已签名 event，因此大企业接入自己的 KMS 不需要平台维护专用签名 adapter。
+
+如果 PWA 要提供完整托管签名体验，平台需要为选定服务实现 adapter：
+
+```text
+ManagedSigningPort
+├── DefaultExternalCustodyAdapter
+└── PlatformKmsAdapter
+```
+
+第一版只集成一个默认 external signing provider，不同时维护多个同类供应商。新增供应商只增加 adapter，不改变事件、验证或 ledger 模型。
+
+### 所有模式签署相同 canonical digest
+
+Network profile 必须固定并版本化 canonicalisation。签名输入至少绑定：
+
+```text
+networkId
+profileVersion
+eventId
+canonicalEpcisPayloadHash
+signerOrganisationId
+```
+
+这样可以防止签名被挪到其他网络、profile、event 或 organisation 上，也避免不同 provider 因 JSON 序列化不同而生成不可比较的 hash。
+
+### 统一接口不能抹去信任差异
+
+- `ENTERPRISE_SELF_CUSTODY`：平台不能在没有企业私钥的情况下代签，适用完整 L2 non-impersonation guarantee；
+- `ASSISTED_EXTERNAL_CUSTODY`：只有 provider policy 确实要求参与方持有的 authenticator 或独立 key share 时，才能接近同等保证；
+- `DELEGATED_PLATFORM_CUSTODY`：平台理论上可以代签，只保证事件取得 finality 后不能被平台单方面静默修改。
+
+Event policy 可以要求不同保证等级。例如普通 PWA 录入可接受 delegated custody，而 organisation-key change、实验室证书或高风险 dispute 可以要求 self-custody 或 participant-approved external custody。
+
+**承受的代价：** 平台仍需维护一个默认托管服务 integration、异步 callback、key registry、rotation 和 revocation；不同参与方获得的 attribution guarantee 不完全相同。
+
+**为什么可以接受：** 强迫所有小农场自行管理不可恢复的 PKI 会伤害可访问性，把所有密钥交给平台又会破坏 L2。统一 envelope 加分级 assurance 保留了共同事件模型，同时诚实暴露不同 custody mode 的信任差异。
+
 # 第三层：仍需讨论的决定
 
 以下项目保留当前倾向和 trade-off，但尚未提升为架构基线。
@@ -331,21 +453,7 @@ n >= 3f + 1
 
 ---
 
-## C2. 参与方如何签名和管理密钥？
-
-**当前倾向：** 采用分级 assurance：成熟企业在自己的 Gateway/KMS 中签名；小型组织可以选择 tenant-isolated delegated signing，不要求每个农场自行运维组织级 PKI。
-
-**为什么尚未定案：** 每事件签名增强 attribution，但农村共享设备、手机丢失、员工变动、证书撤销和恢复会显著增加使用风险。
-
-**已否决：** 平台无条件掌握所有组织私钥，因为平台可冒充参与方；也不宜强制所有小型参与者自行保管不可恢复私钥，否则丢失和共享账号会让系统不可用。
-
-**需要接受的代价：** 分级模式意味着不同参与者具有不同信任保证；托管签名必须明确标记为 delegated trust，不能与企业本地签名描述为同一保证等级。
-
-**待回答：** 哪些事件必须组织签名，哪些只需要经过强认证的提交；托管密钥如何恢复和撤销；device signature、organisation endorsement 和 ledger consensus 如何区分。
-
----
-
-## C3. 是否采用完整 Event Sourcing 和异步 CQRS？
+## C2. 是否采用完整 Event Sourcing 和异步 CQRS？
 
 **当前倾向：** 跨组织 trace events 保持 append-only；普通用户、权限、配置和运营状态使用常规事务模型。是否引入 broker 和异步 projection 由一致性和 workload 场景决定。
 
@@ -359,7 +467,7 @@ n >= 3f + 1
 
 ---
 
-## C4. Shipping 与 receiving 是否必须形成双边交接状态机？
+## C3. Shipping 与 receiving 是否必须形成双边交接状态机？
 
 **当前倾向：** Shipping 和 receiving 保持两个组织的独立声明；平台关联后可以派生 Pending、Accepted、Partial、Rejected 或 Disputed，但是否强制双边确认由 product/transaction profile 决定。
 
@@ -373,7 +481,7 @@ n >= 3f + 1
 
 ---
 
-## C5. 第一版是否固定为一个 PostgreSQL？
+## C4. 第一版是否固定为一个 PostgreSQL？
 
 **当前倾向：** 一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；permissioned ledger 和 participant artifact stores 保持外部边界。
 
@@ -387,7 +495,7 @@ n >= 3f + 1
 
 ---
 
-## C6. Product Profile 能承担多少产品线差异？
+## C5. Product Profile 能承担多少产品线差异？
 
 **当前倾向：** 稳定 EPCIS core 加 versioned product profiles 是主要扩展机制，但不承诺所有新产品都只需配置、永远无需代码和数据模型变化。
 
@@ -401,7 +509,7 @@ n >= 3f + 1
 
 ---
 
-## C7. Trustworthiness 与 scalability 如何排序？
+## C6. Trustworthiness 与 scalability 如何排序？
 
 **当前倾向：** Trustworthiness 决定核心信任边界，但 scalability 仍必须通过可测场景验证；不能用“不是主要问题”跳过 case brief 的多产品和多地区要求。
 
@@ -415,7 +523,7 @@ n >= 3f + 1
 
 ---
 
-## C8. 云部署如何表达权力边界？
+## C7. 云部署如何表达权力边界？
 
 **当前倾向：** 区分 Participant Environment、Shared SaaS Application Plane 和 Consortium Ledger Plane；云厂商与具体 managed services 后定。
 
