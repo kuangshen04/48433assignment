@@ -849,6 +849,49 @@ Public chain 故障时 payload 已在独立 archive 中，因此可以签发 rec
 
 **为什么可以接受：** 该模型优先保护已确认历史的可用性，同时避免依赖故障时降低签名、归档或 finality 标准。故障恢复是从最后一个可靠 checkpoint 继续，而不是用跨 KMS、archive、database 和 public chain 的虚假分布式事务换取表面上的同步成功。
 
+---
+
+## B14. 原始 IoT 数据由参与方还是平台控制？
+
+**决定：** 原始 IoT telemetry 默认属于 participant-controlled `PRIVATE ProtectedResource`。平台管理进入共享历史的 profile-required sensor summary、异常、provenance、raw-resource reference 和 content commitment；“一体化接入”不代表原始 telemetry 归平台所有或默认向联盟公开。
+
+### IoT data classification
+
+| Data | Classification | Default control |
+|---|---|---|
+| 高频 raw readings、完整轨迹 | `PRIVATE` | 设备所属参与方或其 IoT provider |
+| Device credential、firmware、运维日志 | `PRIVATE` | 参与方或 IoT provider |
+| Raw bundle reference、content hash、time range | `CONSORTIUM` | canonical EPCIS sensor evidence metadata |
+| Min/max/mean、excursion duration、异常 flag | `CONSORTIUM` | profile-required sensor summary |
+| Device identity、calibration status/reference | `CONSORTIUM` when required | network profile |
+| 消费者可理解的合规声明 | `PUBLIC` | allowlisted confirmed projection |
+
+独立 archive 保存 shared summary、provenance、reference 和 hash，但不强制复制全部高频 readings。参与方后续提供 raw bundle 时，系统以已确认的 content commitment 验证内容是否与当时承诺一致；无法提供时标记 `UNAVAILABLE`，由发布方承担举证后果。
+
+### Hosting does not change ownership or classification
+
+```text
+PARTICIPANT_HOSTED
+→ raw telemetry remains in participant/IoT-provider store
+→ canonical event stores reference + commitment
+
+PLATFORM_HOSTED
+→ platform stores raw telemetry as an optional managed service
+→ still participant-owned PRIVATE ProtectedResource
+```
+
+小型参与方可以使用平台提供的一体化 device binding、telemetry ingestion、private storage、summary generation 和 EPCIS submission；大型参与方可以继续使用自己的 IoT platform。平台托管只改变 storage/operator，不授予平台将 raw telemetry 公开给其他成员、消费者或用于 ML training 的权利。
+
+### Evidence responsibility
+
+IoT provider/device signature 可以证明 bundle 的技术来源，但 canonical EPCIS publication 仍需要 organisation 或其注册 gateway/machine actor 承担声明责任。企业 gateway 可以按获批 policy 自动签名，无需人工批准每一条 reading。
+
+缺少 sensor evidence 不得使已经发生的 shipping/receiving 从 trace 中消失。业务事件仍可记录，但 evidence status 显示为 `MISSING`、`DELAYED` 或 `UNAVAILABLE`，product profile 可以产生 compliance warning 或阻止某个合规结论。设备签名、校准、防拆和 content hash 提高 assurance，但不能证明传感器实际安装位置或测量的物理真实性。
+
+**需要接受的代价：** 平台和审计方不能随时直接查询所有 raw telemetry；调查时可能需要 participant access grant，且参与方可能无法提供材料。Platform-hosted 模式还需要 tenant isolation、retention、deletion 和 access-audit controls。
+
+**为什么可以接受：** 高频 telemetry 的容量、商业敏感性和设备多样性远高于共享 trace core。统一 ProtectedResource 模型保留了调查验证能力，也避免把追溯平台扩张为强制的通用 IoT device-management 和 time-series storage platform。
+
 # 已舍弃但保留的完整替代方案：Permissioned Consortium Ledger
 
 该方案技术上成立，也与早期数据模型高度一致。它被舍弃的原因是现实治理和成本前提不足，而不是因为 BFT 或 permissioned ledger 本身无效。
@@ -1020,6 +1063,8 @@ Canonical shared trace 使用 per-event DEK 加密，并在确认前写入至少
 性能设计分为 participant ingestion、regulator/internal investigation 和 public consumer 三个 workload planes。低频写入通过离线队列、幂等和 outbox 保证可靠；大范围监管读取使用带 watermark 的异步 export；消费者只访问 versioned public projections，并由 cache/CDN 承担高并发。农村网络造成的 edge sync lag 与平台 processing lag、public-chain anchor lag 分开度量。
 
 依赖故障时，写路径停留在最后一个持久化状态并幂等续跑，不绕过签名、archive acknowledgement 或 public-chain finality；读路径继续提供已有 confirmed data，并通过 watermark、stale status 和安全查询的 fail-closed 行为诚实表达降级。
+
+原始 IoT telemetry 默认作为 participant-controlled PRIVATE ProtectedResource，由参与方自管或选择平台托管；canonical trace 只保存 profile-required sensor summary、异常、provenance、reference 和 content commitment。一体化设备接入不改变数据分类和举证责任。
 
 仍待定的是 public network、anchor window、具体 archive/KMS 签约主体、RPO/RTO、key recovery 和 chain migration，而不是 archive 权力边界、anchoring 粒度或自建 validator 数量。
 
