@@ -5,6 +5,7 @@ export default defineConfig({
   title: 'Agricultural Supply Chain Tracker',
   description: '按系统边界组织的架构决策与端到端契约',
   cleanUrls: true,
+  srcExclude: ['diagrams/**'],
   lastUpdated: true,
   markdown: {
     lineNumbers: true,
@@ -23,6 +24,7 @@ export default defineConfig({
           text: '架构总览',
           items: [
             { text: '系统地图', link: '/architecture/system-map' },
+            { text: 'C4 视图 · Core', link: '/architecture/c4-core' },
             { text: '阅读方式', link: '/architecture/reading-guide' },
           ],
         },

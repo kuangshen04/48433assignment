@@ -166,6 +166,8 @@ Profile 不配置 yield tolerance、fraud heuristic、mass balance、跨事件�
 
 ## 内部组件边界
 
+结构视图（container / component 图）见 [C4 视图 · Core](/architecture/c4-core)。
+
 Core 只做机制（B25）：
 
 ```text

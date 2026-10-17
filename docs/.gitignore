@@ -1,3 +1,7 @@
 node_modules
 .vitepress/cache
 .vitepress/dist
+
+# C4 diagram tooling (jar is downloaded by diagrams/render.ps1)
+diagrams/vendor/plantuml.jar
+diagrams/preview/
