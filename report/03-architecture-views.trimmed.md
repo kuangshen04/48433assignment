@@ -137,6 +137,6 @@ rather than implementation detail.
 
 ## 3.7 What these views deliberately do not model
 
-Screens, routes and component state of the portal (they change weekly); persistence mapping (2.4 and 4.7); and
+Screens, routes and component state of the portal (they change weekly); persistence mapping (2.3–2.4 and 4.7); and
 generated clients, except where they are the contract. Deployment and dynamic behaviour are Section 4, where
 they are used as evidence.

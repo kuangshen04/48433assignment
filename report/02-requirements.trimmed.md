@@ -33,22 +33,15 @@ deliberately not adjudicated at admission: a rule that rejected an event because
 would make the platform an adjudicator without authority. The decisions that address each risk are argued in
 4.1–4.5, and the alternatives that survive as alternatives are revisited in 5.4.
 
-## 2.3 Data management requirements and dictionary
+## 2.3–2.4 Data
 
-### 2.3.1 Data requirements
+Six requirements shape the data model: interpretable from its profile (DM-1); no readable private content on the
+platform (DM-2); one authoritative source with rebuildable copies (DM-3); retention per class with a defensible
+deletion record (DM-4); no natural-person identifiers (DM-5); reproducible regulatory outputs (DM-6). The
+scenarios below then fix validation, storage, access and retention, so each is stated where it arises rather
+than listed separately.
 
-| ID | Requirement | Stakeholders |
-|---|---|---|
-| DM-1 | An event is interpretable from the event, its profile and its canonicalisation version | S2, S3, S11 |
-| DM-2 | Private and commercial content never stored readable on the platform | S1, S4, S6 |
-| DM-3 | One authoritative source per element; derived copies rebuildable | S6, S9, S11 |
-| DM-4 | Retention per data class, with hold and a defensible deletion record | S6, C2 |
-| DM-5 | No natural-person identifiers in the immutable trace | S1, S5, C2 |
-| DM-6 | Regulatory outputs carry rule version and input watermark | S6, S7 |
-
-### 2.3.2 Data dictionary
-
-One or two elements per group are tabulated; the rest of each group is named below and follows the same rules.
+**Elements.** One or two per group are tabulated; the rest are named after the table and follow the same rules.
 Format and length are enforced at admission, and source names the originating party.
 
 | Element | Format | Length | Description | Source | Serves |
@@ -63,84 +56,44 @@ Format and length are enforced at admission, and source names the originating pa
 | `plaintextCommitment` | SHA-256 hex | 64 | Salted commitment to off-platform content | Owner | DM-2, SQ-7 |
 | `findingId`, `ruleVersion`, `dataWatermark` | UUID, semver, uint64 | 36, 20, 20 | Finding identity and the inputs it used | Regulator | DM-6, SQ-9 |
 
-The remaining elements are named only, grouped by what they carry: EPCIS business content (`action`, `bizStep`,
-`disposition`, `bizLocation`, `readPoint`, `sourceList`/`destinationList`, `bizTransactionList`, `epcClass`,
-`parentID`/`childEPCs`, `transformationID`); versioning (`canonicalisationVersion`, `edgeDerivationVersion`);
-the signature pair (`keyId`, `signatureValue`, `signatureAlgorithm`, `assertedSignedAt`); custody
-(`custodyMode`); anchoring (`ArchiveAckDigest`, `ciphertextDigest`, `merkleLeafIndex`, `batchId`, `merkleRoot`,
-`transactionRef`, `inclusionProof`); evidence state (`availabilityStatus`, `retentionPolicyId`); and regulatory
-output (`severity`/`reasonCodes`, `disclosureScope`, `expiresAt`, `regulatorSignature`). Each is EPCIS/CBV-defined
-or profile-declared, typed and length-bounded at admission.
+Named but not tabulated: the EPCIS business fields (`action`, `bizStep`, `disposition`, `bizLocation`,
+`readPoint`, `sourceList`/`destinationList`, `bizTransactionList`, `epcClass`, `parentID`, `transformationID`);
+the versioning pair (`canonicalisationVersion`, `edgeDerivationVersion`); the signature set (`keyId`,
+`signatureValue`, `signatureAlgorithm`, `assertedSignedAt`); `custodyMode`; the anchoring set (`ArchiveAckDigest`,
+`ciphertextDigest`, `merkleLeafIndex`, `batchId`, `merkleRoot`, `transactionRef`, `inclusionProof`); evidence
+state (`availabilityStatus`, `retentionPolicyId`); and regulatory output (`severity`, `disclosureScope`,
+`expiresAt`, `regulatorSignature`). Each is EPCIS/CBV-defined or profile-declared, typed and length-bounded at
+admission.
 
-## 2.4 Data scenarios, storage, access and retention
+**Scenarios.** Each one fixes a requirement that would otherwise be a design preference.
 
-### 2.4.1 Data scenarios
+- **DS-1 Seven-year recall.** A retail lot is traced to a farm block seven years later. *Forces:* append-only
+  canonical tables, indexed lineage edges, and the profile version kept with the event (storage).
+- **DS-2 Competing claims.** Two processors consume one lot. *Forces:* no uniqueness on lineage, and a query
+  layer that returns both rather than picking one (representability, not validation).
+- **DS-3 Laboratory report.** A regulator requests a packer's report. *Forces:* only a commitment and a storage
+  mode on the platform, with content encrypted by its owner (access).
+- **DS-4 Scan at peak.** 5 000 scans/s after a television item. *Forces:* public reads served from versioned
+  objects at the edge, never by joining canonical tables (access, storage).
+- **DS-5 Retention under hold.** A batch expires during a dispute. *Forces:* deletion as a recorded transition
+  executed by three parties, with a signed record anchored (retention).
+- **DS-6 Offline capture, revoked key.** Events arrive after a key rotation. *Forces:* idempotent ingestion and a
+  review state, because "invalid" and "not yet established" are different facts (ingestion, validation).
 
-- **DS-1 Recall (DM-1, DM-3).** A retail lot traced to a farm block seven years on; every hop reproduces from
-  canonical events and the versioned rules.
-- **DS-2 Competing claims (DM-3).** Two processors consume one input; both edges are stored and returned side by
-  side, never ranked.
-- **DS-3 Disclosure (DM-2).** The owner encrypts a requested report to the regulator's key; the platform proves
-  delivery without holding plaintext.
-- **DS-4 Scan (DM-2).** 5 000 scans/s served from versioned objects, never by joining canonical tables.
-- **DS-5 Retention hold (DM-4).** Deletion is a recorded transition after the hold lifts, proven by a signed
-  record; premature deletion is externally visible.
-- **DS-6 Revoked key (DM-3).** Events queued offline arrive after rotation and enter review, because "invalid"
-  and "not yet established" are different facts.
+DS-3 and DS-4 fix the three visibility classes — public projection, consortium trace, owner-held private
+evidence, with no middle tier — and access binds per request to an explicit acting organisation. DS-6 fixes
+validation's two classes: admission blocks the write, while structural representability only shapes how the
+projection presents the data. Business plausibility stays out of admission, because a rule that rejected an
+event for an odd quantity would make the platform an adjudicator.
 
-### 2.4.2 Validation rules
-
-| Class | Examples | Effect |
-|---|---|---|
-| Admission | Profile conformance, digest reproducibility, signature and authority, idempotency, transitions | **Blocks** the write |
-| Structural representability | Two claims over one object, competing parents, unknown references, cycles in time | **Does not block**; shapes presentation |
-
-### 2.4.3 Storage choice: relational, append-only canonical tables
-
-One managed relational database holds submission state, registries, the outbox, a queryable materialisation and
-rebuildable projections. EPCIS fields are typed and constrained, admission needs one atomic step across event,
-idempotency claim and outbox, traversal is a bounded recursive query over 10 000 edges, and reporting is
-set-oriented.
-
-| Alternative | Why rejected |
-|---|---|
-| Document store per event | Gives up cross-event constraints, decimal exactness and multi-row transactions; JSON survives inside a relational column |
-| Graph database as the record | The graph is derived; storing it as truth makes derivation unverifiable |
-| Event sourcing for the application | Profiles and job state are not events |
-| Lake or warehouse as primary store | 10 000 events/day does not justify it |
-
-### 2.4.4 Access control
-
-| Class | Content | Reader | Platform reads plaintext |
-|---|---|---|---|
-| Public | Allowlisted projection, signed notices | Anyone | Yes — it generates it |
-| Consortium | Canonical trace, handover, sensor summaries | Consortium members | Yes, under audit |
-| Private | Raw telemetry, reports, contracts | Owner and its chosen recipients | **No** |
-
-There is no middle class: content queried by field joins the consortium class, content that must stay private
-stays off the platform. Access binds per request to an explicit acting organisation.
-
-### 2.4.5 Retention and deletion
-
-Retention is set per data class, with seven years as the pilot's canonical-trace assumption, adjustable by
-product, jurisdiction and hold. Deletion is a three-party process: the platform requests, the archive holder
-verifies the policy and executes, and anything earlier needs dual control; the signed record is anchored, so a
-premature deletion is visible rather than silent.
-
-### 2.4.6 Ingestion requirements
-
-Ingestion is idempotent on a client-generated identifier, persists state and enqueues side effects in one step,
-produces a deterministic digest, and parks unverifiable authority in review rather than calling it invalid.
-
-### 2.4.7 Data management system requirements
-
-| ID | Requirement | Why |
-|---|---|---|
-| DB-1 | Multi-row ACID transactions and referential integrity | Event, idempotency claim and outbox commit together; corrections reference events and leaves reference batches |
-| DB-2 | Exact decimal arithmetic and units | Quantities are never rounded silently (S2) |
-| DB-3 | Recursive queries with index support | Bounded traversal (SQ-4) |
-| DB-4 | Semi-structured columns for declared extensions | Profiles add fields without migration (DM-1) |
-| DB-5 | Point-in-time recovery, row-level predicates, audited reads, managed operation | Rebuildable but not losable, scope at the data layer, no database fleet (SQ-5, SP-6, SQ-10) |
+**Storage.** One managed relational database holds submission state, registries, the outbox, a queryable
+materialisation and rebuildable projections. It is relational because EPCIS fields are typed and constrained,
+admission needs one atomic step across event, idempotency claim and outbox, DS-1's traversal is a bounded
+recursive query, and reporting is set-oriented; it must therefore provide exact decimal arithmetic, referential
+integrity, semi-structured extension columns, point-in-time recovery and row-level predicates. Rejected: a
+document store (loses cross-event constraints and multi-row transactions), a graph database as the record (the
+graph is derived and must stay verifiable), and event sourcing for the whole application (profiles and job
+state are not events).
 
 ## 2.5–2.6 Cloud adoption
 
