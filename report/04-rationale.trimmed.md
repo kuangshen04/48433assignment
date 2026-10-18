@@ -3,79 +3,46 @@
 Section 3 states what the structure is; this section states why it is that structure — which quality each
 decision buys, which pattern carries it, and what was rejected.
 
-## 4.1 Quality requirements and where they are met
+## 4.1–4.5 Application architecture: the decisions
 
-Section 2 states thirteen quality requirements, and Appendix A.1 maps each to its mechanism and component. Five
-of them decide the shape of the system rather than constrain how it is built; the rest of this section explains
-the decisions behind those five.
+The application layer is eight decisions. Each was taken for a reason of its own; the qualities, tactics,
+patterns and principles that 4.1–4.5 ask about are what those decisions happen to satisfy, not the other way
+round.
 
-| Requirement | Structural mechanism | Where it lives |
-|---|---|---|
-| SQ-1 Integrity | Append-only records, signed digest, external acknowledgement, Merkle inclusion, verifiable batch sequence | Orchestrator; relayer; archive |
-| SQ-3 Availability | Fail-closed writes with idempotent retry; reads from materialised data; analytics never in the write path | State machine; workers; outbox |
-| SQ-4 Performance | Edge snapshots; lineage from the plaintext query copy; bounded synchronous traversal | Snapshot delivery; `QueryStore`; `QueryPort` |
-| SQ-7 Privacy | Three visibility classes with no middle tier; content off-platform behind a salted commitment; no natural-person field | `ProtectedResourceRef`; `SignatureEnvelope` |
-| SQ-13 Analysability | Aggregates materialised over the confirmed projection at a watermark, served under the same scope rules | `Insights` module |
+1. **One deployable, split by role rather than by service.** The core holds mechanism, six modules hold business
+   semantics, and one image runs as application or worker (modular monolith). A service per concern would add a
+   broker, sagas and an operational platform to serve 10 000 events/day — cost without capability.
+2. **One write path, with an outbox.** Admission validates, persists state, claims the idempotency key and
+   enqueues the archive intent in a single transaction; workers drain the outbox (transactional outbox). A crash
+   at any point resumes rather than duplicates.
+3. **One read entrance.** Modules read only through `QueryPort`, which enforces scope, non-collapsing and a
+   watermark and offers one-hop edges plus a bounded traversal, nothing else (single façade). Two cohesive
+   operations, no method that returns a business status.
+4. **Append-only canonical records, everything else derived.** Corrections are new events; lineage, recall and
+   public views are rebuilt from the log, and every projection carries a watermark so derivation is replayable
+   (CQRS-lite; observability).
+5. **Notarised anchoring.** Every thirty minutes the relayer commits a Merkle root; the archive, not the
+   database, is the copy of record. Anchoring is how the chain earns its place: it proves existence, not truth.
+6. **Ports at every external edge.** Archive, KMS, chain and identity are interfaces with adapters, and the leaf
+   binds digests rather than chain specifics (ports and adapters), so a provider or chain can change without a
+   domain edit.
+7. **Signature and authority are separate checks.** One envelope covers all custody modes; one verifier checks
+   the signature, and a separate resolver decides whether that organisation was authorised *at signing time*
+   (admission gates). Merging them would make a profile release look like a security change.
+8. **The signer is isolated.** Only the relayer holds the chain wallet, and it has no inbound path and cannot
+   read payloads (isolated signer). This is the one deliberate inversion: chain-specific code is confined there
+   rather than hidden behind a port.
 
-## 4.2 Quality tactics
-
-| Quality | Tactic | Concrete mechanism |
-|---|---|---|
-| Integrity | Detect tampering rather than prevent it | Append-only rows; signed canonical digest; holder-signed acknowledgement over stored bytes; roots committing to the previous root; inclusion proofs |
-| Non-repudiation | Separate three questions usually conflated | Was it signed by that key; was that organisation allowed to sign then; when was it signed — three independent checks, none implying another |
-| Availability | Fail closed on writes, degrade explicitly on reads | Idempotent retry on a stable identifier; outbox committing state and side effect together; reads from the local copy; analytics outside the write path |
-| Performance | Move work off the request path | Versioned snapshots on the CDN; lineage derived once and read from indexes; fixed edge budget with export beyond it |
-| Modifiability | Localise change | New profile version instead of a core change; ports and adapters for archive, KMS, chain and identity; chain-agnostic leaf |
-| Security | Enforce at one point, audit at the boundary | `QueryPort` as the only read entrance; one signature verifier; key separation; time-boxed, dual-approved break-glass |
-| Observability | Make state and derivation inspectable | Watermarks on every projection; platform liveness kept separate from the regulator's self-reported health; replayable derivation |
-
-## 4.3 Architectural patterns
-
-| Pattern | Applied as | Serves |
-|---|---|---|
-| Modular monolith | One deployable, core plus six modules, called through ports | SQ-10; modifiability |
-| Ports and adapters | Archive, key service, chain, identity and time are ports; SDKs live in adapters | SQ-8; testability |
-| Transactional outbox | Submission state and archive intent commit together; workers drain | SQ-3, SQ-1 |
-| Append-only log with derived projections | Canonical events are the write model; lineage, recall and public views are rebuildable | SQ-1, SQ-4 |
-| Admission gate pipeline | Validation is a sequence of gates, each adding a stated guarantee | SQ-1, SQ-2 |
-| Notarisation | Periodic Merkle roots provide an external existence checkpoint | SQ-1 |
-| Two control domains | Analytics and archive custody in accounts the platform cannot operate | SQ-7, SP-5 |
-| Isolated signer | The only chain-wallet holder is a separate deployment | SP-1, SP-5 |
-| Single read façade | `QueryPort` is the only entrance; nothing else reads canonical tables | SQ-1, SQ-7 |
-
-Rejected where they did not earn their cost: microservices per concern, two-phase commit, full event sourcing,
-and a permissioned ledger (Section 5 revisits the last).
-
-## 4.4 SOLID principles
-
-**Single responsibility.** One verb per component: accept, deduplicate, canonicalise, verify, advance state,
-orchestrate, derive, serve. Schema conformance and cryptographic attribution change for different reasons, which
-is why canonicalisation and signature validation are separate.
-
-**Open/closed.** A new custody mode is a new envelope producer plus a registry entry; a new profile is a new
-immutable version; a new archive holder is a new signer behind the same contract. The core gains no branch.
-
-**Liskov substitution.** All four custody modes produce the same envelope and pass the same verifier. What is
-*not* flattened is the assurance level: the interface is uniform, the trust claim is not.
-
-**Interface segregation.** `QueryPort` exposes two graph-shaped operations and nothing else; a method returning
-handover status or compliance state would let a caller bypass the rules the port exists to enforce.
-
-**Dependency inversion.** The core depends on an archive port, a key port, a verifier and a clock, never on a
-provider SDK — which is what allows the holder set, the KMS and the chain to change without domain edits. The
-relayer is the deliberate exception, and confining chain code there is the point.
-
-## 4.5 Avoidance of poor design
-
-Each smell has one answer, and the answers are the patterns above. *Feature concentration*: the core is
-mechanism and business semantics live in six modules with declared dependencies. *Scattered functionality*: one
-verifier, one state machine, one read entrance, one orchestrator that touches externals. *Dense structure*:
-bounded component counts (core 9, relayer 7, workspace 4). *Cyclic dependency*: modules → `QueryPort` → store,
-core → ports → adapters, and the graph is derived so there is no back edge. *Unstable dependency*: domain code
-depends on interfaces, and SDKs and provider formats are confined to adapters and the relayer.
-
-The rules are what keep the picture from decaying: modules may call `QueryPort` and never the canonical tables;
-the core does not know modules exist; the core reaches providers only through ports.
+Read against the criteria, these decisions answer four questions at once. **4.1** — where each quality is met — is
+visible in the decision that names it. **4.2** — tactics — are the mechanisms in italics above: fail closed and
+retry, move work off the request path, localise change, enforce at one point. **4.3** — patterns — are the
+parenthesised names, each chosen over a rejected alternative recorded in Section 5.4. **4.4** and **4.5** are the
+properties the decisions were tested against: responsibilities split by reason to change (SRP: canonicalisation
+separate from signature validation), new custody modes and profiles as additions rather than branches (OCP), four
+custody modes behind one envelope (LSP), a two-operation read interface (ISP), dependencies pointing at
+interfaces (DIP, with the relayer as its deliberate exception); and no feature concentration (the core is
+mechanism), no scattered enforcement (one verifier, one state machine, one read entrance), no cycle (modules →
+`QueryPort` → store), and no unstable dependency (vendors live in adapters).
 
 ## 4.6 Context-level data architecture
 
