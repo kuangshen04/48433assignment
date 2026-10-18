@@ -88,7 +88,7 @@ not a third-party black box, and Section 4.6 returns to what that placement buys
 
 | Container | Responsibility | Form | Principal interfaces |
 |---|---|---|---|
-| Participant & Regulator Portal | Capture, lineage and recall views, evidence requests, exports | Progressive web application in the browser | HTTPS/JSON to the application; local offline queue |
+| Participant & Regulator Portal | Role-specific entry points — capture for grower and packer, handover confirmation for distributor, recall execution for retailer and regulator — plus scan-to-trace, insight views, evidence requests and exports | Progressive web application in the browser | HTTPS/JSON to the application; local offline queue |
 | Traceability Application | Admission validation, confirmation orchestration, evidence graph, the single read entrance | Modular monolith: Core plus six semantic modules | REST in; SQL to the database; mTLS to the KMS; signed messages to analytics |
 | Ingestion & Projection Workers | Archive writes, projection rebuild, exports, retention, advisory intake | Same image as the application, worker role | SQL; HTTPS to archive holders; object API to the snapshot origin |
 | Batch Builder & Relayer | Leaf allocation, Merkle batching, root submission, inclusion proofs | Isolated worker; the only holder of the chain wallet | SQL; chain transactions |
@@ -175,7 +175,9 @@ The core has one write path and one read entrance:
 
 The six semantic modules appear in this view as an external component because they are outside the core but
 inside the same process. They hold no canonical data and write no history; they read through `QueryPort` and
-maintain rebuildable projections.
+maintain rebuildable projections. `Insights` is the one that serves the analytical views: aggregates
+materialised from the confirmed projection at a named watermark, scoped like every other read and holding no
+private content.
 
 ### 3.4.2 Batch Builder & Relayer
 

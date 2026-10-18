@@ -22,6 +22,7 @@ evaluated against.
 | BO-7 | It can be operated by a small team at pilot scale | Constraint C6 | One application, one managed database, no bespoke infrastructure | SQ-10; deployment view |
 | BO-8 | Device evidence is integrated without handing over raw telemetry | Brief: integration with IoT devices | A cold-chain or weight summary is attributable and checkable against private raw data; the platform holds no raw readings | SQ-11; Figures 1, 4 |
 | BO-9 | Regulatory screening exists as a capability, with ML as an option | Brief: compliance with food-safety regulations | Rules are signed, versioned and run at a watermark; their absence degrades advice, never traceability | SQ-12; Figures 3, 6, 8 |
+| BO-10 | Supply-chain insight is readable, not merely queryable | Brief: "data visualisation tools for supply chain insights" | A role can see volume, movement and dwell for its own scope at a named watermark, and every figure resolves to confirmed events | SQ-13; Insights materialised views |
 
 ## 5.2 Evaluation
 
@@ -36,10 +37,11 @@ evaluated against.
 | BO-7 Small-team operation | **Met at pilot scale** | Managed services; one deployable; batched anchoring | Two additional operated environments exist (regulator, trustee), which is a cost the pilot carries for independence |
 | BO-8 Device evidence integration | **Met, conditionally** | IoT enters through participant systems; profile-required summaries are attributable, raw data stays private | Devices without connectivity or calibration produce missing or late summaries; coverage depends on the participant's instrumentation |
 | BO-9 Regulatory screening capability | **Met structurally, conditional in practice** | Analytics is a first-class subsystem at all three C4 levels; rules are signed and versioned; ML is interchangeable | The capability depends on the regulator operating its runtime; if it does not, only trace and manual investigation remain |
+| BO-10 Insight views | **Partly met** | Aggregation, watermark and scope are designed, and the views read the same projection as everything else | The view layer itself is a thin client that is named but not specified; no dashboard is designed, and the mart is a materialised view, not a warehouse |
 
 The honest summary: the architecture meets its evidentiary objectives strongly, meets the growth objective by
-configuration rather than by construction, and meets the coverage objective only where devices and connectivity
-allow.
+configuration rather than by construction, meets the coverage objective only where devices and connectivity
+allow, and meets the insight objective at the data layer while leaving the presentation layer to the client.
 
 ## 5.3 ATAM analysis
 

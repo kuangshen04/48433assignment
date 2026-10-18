@@ -20,6 +20,7 @@ Requirement identifiers (`SQ`, `DM`, `CL`, `SP`, `AI`, `IoT`) are the ones defin
 | SQ-8 Interoperability | EPCIS 2.0 / CBV; versioned profiles and canonicalisation; chain-agnostic leaves | Canonicalisation; profile registry; leaf format |
 | SQ-9 Auditability | Watermarks on every projection; versioned edge derivation that can be replayed; findings bound to rule version and input watermark | `QueryPort`; Evidence Graph Builder; analytics manifest |
 | SQ-10 Cost and operability | One modular application, one managed database, no broker, managed services, batched anchoring | Container view; deployment view |
+| SQ-13 Analysability | Aggregates materialised over the confirmed projection at a watermark, served through the same scope and watermark rules as every other read | Insights module; 4.7 |
 
 The remaining subsections take these one cluster at a time.
 

@@ -21,12 +21,12 @@ document, so the trimming pass is substantial and should be planned rather than 
 | Section | Draft (words) | Proposed final |
 |---|---|---|
 | 1. Project Context | 3600 | 600 |
-| 2. Requirements | 6974 | 1 400 |
-| 3. Views | 2906 | 1 400 + 8 figures |
-| 4. Rationale | 5761 | 2 000 + tables |
-| 5. Evaluation | 2875 | 600 |
+| 2. Requirements | 7214 | 1 400 |
+| 3. Views | 2955 | 1 400 + 8 figures |
+| 4. Rationale | 5791 | 2 000 + tables |
+| 5. Evaluation | 2994 | 600 |
 | Front matter, captions, appendix | — | 300 |
-| **Total so far** | **22116** | **≈ 5 400** |
+| **Total so far** | **22554** | **≈ 5 400** |
 
 Two trimming decisions will need a call from the group:
 
@@ -112,10 +112,24 @@ trimming pass, because trimming would otherwise preserve the errors:
 | §4.7 named an `Insights mart` container that Figure 2 does not contain | Now the materialised views inside Operational PostgreSQL |
 | §4.8 claimed the conceptual model was visible in Figures 4 and 7 | Now states what each figure actually contributes |
 
-Still open from those reads, deliberately deferred to the trimming and closing passes: **the brief's data
-visualisation bullet has no requirement, objective or view** (K2); the four participant interfaces are one PWA
-container; accessibility is treated as connectivity, with no WCAG-level requirement; §5.2 has no `Not met`
-verdict; cost is order-of-magnitude only; and the glossary appendix is not written.
+Still open from those reads, deliberately deferred to the trimming and closing passes: the portal's
+role-specific screens are named but not specified (K3); §5.2 now has one `Partly met` verdict but still no
+`Not met` (K4); cost is order-of-magnitude only; and the glossary appendix is not written.
+
+## Brief coverage: the seven case-study bullets
+
+Both cold reads checked the report against the case study's own bullet list, not only against the rubric. The
+state after the closing pass:
+
+| Bullet | Where it is answered | State |
+|---|---|---|
+| Immutable record-keeping | §1 O2/R3; §2 SQ-1, QS-1; §3 write path; §4.2, §4.19; BO-1 | Designed |
+| Interfaces for four participant types | §3.3.1 portal row names the role-specific entry points; SQ-6; BO-2, BO-4 | Named per role, screens not specified (K3) |
+| IoT integration | §3.2 device interface; SQ-11, QS-12; 4.B; BO-8 | Designed |
+| Multiple product lines and regions | SQ-8; profiles; BO-6 | Product lines designed; regions are a governance and deployment step |
+| Food-safety compliance | §2.8.4; SQ-9, SQ-12; BO-3, BO-9 | Designed as evidence and scope, not as a compliance mapping |
+| **Data visualisation for insights** | **SQ-13, QS-13; §3.4.1 `Insights`; §4.1, §4.7; BO-10** | **Closed in the closing pass (K2): requirement, scenario, module and objective now exist; the presentation layer is deliberately a thin client** |
+| Rural accessibility | SQ-6 (WCAG 2.2 AA, 200 % text, icon plus plain-language label, 2G-class capture); BO-2 | Closed as a measurable requirement |
 
 ## Known gaps in Section 2 (recorded, not yet fixed)
 

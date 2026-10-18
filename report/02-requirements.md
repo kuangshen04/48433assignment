@@ -21,6 +21,7 @@ identifiers rather than restating the requirement.
 | Privacy and confidentiality | S1, S5, S6, C2, R5 | Commercial and personal information must not leak into a permanent shared record |
 | Interoperability and evolvability | S2, S3, S11, C3, R9 | Participants keep their systems; the record must outlive a vendor or a chain |
 | Auditability and regulatory compliance | S6, S7, C2 | Evidence must be defensible; analytics must be attributable and reproducible |
+| Analysability | S1–S4, S6 | Volume, movement and dwell are what participants act on; an event log alone is not a supply-chain tool |
 | Cost efficiency and operability | S9, C5, C6 | A pilot that needs a platform team per region will not run |
 
 ### 2.1.2 Quality requirements
@@ -32,13 +33,14 @@ identifiers rather than restating the requirement.
 | SQ-3 | Availability | Loss of any single dependency degrades a defined capability but never produces a false negative in a safety query | Fault injection per dependency produces a declared state and a visible degradation marker, never "no record" | S4, S6 |
 | SQ-4 | Performance | Consumer reads are served from a CDN; interactive recall queries return within the interaction budget; larger traversals are exported at a fixed watermark | 5 000 consumer requests/s at the edge; synchronous traversal bounded (10 000 edges) with asynchronous export beyond it | S5, S6 |
 | SQ-5 | Recoverability | Confirmed trace can be rebuilt without the platform's database | Logical RPO 0 for receipted confirmed events; operational database RPO ≤ 5 min; core RTO ≤ 4 h; regional rebuild ≤ 24 h | S6, S10 |
-| SQ-6 | Usability | A first-time smallholder can submit a complete, valid event without training; forms work on a low-end phone in poor coverage | Task completion in a moderated pilot session; capture usable offline and idempotent on reconnect | S1, S4 |
+| SQ-6 | Usability and accessibility | A first-time smallholder can submit a complete, valid event without training, on a low-end phone in poor coverage, and every screen is usable by people with low literacy or low vision | Capture completes in under three minutes at 2G-class bandwidth; every screen meets WCAG 2.2 AA, works at 200 % text size, and each field carries a plain-language label and an icon | S1, S4 |
 | SQ-7 | Privacy | The immutable shared record contains no natural-person reference and no private commercial content | Schema check at admission; a privacy review of the profile allowlist | S1, S5, S6 |
 | SQ-8 | Interoperability | Events use the EPCIS 2.0 / CBV vocabulary; profiles are versioned and published; chain and vendor choices are replaceable | A third party can interpret an event from its profile and canonicalisation version alone | S2, S3, S11 |
 | SQ-9 | Auditability | Every state change and every disclosure decision is attributable and reproducible; analytics outputs are traceable to a rule version and an input watermark | Independent replay of edge derivation and advisory generation reproduces the same result | S6, S7, S11 |
 | SQ-10 | Cost / operability | The pilot runs as one modular application and one managed database, with no self-managed cluster | Deployment topology and monthly cost estimate documented; no per-region node fleet | S9 |
 | SQ-11 | Device evidence integration | Device-sourced evidence (cold chain, weights, scans) reaches the shared record as profile-required summaries with provenance, without the platform hosting raw telemetry | A profile can require a sensor summary; the summary is traceable to its publisher and to private raw data without publishing it | S1, S3, S12 |
 | SQ-12 | Regulatory screening capability | The system provides screening over confirmed claims, with rules owned and signed by the regulator; ML is optional, the capability is not | A rule version can be published, run at a watermark, and its output traced to that version; disabling it degrades advice, not trace | S6, S7 |
+| SQ-13 | Analysability | Confirmed data can be read as insight views — volume, movement and dwell by product line, location and period — without leaving the scoped, watermarked read path | Every view states its watermark and scope; the same figures are reproducible from the confirmed projection; no view includes an unconfirmed claim | S1–S4, S6 |
 
 ## 2.2 Quality scenarios, risk evaluation, decisions and rejected alternatives
 
@@ -101,6 +103,12 @@ conflict is visible in the view, and an independent replay of edge derivation re
 batches anchor on a new chain while old proofs remain verifiable; batch metadata records the migration
 boundary. *Measure:* old inclusion proofs still verify; no canonical event is re-signed or rewritten.
 
+**QS-11 — Analytics unavailable during an investigation (SQ-12).** A regulator opens a case while the analytics workspace is down for maintenance. *Artefact:* trace query, recall traversal, advisory feed. *Environment:* one subsystem unavailable. *Response:* trace and recall continue; the UI shows risk assessment as delayed and marks advisories as possibly incomplete; no "no risk found" is displayed. *Measure:* case work continues and the degradation is visible on the same screen as the result.
+
+**QS-12 — Cold-chain excursion evidence (SQ-11).** A reefer exceeds its temperature limit for 40 minutes in transit. *Artefact:* receiving claim, sensor summary, private raw log. *Environment:* normal operation, intermittent device connectivity. *Response:* the participant's own system alarms and acts; the receiving claim carries a profile-required excursion summary and a reference to private raw data; the regulator can later check the summary against the raw data through the owner. *Measure:* the summary is present and attributable; the raw log never reaches the platform.
+
+**QS-13 — Quarterly review (SQ-13).** A category manager reviews one product line across a region. *Artefact:* confirmed projection. *Environment:* normal operation, a fixed watermark one day behind. *Response:* volume, movement and dwell are shown per location and period, labelled with their watermark; every figure resolves to the confirmed events behind it. *Measure:* the same figures can be reproduced from the projection, and no figure includes a provisional claim.
+
 ### 2.2.2 Risks by quality, the decisions taken, and the alternatives rejected
 
 | Quality | Risk if unaddressed | Decision taken | Alternative rejected, and why |
@@ -114,12 +122,8 @@ boundary. *Measure:* old inclusion proofs still verify; no canonical event is re
 | Privacy | An immutable log becomes an unlawful personal-data store | No natural-person references in the immutable trace; private evidence off-platform with salted commitments; personal data only in the mutable registry | **Field-level encryption inside the shared record** — the platform still holds keys, so it can still read. **Per-event access lists** — unenforceable when the platform cannot read the content |
 | Interoperability | Vendor and chain lock-in | EPCIS/CBV; versioned profiles and canonicalisation; chain-agnostic leaves; portable archive envelope | **Custom event model** — cheaper to design, but every participant needs a lossy mapping and third parties cannot interpret events |
 | Auditability | Findings cannot be defended; derivation cannot be checked | Rules signed and versioned by the regulator; edge derivation published and replayable; advisories carry rule version and watermark | **Advisory stored as platform opinion** — no attributable author. **Derived status stored as truth** — hides the evidence trail |
+| Analysability | Insight views become a second read path that silently disagrees with the trace | Views served from the same confirmed projection at a named watermark, through the same scope rules | **A separate dashboard database loaded by ETL** — a second consistency boundary, and a place where stale or unconfirmed figures can look authoritative |
 | Cost | The pilot cannot be run by a small team | Modular monolith, one managed database, no broker, managed services, batched anchoring | **Microservices and a broker per concern** — operational cost without a scaling need; revisit only on measured pressure |
-
-
-**QS-11 — Analytics unavailable during an investigation (SQ-12).** A regulator opens a case while the analytics workspace is down for maintenance. *Artefact:* trace query, recall traversal, advisory feed. *Environment:* one subsystem unavailable. *Response:* trace and recall continue; the UI shows risk assessment as delayed and marks advisories as possibly incomplete; no "no risk found" is displayed. *Measure:* case work continues and the degradation is visible on the same screen as the result.
-
-**QS-12 — Cold-chain excursion evidence (SQ-11).** A reefer exceeds its temperature limit for 40 minutes in transit. *Artefact:* receiving claim, sensor summary, private raw log. *Environment:* normal operation, intermittent device connectivity. *Response:* the participant's own system alarms and acts; the receiving claim carries a profile-required excursion summary and a reference to private raw data; the regulator can later check the summary against the raw data through the owner. *Measure:* the summary is present and attributable; the raw log never reaches the platform.
 
 ## 2.3 Data management requirements and data dictionary
 
