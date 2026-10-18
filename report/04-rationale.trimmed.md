@@ -44,14 +44,14 @@ interfaces (DIP, with the relayer as its deliberate exception); and no feature c
 mechanism), no scattered enforcement (one verifier, one state machine, one read entrance), no cycle (modules →
 `QueryPort` → store), and no unstable dependency (vendors live in adapters).
 
-## 4.6 Context-level data architecture
+## 4.6–4.10 Data: seven decisions
 
-`Regulatory Analytics` appears in Figure 1 as the second peer subsystem inside the system boundary, running in
-the regulator's own account. Two facts follow: it consumes a minimised, purpose-bound snapshot rather than raw
-tables, and it returns messages rather than rows. The archive is the authoritative store for encrypted payloads,
-the KMS holds the keys that make it readable, and the chain holds only commitments.
+The data layer is seven decisions. Four are forks between plausible alternatives; three follow from the
+requirements and are recorded only for their reason.
 
-## 4.7 Container-level data architecture
+**D1. The archive is the copy of record; the database is not.** *Why:* no single party, including the operator,
+may be able to destroy confirmed history, which is also what makes RPO 0 possible (DM-3). *Rejected:* database
+plus WORM backup in the platform's own account, which leaves the operator as the sole verifier.
 
 | Data role | Container | Rebuildable? |
 |---|---|---|
@@ -62,19 +62,26 @@ the KMS holds the keys that make it readable, and the chain holds only commitmen
 | Analytical mart | Insights materialised views inside PostgreSQL | Yes |
 | Regulatory data | Analytics stores, regulator account | Rules signed and reproducible; findings evidential |
 
-Three flows exist and no more: a scheduled purpose-bound export of a minimised snapshot; a nightly materialisation
-of aggregates from the confirmed projection; an on-demand, case-bound export at a fixed watermark. A warehouse is
-out of scope at 10 000 events/day, and a lake is rejected because raw files would duplicate private content.
+**D2. Keep a plaintext query copy inside the platform.** *Why:* lineage cannot decrypt on every hop, and scope has
+to be enforced locally; the copy is rebuildable, read-audited and excluded from the recovery guarantee.
 
-## 4.8 Component-level conceptual model
+**D3. Three visibility classes, no middle tier.** *Why:* a middle tier would need per-field policy, which cannot be
+enforced on an immutable record, so content that must be queried by field joins the consortium class instead.
 
-Figure 4 fixes which component owns each entity. The concepts are submission, canonical event, evidence edge,
-evidence reference, archive acknowledgement, leaf and batch, and profile version. A submission materialises
-exactly one canonical event; an event validates against one profile version, is acknowledged by one or more
-holders, commits as one leaf, and references zero or more evidence records; a batch contains many leaves and
-chains to its predecessor; a profile version governs many events and is immutable.
+**D4. Retention per data class, deletion executed by three parties.** *Why:* deletion has to be defensible and
+never unilateral — the platform requests, the holder verifies and executes, anything earlier needs dual control,
+and the signed record is anchored (DM-4).
 
-## 4.9 Code-level physical model
+**D5. One relational database, append-only canonical tables, everything else derived.** *Why:* EPCIS fields are
+typed and constrained, admission needs one atomic step across event, idempotency claim and outbox, traversal is a
+bounded recursive query, and reporting is set-oriented (DM-1, SQ-4). *Rejected:* a document store (loses
+cross-event constraints and multi-row transactions), a graph database as the record (the graph is derived and
+must stay verifiable), and event sourcing for the whole application (profiles and job state are not events).
+
+The model that follows: a submission materialises exactly one canonical event; an event validates against one
+profile version, is acknowledged by one or more holders, commits as one leaf, and references zero or more evidence
+records; a batch contains many leaves and chains to its predecessor; a profile version governs many events and is
+immutable.
 
 ![Figure 9 — Physical data model](../docs/public/diagrams/core-physical-model.svg)
 
@@ -87,31 +94,32 @@ append-only; `payload` is JSONB and holds only fields the platform does not quer
 row-level predicates on `organisation_id` back the scope filter, so a coding mistake in one module cannot widen a
 read.
 
-## 4.10 Data architecture justification
+**D6. Analytics consumes a minimised snapshot at a watermark and returns messages.** *Why:* the platform must not
+be able to read rules or findings, and the regulator must not need raw tables; it is a peer subsystem in the
+regulator's own account (Figure 1), not an external black box. *Rejected:* a platform-hosted tenant, which would
+give one administrator read access to every rule and finding.
 
-The event stores its profile and canonicalisation versions, so it stays interpretable (DM-1). Private content is
-never stored: only a commitment and a storage mode (DM-2), which is also why the archive — not the database — is
-the copy of record (DM-3). Retention is a state machine executed by three parties with an anchored deletion
-record (DM-4). No natural-person field exists in the model and the envelope carries no actor identity (DM-5),
-and findings carry rule version and watermark so they reproduce (DM-6).
+**D7. No warehouse or lake at pilot scale.** *Why:* 10 000 events/day is served by materialised views, a
+warehouse would add a second consistency boundary, and a lake would duplicate private content. *Rejected:* a
+warehouse from day one — revisit when volume or query mix changes.
 
-## 4.11–4.13 Cloud principles and what they cost
+## 4.11–4.15 Cloud: four decisions
 
-The design uses managed services instead of servers, stateless compute with externalised state, one immutable
-image whose role is chosen by configuration, and declarative infrastructure for accounts, buckets, policies and
-keys. Declarative delivery is what makes "the platform can deploy into the regulator's account but cannot read
-from or operate it" a property of the pipeline rather than a promise. Scaling is by role: workers follow outbox
-lag, the application follows request rate, and the relayer deliberately does not scale. Resilience comes from
-multi-AZ, retry and stable identifiers; observability from watermarks, lag and two independent health signals;
-privilege from accounts treated as boundaries rather than billing labels.
+**C1. Managed services, no cluster and no broker; one image that runs as application or worker.** *Why:* a
+six-person team for one semester has no operations capacity, and 10 000 events/day does not need a broker.
+*Rejected:* IaaS with a self-managed cluster, which moves patching, HA and backup onto the team.
 
-Each choice has a price, paid deliberately: managed services cost more per unit than servers the team cannot
-operate; stateless compute adds a hydration cost per request; immutable images require a redeploy to change a
-role; horizontal workers add outbox concurrency. Two deviations from fashion are recorded rather than hidden — a
-single primary with a reader rather than distributed SQL, and one region with warm copies rather than
-active-active — both consequences of pilot scale.
+**C2. Four accounts, delivered declaratively.** *Why:* it turns "the platform can deploy into the regulator's
+account but cannot read from or operate it" into a property of the pipeline rather than a promise. *Rejected:* a
+single account, where one administrator is in reach of every control plane.
 
-## 4.14 Deployment infrastructure
+**C3. One region with warm copies; one primary with a reader.** *Why:* the pilot's availability target is met
+without active-active, which would multiply cost and consistency complexity. *Rejected:* active-active
+multi-region and distributed SQL — both revisited only on measured pressure.
+
+**C4. The relayer is isolated and does not scale horizontally.** *Why:* it holds the only credential that can
+spend money and write to a public network, so it has no inbound path and cannot read payloads; a single wallet
+also means a single instance. *Rejected:* the chain wallet inside the main application.
 
 ![Figure 10 — Logical deployment](../docs/public/diagrams/c4-deployment.svg)
 
@@ -121,44 +129,21 @@ active-active — both consequences of pilot scale.
 
 *Figure 11 — A configuration that can be procured and built.*
 
-The views are separate on purpose: the logical view answers "who owns what", the reference view answers "what
-would we buy". Devices sit outside both; the platform, trustee, regulator analytics and regulator evidence are
-four accounts; the chain is an external utility with no validator operation.
+The two views are separate on purpose: the logical view answers who owns what, the reference view what we would
+buy. Seven workloads, each with one credential and one scaling unit — the application and workers on request rate
+and outbox lag, the database as a managed primary with a reader, archive and KMS provider-managed in a trustee
+account, public delivery behind a CDN.
 
-## 4.15 Execution environments
-
-Seven workloads, each with one credential and one scaling unit. The application and workers run the same image
-in managed containers, scaling on request rate and outbox lag; the relayer is an isolated container that
-deliberately does not scale; the database is a managed primary with a reader under IAM authentication; the
-archive and KMS are provider-managed in a trustee account, reachable only through a role that can write and wrap
-but not delete or administer; public delivery is object storage behind a CDN. The relayer is the only workload
-whose credential can spend money and publish to a public network, so it has no inbound path and no ability to
-read canonical payloads.
-
-## 4.16 Dynamic views
+## 4.16–4.17 The write path and the recall path
 
 ![Figure 12 — Dynamic view: event acceptance](../docs/public/diagrams/c4-dynamic.svg)
 
 *Figure 12 — One event from submission to confirmed visibility, in five phases and sixteen steps.*
 
-The acceptance scenario exercises every boundary: participant to platform, platform to holder, to key service, to
-chain and to the public. Sixteen steps carry one event through five phases — receive and validate, encrypt and
-archive, receipt issued, anchor to finality, confirm and project. The ordering is the argument: a receipt is
-issued only after an outside holder has signed for the bytes, and confirmation only after finality. No timeout
-promotes an event; a failure suspends it where it stands and retries idempotently.
-
-![Figure 13 — Dynamic view: recall investigation](../docs/public/diagrams/c4-dynamic-recall.svg)
-
-*Figure 13 — Scope at a watermark, evidence request, signed notice.*
-
-The recall path is where privacy is decided, so it is drawn separately. The platform produces a scope at a fixed
-watermark and returns confirmed and provisional sets apart, never merged. An evidence request becomes an audit
-record rather than a data pull: the owner encrypts the content to the regulator's key and the platform never sees
-it. The formal notice is written to the archive by the workers, acknowledged by the holder, anchored by the
-relayer, and published as `PENDING_ANCHOR` before it is `CONFIRMED` — publication does not wait for finality, and
-it never claims more than the evidence supports.
-
-## 4.17 Data flow through the dynamic view
+Sixteen steps carry one event through five phases: receive and validate, encrypt and archive, receipt issued,
+anchor to finality, confirm and project. The ordering is the argument — a receipt follows an outside holder's
+signature, and confirmation follows finality; no timeout promotes an event, and a failure suspends it where it
+stands.
 
 | Steps | Data crossing | Classification | Boundary crossed |
 |---|---|---|---|
@@ -170,28 +155,54 @@ it never claims more than the evidence supports.
 | 14–15 | Versioned public projection | Public | Platform to CDN |
 | 16 | Trace page for the submitter | Consortium | Application to portal |
 
-Step 16 is the submitter reading the event back; the consumer read is served by the CDN from step 15 and is not a
-step in this figure, because consumers never reach the application.
+Step 16 is the submitter reading the event back; the consumer read comes from the CDN at step 15 and never
+reaches the application.
 
-## 4.18–4.20 Threat model: boundaries, threats and accepted risk
+![Figure 13 — Dynamic view: recall investigation](../docs/public/diagrams/c4-dynamic-recall.svg)
 
-The model starts from boundaries rather than from a threat catalogue: every principal that can cause a write, a
-read or a disclosure gets exactly one enforced entry point, and STRIDE is then used as a coverage check.
+*Figure 13 — Scope at a watermark, evidence request, signed notice.*
 
-**Participant-facing.** The API takes signed events, enforcing signature, authority, organisation binding and
-rate limits, and rejects with a retryable error rather than a partial acceptance; the portal takes sessions and
-forms behind an external IdP with a per-request acting organisation, and loses only the session, because drafts
-stay queued; onboarding verifies identity and keys with a sponsor and dual approval, so no partial membership
-exists.
+The recall path is where privacy is decided. The platform produces a scope at a fixed watermark and returns
+confirmed and provisional sets apart, never merged; an evidence request becomes an audit record rather than a
+data pull, and the owner encrypts the content to the regulator's key so the platform never sees it. The formal
+notice is written by the workers, acknowledged by the holder, anchored by the relayer, and published as
+`PENDING_ANCHOR` before it is `CONFIRMED`.
 
-**Leaving the account.** The archive takes an envelope and returns an acknowledgement, and the gate simply does
-not advance until one arrives; the key service wraps and unwraps but cannot delete or administer, so writes stop
-at pending-archive while reads continue; the chain takes roots and returns finality through a wallet only the
-relayer holds; the regulator receives signed snapshots and advisories, and rejects anything unsigned.
+## 4.18–4.20 Security: eight decisions, and what they accept
 
-**Internal.** Staff have no standing access, and a refused break-glass is itself recorded and anchored; the
-evidence owner receives an audited request and returns content the platform cannot decrypt, so absence is
-recorded as "cannot confirm", never "not provided".
+**S1. An event is confirmed only after a signature from outside the platform's account.** *Why:* the operator
+must not be able to manufacture a confirmed claim on its own. *Rejected:* database plus WORM backup, where the
+platform signs for itself.
+
+**S2. Each event has its own data key, wrapped by a consortium key held outside the platform.** *Why:* the archive
+holds ciphertext it cannot read, so a compromise of the archive is not a disclosure of content. *Rejected:* a
+platform-held KEK.
+
+**S3. One envelope covers all four custody modes; authority is judged as of signing time.** *Why:* rotation or a
+later compromise must not retroactively invalidate history. *Rejected:* a format per custody mode, and judging
+authority by a key's current status.
+
+**S4. Private evidence never reaches the platform.** *Why:* the platform cannot be compelled to hand over what it
+does not hold, and the owner decides who can decrypt. *Rejected:* field-level encryption on the platform, which
+leaves it holding keys.
+
+**S5. No natural-person field enters the immutable record.** *Why:* otherwise correction and deletion obligations
+collide with the immutability the record exists for (SP-4).
+
+**S6. Staff have no standing access; break-glass is dual-approved, recorded and anchored.** *Why:* the insider is
+the highest-privilege threat, and a refusal is itself evidence (SP-6).
+
+**S7. Analytics runs in the regulator's account and exchanges only signed messages.** *Why:* rules and findings
+must be unreadable by the platform (D6). *Rejected:* a platform-hosted tenant.
+
+**S8. Every principal that can write, read or disclose gets exactly one enforced entry point.** *Why:* the number
+of entrances is the attack surface, so boundaries drive the model; STRIDE is then a coverage check rather than a
+generator. Participant-facing: the API (signature, authority, organisation, rate limits; retryable rejection),
+the portal (external IdP, per-request acting organisation) and onboarding (entity verification, sponsor, dual
+approval). Leaving the account: the archive (the gate waits for the acknowledgement), the key service (wrap and
+unwrap only), the chain (roots out, finality in, relayer-only wallet) and the regulator (signed messages, unsigned
+rejected). Internal: staff (recorded break-glass) and the evidence owner (audited request, content the platform
+cannot decrypt).
 
 | Category | Threat | Mitigation | Residual |
 |---|---|---|---|
@@ -202,18 +213,16 @@ recorded as "cannot confirm", never "not provided".
 | Denial of service | Event flood; a holder set that never acknowledges | Quotas, backpressure, bounded queues; at least two configured holders | A sustained flood degrades other participants |
 | Elevation of privilege | An operator reads plaintext; a regulator reaches evidence outside a case | No standing access; case-scoped grants; anchored access record | A compromised break-glass path is a high-severity incident, not a silent one |
 
-**What is accepted, per requirement.** Compromised participant credentials (SP-1); provider-held signing keys
+What is accepted, per requirement: compromised participant credentials (SP-1); provider-held signing keys
 (SP-2); metadata and access patterns (SP-3); indirect identification through locations and small-farm identifiers
 (SP-4); colluding approvers (SP-5); a runtime that reads consortium plaintext (SP-6); a regulator mirror that may
-be compelled to disclose (SP-7). Nothing beyond that is claimed, and SP-8 says so in the interface.
+be compelled to disclose (SP-7). SP-8 says the rest in the interface.
 
-The privacy argument rests on three moves rather than one control: no personal field in the shared record, so
-deletion never has to negotiate with an immutable log; content off the platform, so there is nothing to compel;
-classification by construction, so no "sensitive but shared" middle tier can appear. What remains is metadata,
-treated as data with its own minimisation and retention. Three risks are stated rather than mitigated: a
-compromised runtime can read consortium plaintext, a resourced colluder can assert a false reality, and a
-holder's copy may be disclosed under its own legal obligations.
-
+The privacy argument rests on three moves: no personal field in the shared record, so deletion never negotiates
+with an immutable log; content off the platform, so there is nothing to compel; classification by construction,
+so no "sensitive but shared" middle tier can appear. What remains is metadata, treated as data with its own
+minimisation. Three risks are stated rather than mitigated: a compromised runtime can read consortium plaintext,
+a resourced colluder can assert a false reality, and a holder's copy may be disclosed under its own obligations.
 
 ## 4.B AI/ML and IoT architecture (bonus)
 
