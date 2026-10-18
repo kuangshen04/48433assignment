@@ -100,13 +100,31 @@ state are not events).
 
 ## 2.5–2.6 Cloud adoption
 
-The platform is PaaS: one managed container service running the application and the workers, a managed
-relational database with a read replica and automatic scaling, object storage behind a CDN for public snapshots,
-and a managed KMS in the trustee's account. Participants need no infrastructure — a browser is enough — and the
-operator needs no cluster: no self-managed Kubernetes, no message broker, because at pilot scale both add
-operations without adding capability. The regulator's analytics workspace is deployed as artefacts into its own
-account and operated there, because the point of the separation is that the platform cannot read it. Residency,
-exit and cost follow from the same choices: Australian regions, standard PostgreSQL, portable formats.
+Participants want no infrastructure and no capital spend: a browser is enough, and a small producer will not run a
+server to join a supply chain. The operator wants the same — six people for one semester (C6) cannot patch a
+cluster. The regulator wants its workspace to run where the platform cannot read it.
+
+Four scenarios decide the service model. QS-4 (5 000 scans/s after a television item) asks who serves the bytes: an
+origin cannot, so delivery is a CDN service, not a server. DS-3 (a regulator requests a packer's report) asks who
+holds the content: not the platform, so object storage sits under a separate provider. QS-8 asks who operates the
+workspace, and C6 how much is operated at all.
+
+| Capability | Deciding scenario | Service model | What we do not run |
+|---|---|---|---|
+| Application and workers | C6 | PaaS, one managed container | Orchestrator, node patching |
+| Relational database | C6 | PaaS, replica and storage autoscaling | Failover, backups, tuning |
+| Public snapshot delivery | QS-4 | SaaS, CDN over object storage | Edge PoPs, certificates |
+| Archive | DS-3 | SaaS, object storage under a separate provider | Media, replication |
+| Key management | DS-3 | SaaS, managed KMS in the trustee's account | HSM estate, key ceremonies |
+| Chain anchoring | QS-4 | Public network, paid per transaction | Validators, nodes |
+| Analytics runtime | QS-8 | PaaS, in the regulator's account | Platform operational access |
+| Identity | C6 | SaaS, external identity provider | Credential store, MFA estate |
+
+Rejected: **IaaS with a self-managed cluster** — C6 makes it a second job; **a shared tenant for analytics** — QS-7
+makes the separation unverifiable; **on-premises object storage** — it returns the archive to the operator's account
+(D1); **origin-only delivery** — QS-4 makes the origin the bottleneck.
+
+Residency, exit and cost follow from the same choices: Australian regions, standard PostgreSQL, portable formats.
 
 ## 2.7–2.8 Security, privacy and regulation
 

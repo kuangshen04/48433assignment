@@ -22,10 +22,31 @@ reason, and — only where a plausible alternative existed — what was rejected
 8. **The signer is isolated.** Only the relayer holds the chain wallet, and it cannot read payloads; embedding the
    wallet in the application would enlarge the key-exposure surface.
 
-Read against the criteria: each decision names the quality it serves (4.1) and the tactic and pattern that carry
-it (4.2, 4.3); responsibilities split by reason to change, new modes arrive as additions, four custody modes share
-one envelope, the read interface has two operations and dependencies point at interfaces (4.4); and the core is
-mechanism with one verifier, one state machine and no cycle (4.5).
+Those decisions are tactics. Each one's quality (4.1) and the pattern it forms (4.2, 4.3) are named here, with the
+alternative the pattern replaced.
+
+| Pattern | Where it appears | Quality served | Rejected instead |
+|---|---|---|---|
+| Modular monolith, layered inside | The one deployable | Operability (SQ-10), modifiability | Services: broker, sagas, platform team (5.4 A4) |
+| Ports and adapters at every external edge | Archive, KMS, chain, identity | Replaceability (SQ-8) | Direct SDK calls bind the leaf to one chain |
+| Transactional outbox | Admission through to archive | Reliability, RPO 0 (SQ-5) | Two-phase commit across services |
+| Read model derived from the log | `QueryStore`, public snapshots | Performance (SQ-4), privacy (SQ-7) | Decrypt per hop; per-field policy on immutable records |
+| State machine with anchored transitions | `ConfirmationStatus` | Integrity (SQ-1), auditability (SQ-9) | A boolean `processed` flag |
+| Versioned contracts, published enumerations | Profiles, code view | Interoperability (SQ-8) | Free-form strings, silent value drift |
+
+Five named smells, checked one by one (4.5).
+
+| Smell | Where it would appear | Evidence it does not |
+|---|---|---|
+| Feature concentration | One application holding admission, the gate, the graph and reads | Nine components split by reason to change: `Capture API` validates, the orchestrator gates, `QueryPort` reads |
+| Scattered functionality | Lineage or scope rules computed per module | One `Evidence Graph Builder`; every read passes `QueryPort` |
+| Dense structure | The core component graph | Acyclic; `QueryPort` is the only fan-in and the orchestrator the only gate |
+| Cyclic dependency | Application and workers | One direction — admission enqueues, workers execute, no callback |
+| Unstable dependency | Chain, archive and KMS SDKs | All behind ports; the core imports no vendor package |
+
+SOLID is visible where it matters (4.4): responsibilities split by reason to change, a new custody mode arrives as
+an addition, four modes share one envelope, the read interface has two operations, and dependencies point at
+interfaces.
 
 ## 4.6–4.10 Data: five decisions — what is authoritative, what is rebuildable
 

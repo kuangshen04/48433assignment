@@ -59,12 +59,12 @@ not only indexes: online lineage cannot afford to decrypt on every hop. That cop
 the recovery guarantee and read-audited. **The Analytics Workspace sits inside the system boundary but outside
 the platform control domain**, in the regulator's own account; only signed messages cross into it.
 
-Four flows cross the boundary. *Capture*: a signed event reaches the application, which validates it, persists
-state and enqueues an archive intent in one transaction; workers obtain a wrapped key, write the envelope and
-record the acknowledgement; the relayer batches the leaf. *Read*: portal queries go through the query interface
-and the plaintext copy only. *Public delivery*: workers publish versioned snapshots, the CDN serves them, and
-consumers never reach the application. *Cross-tenant*: the application exports a minimised dataset and receives
-signed advisories and rule manifests.
+Four flows cross the boundary. *Capture*: a signed event reaches the application, which validates it and persists
+state with an archive intent in one transaction; workers obtain a wrapped key, write the envelope and record the
+acknowledgement; the relayer batches the leaf. *Read*: portal queries go through the query interface and the
+plaintext copy only. *Public delivery*: workers publish versioned snapshots and the CDN serves them, so consumers
+never reach the application. *Cross-tenant*: the application exports a minimised dataset and receives signed
+advisories and rule manifests.
 
 ![Figure 3 — Analytics containers](../docs/public/diagrams/analytics-container.svg)
 

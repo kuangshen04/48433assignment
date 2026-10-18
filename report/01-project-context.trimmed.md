@@ -94,8 +94,8 @@ one region with cross-failure-domain copies), on-premises or air-gapped deployme
 chain), native apps per platform (the PWA covers the requirement) and a contracted archive operator at launch
 (the design defines the holder's eligibility condition rather than naming a supplier).
 
-Excluded risks are nation-state adversaries, build-pipeline attacks and quantum cryptanalysis — an organisational
-security programme, not an architecture decision — plus majority collusion and sensor tampering, which no
-record-keeping design solves and which are stated as non-guarantees instead of assumed away, operator bankruptcy
-as a going-concern event, and fraudulent onboarding, which is a named residual risk with a documented mitigation.
+Excluded risks: nation-state adversaries, build-pipeline attacks and quantum cryptanalysis (an organisational
+security programme, not an architecture decision); majority collusion and sensor tampering, which no record-keeping
+design solves and which become stated non-guarantees; operator bankruptcy; and fraudulent onboarding, a named
+residual risk with a documented mitigation.
 
