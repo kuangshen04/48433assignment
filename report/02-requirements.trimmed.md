@@ -196,31 +196,27 @@ exit and cost follow from the same choices: Australian regions, standard Postgre
 
 ## 2.7 Security and privacy requirements
 
-| ID | Requirement | Stakeholders |
-|---|---|---|
-| SP-1 | Every write authorised against organisation, role and delegation, per request | S1–S4, S6 |
-| SP-2 | Every canonical event non-repudiable across rotation and revocation | S6, S11 |
-| SP-3 | Private content never readable by the platform; the owner grants sharing | S1, S4, S6 |
-| SP-4 | No natural-person identifiers in the immutable record | S1, S5, C2 |
-| SP-5 | High-impact governance changes need dual control and apply once anchored | S7, S8 |
-| SP-6 | Reads audited per organisation; staff access needs recorded break-glass | S6, S9 |
-| SP-7 | Analytics cannot read arbitrary private evidence; findings private by default | S6, S7, R8 |
-| SP-8 | The system states what it does not protect against | S6, S11 |
+Every write is authorised against an organisation, a role and a delegation, bound per request (SP-1), and every
+canonical event is non-repudiable across rotation and revocation (SP-2). The platform never reads private
+content — the owner grants sharing (SP-3) — and no natural-person identifier enters the immutable record (SP-4).
+High-impact governance changes need dual control and apply only once anchored (SP-5). Reads are audited per
+organisation, and staff access needs recorded break-glass (SP-6). Analytics cannot pull arbitrary private
+evidence, and findings are private by default (SP-7). The system states what it does not protect against (SP-8).
 
-## 2.8 CIA triad, critical scenarios and regulation
+## 2.8 Confidentiality, integrity, availability and regulation
 
-| Quality | Requirement | Mechanism | Stated limit |
-|---|---|---|---|
-| Confidentiality | Content readable only by the parties the owner chose | Three classes with no middle tier; owner-encrypted evidence; per-request organisation binding; audited reads | The runtime reads consortium plaintext, so a compromised runtime can leak it; least privilege narrows the window, not closes it |
-| Integrity | A confirmed record cannot change without detection | Signed digests; holder-signed acknowledgement; deterministic Merkle batches; inclusion proofs | Detection needs someone to check; the design makes checking cheap, not automatic |
-| Availability | Safety queries never return a false negative | Declared failure states; writes fail closed; reads from materialised data with a visible watermark | A long platform outage still stops ingestion; the archive preserves what was receipted |
+**Integrity is guaranteed by the public chain.** A Merkle root is committed every thirty minutes, and any third
+party can verify an event against it without asking the platform (NSW Food Act 2003; Food Standards Code).
 
-**Regulation.** The NSW Food Act 2003 and the Food Standards Code require conservative recall traversal, signed
-notices, and a clear split between "possibly affected" and "confirmed unsafe". The Australian Privacy Principles
-and NSW PPIPs require no personal identifiers in the immutable trace, minimisation at ingestion, and correction
-and deletion in the mutable layer. Records law requires per-class retention and anchored deletion records;
-evidentiary expectations require chain of custody and reproducible derivation; government procurement requires
-Australian regions for non-public data and analytics in the regulator's own account.
+**Confidentiality is a three-tier tradeoff.** Public projections, consortium trace, and owner-held private
+evidence; the platform reads consortium plaintext because recall traversal needs it, and cannot read private
+content at all (Privacy Act 1988 and the APPs; NSW PPIP Act 1998).
+
+**Availability comes from read/write separation.** Writes fail closed and retry idempotently; reads come from the
+materialised copy with an explicit degradation state, so a recall query during an archive or chain outage returns
+a labelled partial result rather than a silent miss (Food Act 2003 recall powers).
+
+Appendix B maps each obligation behind those citations to where the design answers it.
 
 ## 2.B AI/ML and IoT requirements (bonus)
 

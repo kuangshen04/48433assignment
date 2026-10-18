@@ -118,32 +118,27 @@ mistake in one module cannot widen a read.
 
 ## 4.10 Data architecture justification
 
-| Requirement | Satisfied by |
-|---|---|
-| DM-1 interpretability | Canonical event stores profile and canonicalisation versions; extensions are profile-declared |
-| DM-2 private content off-platform | Only a commitment and a storage mode are stored |
-| DM-3 one source, rebuildable copies | Archive is the copy of record; the schema states which tables rebuild |
-| DM-4 retention and deletion | A state machine with three-party execution and an anchored deletion record |
-| DM-5 no personal data | No such field in the event model; the envelope carries no actor identity |
-| DM-6 reproducible outputs | Findings carry rule version and input watermark; derivation is versioned |
+The event stores its profile and canonicalisation versions, so it stays interpretable (DM-1). Private content is
+never stored: only a commitment and a storage mode (DM-2), which is also why the archive — not the database — is
+the copy of record (DM-3). Retention is a state machine executed by three parties with an anchored deletion
+record (DM-4). No natural-person field exists in the model and the envelope carries no actor identity (DM-5),
+and findings carry rule version and watermark so they reproduce (DM-6).
 
-## 4.11–4.13 Cloud requirements, principles and justification
+## 4.11–4.13 Cloud principles and what they cost
 
-| Principle | Requirement | Cost accepted |
-|---|---|---|
-| Managed services over servers | no capital expenditure, no infrastructure team (2.5) | Higher unit cost, bought instead of a team |
-| Stateless compute, externalised state | failover without local state (SQ-3) | A hydration cost on every request |
-| One immutable image, role by configuration | no configuration drift (SQ-8) | A role change needs a redeploy |
-| Declarative infrastructure for accounts, buckets, policies and keys | the platform can deploy into the regulator's account but cannot read from or operate it | Account topology becomes code that must be reviewed |
-| Horizontal scale by role | worker lag drives scale; the relayer does not scale (SQ-4) | Outbox concurrency complexity |
-| Resilience by multi-AZ, retry and stable identifiers | degradation, not loss (SQ-3, SQ-5) | Idempotency is a design obligation on every side effect |
-| Observability as an output | watermarks, lag, two health signals (SQ-9) | Instrumentation is built, not assumed |
-| Least privilege with accounts as boundaries | residency and separation (SP-5) | Four accounts to operate |
-| Portable formats and standard SQL | exit and portability | Some provider features are left unused |
+The design uses managed services instead of servers, stateless compute with externalised state, one immutable
+image whose role is chosen by configuration, and declarative infrastructure for accounts, buckets, policies and
+keys. Declarative delivery is what makes "the platform can deploy into the regulator's account but cannot read
+from or operate it" a property of the pipeline rather than a promise. Scaling is by role: workers follow outbox
+lag, the application follows request rate, and the relayer deliberately does not scale. Resilience comes from
+multi-AZ, retry and stable identifiers; observability from watermarks, lag and two independent health signals;
+privilege from accounts treated as boundaries rather than billing labels.
 
-Two deviations are deliberate and recorded: a single managed primary with a reader rather than distributed SQL,
-and one region with warm copies rather than active-active. Both follow from pilot scale and are revisited only on
-measured pressure.
+Each choice has a price, paid deliberately: managed services cost more per unit than servers the team cannot
+operate; stateless compute adds a hydration cost per request; immutable images require a redeploy to change a
+role; horizontal workers add outbox concurrency. Two deviations from fashion are recorded rather than hidden — a
+single primary with a reader rather than distributed SQL, and one region with warm copies rather than
+active-active — both consequences of pilot scale.
 
 ## 4.14 Deployment infrastructure
 
@@ -198,20 +193,20 @@ step in this figure, because consumers never reach the application.
 
 ## 4.18 Threat-model boundaries and entry points
 
-| Boundary or entry point | What crosses | Enforcement | Failure mode |
-|---|---|---|---|
-| Participant API | Signed events, queries | Signature and authority; organisation binding; rate limits | Reject with a retryable error; no partial acceptance |
-| Portal | Sessions, capture forms | External IdP; per-request acting organisation | Session invalid; offline queue keeps drafts |
-| Cross-tenant channel | Snapshots, advisories, manifests | Signed messages both ways; transport identity is not authority | Unsigned messages rejected; analytics loss degrades advice only |
-| Archive holder | Envelope out, acknowledgement in | Capability contract; eligibility and independence tests | Event stays pending-archive; the gate does not advance |
-| Key service | Wrapped keys, unwrap requests | Policy denies delete and admin | Writes stop at pending-archive; reads continue |
-| Chain | Roots out, finality in | Immutable contract; relayer-only wallet | Events stay pending-anchor; notices publish as pending |
-| Platform staff | Operational access | No standing access; dual-approved break-glass, recorded and anchored | Refusal is itself recorded |
-| Onboarding | Identity and keys | Entity verification, sponsor, dual approval | Registration delayed; no partial membership |
-| Evidence owner | Request out, content in | Request audited; platform cannot decrypt | "Cannot confirm", never "not provided" |
+Nine entry points, each with one enforcement and one failure mode. The **participant API** takes signed events
+and queries, enforcing signature, authority, organisation binding and rate limits, and rejects with a retryable
+error rather than a partial acceptance. The **portal** takes sessions and capture forms behind an external IdP
+with a per-request acting organisation, and loses only the session — drafts stay queued. The **cross-tenant
+channel** carries snapshots and advisories as signed messages both ways, rejecting unsigned input. The **archive
+holder** boundary takes an envelope out and an acknowledgement in, and the gate simply does not advance until one
+arrives. The **key service** takes wrap and unwrap requests and denies delete and admin, so writes stop at
+pending-archive while reads continue. The **chain** takes roots out and finality in through a relayer-only
+wallet. **Platform staff** have no standing access, and a refused break-glass is itself recorded. **Onboarding**
+verifies identity and keys with a sponsor and dual approval. The **evidence owner** receives a request and
+returns content the platform cannot decrypt, so absence is recorded as "cannot confirm", never "not provided".
 
-Three boundaries leave the platform's account — archive, key service and regulator — and each is crossed only
-with a signed message whose verification does not depend on the platform's own claims.
+Three of those boundaries leave the platform's account — archive, key service and regulator — and each is crossed
+only with a signed message whose verification does not depend on the platform's own claims.
 
 ## 4.19 STRIDE threats and mitigations
 
@@ -226,16 +221,15 @@ with a signed message whose verification does not depend on the platform's own c
 
 ## 4.20 Security and privacy justification
 
-| Requirement | Met by | Residual risk accepted |
-|---|---|---|
-| SP-1 authenticated, bound writes | Envelope plus per-request acting organisation | Compromised participant credentials |
-| SP-2 non-repudiation across rotation | Key history retained; acceptance-time authority recorded | Keys delegated to providers |
-| SP-3 platform cannot read private content | Content off-platform; owner-chosen recipients; commitment only | Metadata and access patterns |
-| SP-4 no personal data in immutable history | No such field; personal data only in the mutable layer | Indirect identification through locations and small-farm identifiers |
-| SP-5 dual control | Dual-control list; anchoring before effect | Colluding approvers |
-| SP-6 audited reads, break-glass | Read audit per organisation; break-glass path | The runtime reads consortium plaintext |
-| SP-7 analytics cannot pull evidence | Dataset snapshots; owner-encrypted evidence | The regulator holds a mirror and may be compelled |
-| SP-8 explicit non-guarantees | Stated in the context and data views | None claimed |
+Every security requirement in 2.7 has a named mechanism and an accepted residual risk. Writes are bound to an
+envelope and a per-request acting organisation (SP-1), with compromised participant credentials accepted; key
+history makes attribution survive rotation (SP-2), with keys delegated to providers accepted. Private content
+lives off-platform with owner-chosen recipients (SP-3), so metadata and access patterns are what remain. No
+natural-person field enters the record (SP-4), leaving only indirect identification through locations and
+small-farm identifiers. Dual control protects high-impact change (SP-5), and colluding approvers are accepted.
+Reads are audited and break-glass is recorded (SP-6), while the runtime itself can read consortium plaintext.
+Dataset snapshots bound what analytics can pull (SP-7), though the regulator's mirror may be compelled to
+disclose. Non-guarantees are stated rather than implied (SP-8).
 
 The privacy argument rests on three moves: no personal fields in the shared record, so deletion never negotiates
 with an immutable log; content not on the platform, so it cannot be compelled to hand over what it does not
