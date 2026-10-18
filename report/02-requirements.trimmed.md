@@ -105,23 +105,21 @@ operations without adding capability. The regulator's analytics workspace is dep
 account and operated there, because the point of the separation is that the platform cannot read it. Residency,
 exit and cost follow from the same choices: Australian regions, standard PostgreSQL, portable formats.
 
-## 2.7 Security and privacy requirements
+## 2.7–2.8 Security, privacy and regulation
 
 Every write is authorised against an organisation, a role and a delegation, bound per request (SP-1), and every
-canonical event is non-repudiable across rotation and revocation (SP-2). The platform never reads private
-content — the owner grants sharing (SP-3) — and no natural-person identifier enters the immutable record (SP-4).
-High-impact governance changes need dual control and apply only once anchored (SP-5). Reads are audited per
-organisation, and staff access needs recorded break-glass (SP-6). Analytics cannot pull arbitrary private
-evidence, and findings are private by default (SP-7). The system states what it does not protect against (SP-8).
-
-## 2.8 Confidentiality, integrity, availability and regulation
+canonical event is non-repudiable across rotation and revocation (SP-2). High-impact governance changes need dual
+control and apply only once anchored (SP-5); reads are audited per organisation and staff access needs recorded
+break-glass (SP-6); analytics cannot pull arbitrary private evidence, and findings are private by default (SP-7).
+The system states what it does not protect against (SP-8).
 
 **Integrity is guaranteed by the public chain.** A Merkle root is committed every thirty minutes, and any third
 party can verify an event against it without asking the platform (NSW Food Act 2003; Food Standards Code).
 
-**Confidentiality is a three-tier tradeoff.** Public projections, consortium trace, and owner-held private
-evidence; the platform reads consortium plaintext because recall traversal needs it, and cannot read private
-content at all (Privacy Act 1988 and the APPs; NSW PPIP Act 1998).
+**Confidentiality is a three-tier tradeoff.** Public projection, consortium trace, owner-held private evidence,
+with no middle tier. The platform reads consortium plaintext because recall traversal needs it, and never reads
+private content — the owner grants sharing (SP-3) — while no natural-person identifier enters the immutable
+record (SP-4). Privacy Act 1988 and the APPs; NSW PPIP Act 1998.
 
 **Availability comes from read/write separation.** Writes fail closed and retry idempotently; reads come from the
 materialised copy with an explicit degradation state, so a recall query during an archive or chain outage returns
