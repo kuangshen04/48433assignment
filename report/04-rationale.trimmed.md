@@ -78,7 +78,7 @@ a batch holds many leaves and chains to its predecessor.
 
 ![Figure 9 — Physical data model](../docs/public/diagrams/core-physical-model.svg)
 
-*Figure 9 — Eight tables; the constraints that matter are named below.*
+*Figure 9 — Nine tables; the constraints that matter are named below.*
 
 Five constraints matter: `capture_record_id` is the primary key of submission and canonical event, so idempotency
 identity is identity; `merkle_leaf` is unique on `capture_record_id`, which makes anchoring idempotent;

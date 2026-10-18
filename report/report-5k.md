@@ -171,7 +171,7 @@ many leaves and chains to its predecessor. Logically, the copy of record is the 
 plaintext queryable copy that is rebuildable and excluded from the recovery guarantee, because lineage cannot decrypt
 per hop.
 
-Physically, eight tables. Five constraints matter: `capture_record_id` is the primary key of submission and canonical
+Physically, nine tables. Five constraints matter: `capture_record_id` is the primary key of submission and canonical
 event, so idempotency identity is identity; `merkle_leaf` is unique on `capture_record_id`, which makes anchoring
 idempotent; `canonical_event` is partitioned monthly and append-only; `payload` holds only fields the platform does not
 query; row-level predicates on `organisation_id` back the scope filter.
