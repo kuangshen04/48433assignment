@@ -50,6 +50,9 @@ Rel(relayer, chainNet, "Merkle root", "tx")
 Rel_Right(app, workspace, "DatasetSnapshot", "Signed")
 Rel_Up(pwa, cdn, "Trace page", "HTTPS")
 Rel(cdn, app, "Origin pull", "HTTPS")
+Rel_Down(workers, regmirror, "Ciphertext mirror", "HTTPS")
+Rel_Down(attestor, regmirror, "Verifies stored bytes")
+Rel_Right(recovery, archive, "Trustee-granted restore role")
 
 SHOW_LEGEND()
 @enduml

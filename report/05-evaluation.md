@@ -21,7 +21,7 @@ evaluated against.
 | BO-6 | The system can grow across products and regions without being rebuilt | Brief: "multiple product lines and regions" | A new product line is a new profile; a new region is a governance and deployment choice, not a redesign | SQ-8; profiles; per-jurisdiction requirements |
 | BO-7 | It can be operated by a small team at pilot scale | Constraint C6 | One application, one managed database, no bespoke infrastructure | SQ-10; deployment view |
 | BO-8 | Device evidence is integrated without handing over raw telemetry | Brief: integration with IoT devices | A cold-chain or weight summary is attributable and checkable against private raw data; the platform holds no raw readings | SQ-11; Figures 1, 4 |
-| BO-9 | Regulatory screening exists as a capability, with ML as an option | Brief: compliance with food-safety regulations; rubric 2.B / 4.B | Rules are signed, versioned and run at a watermark; their absence degrades advice, never traceability | SQ-12; Figures 3, 6, 8 |
+| BO-9 | Regulatory screening exists as a capability, with ML as an option | Brief: compliance with food-safety regulations | Rules are signed, versioned and run at a watermark; their absence degrades advice, never traceability | SQ-12; Figures 3, 6, 8 |
 
 ## 5.2 Evaluation
 
@@ -56,8 +56,8 @@ no decisions.
 |---|---|---|---|---|
 | BO-1 Evidentiary trust | Integrity | QS-1: operator deletes a batch; history still provable | H | H |
 | BO-1 Evidentiary trust | Non-repudiation | QS-2: verify a three-year-old event after key rotation | H | M |
-| BO-3 Recall speed | Performance | QS-3: recall traversal at 02:00 during an archive outage | H | H |
-| BO-4 Consumer trust | Availability | QS-4: 5 000 scans/s after a media story | H | M |
+| BO-3 Recall speed | Availability | QS-3: recall traversal at 02:00 during an archive outage | H | H |
+| BO-4 Consumer trust | Performance | QS-4: 5 000 scans/s after a media story | H | M |
 | BO-1 Evidentiary trust | Recoverability | QS-5: database and account lost after a receipt | H | H |
 | BO-2 Coverage | Usability | QS-6: capture in a paddock with no coverage for 36 hours | H | M |
 | BO-5 Privacy | Confidentiality | QS-7: evidence request for a lab report | H | M |
@@ -84,7 +84,7 @@ no decisions.
 
 | ID | Looks risky, is addressed |
 |---|---|
-| AN-1 | "A modular monolith will not scale" — measured workload is three orders of magnitude below a single well-indexed database; scaling is by role, not by service |
+| AN-1 | "A modular monolith will not scale" — the pilot workload (10 000 events/day, about one write every eight seconds) is three orders of magnitude below what one well-indexed database handles; scaling is by role, not by service |
 | AN-2 | "Public-chain cost will explode" — one transaction per 30-minute window, and empty windows are skipped |
 | AN-3 | "Keeping a plaintext query copy contradicts the privacy claim" — the copy holds consortium data the platform is authorised to read, is rebuildable, and never holds private content |
 | AN-4 | "Six modules in one process will entangle" — the single read entrance and the dependency rules in Section 4.5 forbid the entanglements that matter |

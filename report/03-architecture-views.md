@@ -17,17 +17,18 @@ only states what the structure is.
 | Components (3.5–3.7) | Internal structure of Traceability Core, the relayer and the analytics workspace | Figures 4, 5, 6 |
 | Code (3.8–3.9) | Major classes, one interface and the enumerations that act as contracts | Figures 7 and 8 |
 
-All figures use C4 notation: a box is labelled with its name, its type in brackets (`[Container: …]`,
-`[Component: …]`) and, where useful, one line of responsibility. Relationships are labelled with intent and,
-where the transport matters, with the protocol. Dashed boundaries mark ownership or trust domains, not
-deployment. Diagrams are generated from versioned source, so the figures in this document and the ones in the
-project repository cannot drift apart.
+All figures use C4 notation: a box carries its name, its type, a short technology note and, where useful, one
+line of responsibility. Relationships are labelled with intent and, where the transport matters, with the
+protocol. Boundaries mark ownership or trust domains, not deployment. Diagrams are generated from versioned
+source, so the figures in this document and the ones in the project repository cannot drift apart.
 
 Two conventions are worth stating because they recur:
 
 - **Naming is stable across levels.** A container keeps its name in the container, component and deployment
   views. "Ingestion & Projection Workers" is the same thing everywhere; it does not become "worker tier" in
-  one figure and "async processor" in another.
+  one figure and "async processor" in another. Two refinements are documented rather than silent: the
+  deployment views split Public Snapshot Delivery into a snapshot origin and a CDN cache, and the sequence
+  diagram uses short participant labels.
 - **Protocol labels only appear where the protocol is architecturally relevant** — mTLS for key operations,
   transaction submission for chain writes, object API for snapshot publication. Plain HTTPS/JSON is the
   default for everything else and is not repeated on every edge.
@@ -36,14 +37,16 @@ Two conventions are worth stating because they recur:
 
 ![Figure 1 — System context](../docs/public/diagrams/c4-context.svg)
 
-*Figure 1 — System context: one system, four groups of users, eight external systems.*
+*Figure 1 — System context: two peer subsystems, four groups of users, eight external systems.*
 
-The context view establishes four things.
+The context view establishes five things.
 
-**The boundary contains one system.** Participants' ERP, WMS, TMS and IoT platforms are theirs; the
-regulator's rule engine is the regulator's; the external archive, the consortium KMS and the public chain are
-outside by definition — their value comes from not being in the operator's account. Everything inside the
-boundary is described in 3.3–3.5.
+**The boundary contains two peer subsystems.** `Traceability Core` holds the shared record; `Regulatory
+Analytics` holds the regulator's rule domain. They are peers, not a system and its add-on: the platform cannot
+author the rules and the analytics subsystem cannot rewrite the trace. Participants' ERP, WMS, TMS and IoT
+platforms are theirs; the external archive, the consortium KMS and the public chain are outside by definition —
+their value comes from not being in the operator's account. Everything inside the boundary is described in
+3.3–3.5.
 
 **IoT devices attach to participants, not to the platform.** Sensors, scales and scanners feed the
 participant's own systems, and the participant publishes EPCIS events from there. This is not an omission: it
@@ -72,7 +75,8 @@ person — the unit of accountability.
 **Three externals carry the "provable outside the platform" role.** The archive acknowledges stored bytes, the
 KMS holds the consortium key outside the operator's account, and the chain stores Merkle roots. A fourth
 external, the regulator's case-management and publication systems, carries the outputs that must reach the
-official record.
+official record. `Regulatory Analytics` is deliberately not one of them: it is a subsystem of this architecture,
+not a third-party black box, and Section 4.6 returns to what that placement buys and costs.
 
 ## 3.3 Container view
 
@@ -90,19 +94,20 @@ official record.
 | Batch Builder & Relayer | Leaf allocation, Merkle batching, root submission, inclusion proofs | Isolated worker; the only holder of the chain wallet | SQL; chain transactions |
 | Operational PostgreSQL | Submission state, current registries, outbox, the queryable plaintext copy, projections | Managed relational database | SQL |
 | Public Snapshot Delivery | Versioned public snapshots at the edge | Object storage plus CDN | Object API; HTTPS |
-| Regulatory Analytics | Screening, private findings, signed advisories | Regulator-operated runtime in the regulator's own account | Signed messages only — no shared network with the platform |
+| Analytics Workspace | Screening, private findings, signed advisories | Regulator-operated runtime in the regulator's own account | Signed messages only — no shared network with the platform |
 
 Two containers deserve a note because their boundaries are easy to misread. **Operational PostgreSQL holds a
 plaintext copy of confirmed events** (the `QueryStore`), not only indexes: online lineage queries cannot
 afford to fetch and decrypt from the archive on every hop. That copy is rebuildable, is not part of the
-recovery guarantee, and is read-audited. **Regulatory Analytics is a container of this system but not of this
-operator's account**: it is drawn inside the system boundary because it provides the platform's own baseline
-review capability, and it is operated by the regulator, which is why the only edges crossing into it are
-signed messages.
+recovery guarantee, and is read-audited. **Analytics Workspace sits inside the system boundary but outside the
+platform control domain**: it is operated in the regulator's own account (Figure 1), and it stays in this view
+because the platform has a contract with it — what dataset may be exported, what may come back. That is why
+the only edges crossing into it are signed messages.
 
 ### 3.3.2 Interactions
 
-The container view shows four flows, and nothing else crosses a boundary.
+The container view shows four flows. Every other edge that crosses a boundary is a credential, a key operation
+or a publication, and each of those crosses through a single interface.
 
 1. **Capture.** Portal or a participant system submits a signed event to the application. The application
    validates and persists state, and enqueues an archive intent in the same transaction. Workers pick the
@@ -115,18 +120,20 @@ The container view shows four flows, and nothing else crosses a boundary.
 3. **Public delivery.** Workers publish versioned snapshots to the origin; the CDN serves them. Consumers
    never reach the application.
 4. **Cross-tenant.** The application exports a minimised dataset snapshot to analytics; analytics returns
-   signed advisories and rule manifests. Both directions are signed messages, because the two sides do not
-   share an account, a network or a trust domain.
+   signed advisories and rule manifests to the workers' advisory intake. Both directions are signed messages,
+   because the two sides do not share an account, a network or a trust domain.
 
 ### 3.3.3 Two control domains
 
-The dashed boundary inside the system is the architectural point of this view. The platform control domain
-holds everything the operator runs. The regulator control domain holds analytics, its rule registry and its
-finding store, in an account the platform can deploy artefacts into but cannot operate, read or push to.
+The dashed boundary between the two control domains, both inside the system boundary, is the architectural
+point of this view. The platform control domain holds everything the operator runs. The regulator control
+domain holds analytics, its rule registry and its finding store, in an account the platform can deploy
+artefacts into but cannot read from or operate.
 
-This is why the container view carries the regulatory subsystem at all. It would be simpler to draw analytics
-as an external system; that would also remove it from the architecture, and with it the requirement that it
-appear at container, component and code level.
+This is why the container view carries the regulatory subsystem at all. It is modelled down to component and
+code level because the contract with it — what dataset may leave, what may come back, what the platform may
+never see — is part of the architecture. Drawing it as a black box would hide the boundary that the privacy
+argument depends on.
 
 ![Figure 3 — Regulatory Analytics containers](../docs/public/diagrams/analytics-container.svg)
 
@@ -155,9 +162,11 @@ The core has one write path and one read entrance:
 - **Signature & Authority Validator** verifies the envelope, resolves the organisation, key and delegation,
   and evaluates trusted signing time for late or offline submissions.
 - **Submission State Machine** owns the lifecycle and the failure states; nothing else advances a submission.
-- **Archive & Anchor Orchestrator** is the only component that talks to archive holders, the KMS and the
-  relayer. It encrypts, writes, verifies the acknowledgement, issues the receipt, allocates the leaf and
-  observes finality.
+- **Archive & Anchor Orchestrator** owns the confirmation gate. It records the archive and anchor intent in
+  the same transaction as the state change, checks the acknowledged digest when a worker reports it, issues the
+  receipt, and decides when a submission may move on. The worker role of the same image executes the intent:
+  it wraps the DEK and writes the envelope to a holder. The relayer claims the anchor intent from the database
+  and submits the batch.
 - **Confirmed Event Store / QueryStore** keeps the append-only canonical fields and edges, and the
   plaintext materialisation used by queries.
 - **Evidence Graph Builder** derives lineage edges from EPCIS semantics, using a versioned derivation rule.
@@ -176,12 +185,13 @@ maintain rebuildable projections.
 
 The relayer is drawn separately because it is the only container with a credential that can spend money and
 write to a public network. Its components split along that line: `Anchor Intent Reader`, `Leaf Allocator`,
-`Batch Builder`, `Manifest Writer` and `Proof Service` need no private key; only `Chain Submitter` does. The
-allocator is deterministic, so a retry cannot create a second leaf for the same event. The manifest writer
-puts the batch manifest next to the payload in the archive, which is what allows recovery to reconstruct
+`Batch Builder`, `Manifest Writer`, `Finality Watcher` and `Proof Service` need no private key; only
+`Chain Submitter` does. The allocator is deterministic, so a retry cannot create a second leaf for the same
+event. The manifest writer puts the batch manifest next to the payload in the archive, which is what allows
+recovery to reconstruct
 "which batch contained this event" without the platform database.
 
-### 3.4.3 Regulatory Analytics
+### 3.4.3 Analytics Workspace
 
 ![Figure 6 — Analytics Workspace components](../docs/public/diagrams/analytics-component.svg)
 
@@ -215,30 +225,33 @@ properties are visible in the type model itself:
   reference.
 - `ArchiveAck` carries the holder's signature over the stored bytes; `AcceptanceReceipt` binds its digest, so
   a receipt can only exist once an external holder has confirmed persistence.
-- `QueryPort` exposes a single method, `edges(EdgeQuery): EdgeGroup[]`. There is no operation that returns a
-  business status, so no caller can bypass scope, non-collapsing or watermark.
+- `QueryPort` exposes two operations and no others: `edges(EdgeQuery)` returns one hop of edge groups, and
+  `traverse(EdgeQuery, depth)` returns a bounded multi-hop result that the store executes as a single recursive
+  query under the same scope, non-collapsing and watermark rules. Neither returns a business status, so no
+  caller can bypass any of the three.
 - `ProtectedResourceRef` holds a salted commitment and a storage mode, but never content.
 
 The three enumerations (`ConfirmationStatus`, `CustodyMode`, `EdgeType`) are part of the published contract:
 once a value is in use, it cannot be silently added to or removed from.
 
-### 3.5.2 Regulatory Analytics
+### 3.5.2 Analytics Workspace
 
 ![Figure 8 — Analytics code view](../docs/public/diagrams/analytics-code.svg)
 
 *Figure 8 — The eight classes of the analytics subsystem.*
 
-Eight classes, three properties: `RuleVersionManifest` is the only artefact that leaves the regulator's
-domain, and it carries only a digest of the rule body; `Finding` and `AdvisoryFinding` share a `findingId`, so
-an advisory is a disclosure of an existing finding rather than a new object, and a retraction is the same
-identifier re-signed; `DisclosurePolicy` constrains advisories, not findings, because findings are private by
-default.
+Eight classes, three properties: `RuleVersionManifest` is the only artefact of the rule domain that leaves the
+regulator's account, and it carries only a digest of the rule body; `Finding` and `AdvisoryFinding` share a
+`findingId`, so an advisory is a disclosure of an existing finding rather than a new object, and a retraction
+is the same identifier re-signed; `DisclosurePolicy` constrains advisories, not findings, because findings are
+private by default.
 
 ## 3.6 Cross-view consistency
 
 Criterion 3.10 asks whether the code structure actually reflects the context, container and component views.
-The mapping below is the check, and it is also how the report defends the claim: every class belongs to
-exactly one component, and every component belongs to exactly one container.
+The mapping below is the check, and it is also how the report defends the claim: every class is produced by
+exactly one component, every component belongs to exactly one container, and the table names where each class
+is also consumed.
 
 | Component | Classes it produces or consumes |
 |---|---|
@@ -251,7 +264,7 @@ exactly one component, and every component belongs to exactly one container.
 | Confirmed Event Store / QueryStore | `CanonicalEvent`, `EvidenceEdge` (persisted, append-only) |
 | Evidence Graph Builder | `EvidenceEdge`, `EdgeType` |
 | QueryPort | `EdgeQuery`, `EdgeGroup` |
-| Analytics Workspace | `DatasetSnapshot`, `ScreeningRun`, `Finding`, `AdvisoryFinding`, `RuleVersion`, `RuleVersionManifest`, `DisclosurePolicy` |
+| Analytics Workspace | `DatasetSnapshot`, `ScreeningRun`, `Rule`, `RuleVersion`, `RuleVersionManifest`, `Finding`, `AdvisoryFinding`, `DisclosurePolicy` |
 | Relayer components | `MerkleLeaf`, `AnchorBatch` |
 
 Consistency is maintained by four rules rather than by review effort:

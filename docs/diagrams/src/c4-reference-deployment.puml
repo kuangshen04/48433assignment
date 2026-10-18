@@ -50,9 +50,11 @@ Rel(workers, regmirror, "Envelope, Ack", "HTTPS")
 Rel(attestor, archive, "Reads object")
 Rel(regattestor, regmirror, "Reads object")
 Rel(workers, s3, "Publish", "Object API")
-Rel(s3, cdn, "Origin pull", "HTTPS")
-Rel(cdn, pwa, "Trace page", "HTTPS")
+Rel(cdn, s3, "Origin pull", "HTTPS")
+Rel(pwa, cdn, "Trace page", "HTTPS")
+Rel(relayer, db, "Leaves, intents", "SQL/TLS")
 Rel(relayer, chainNet, "Merkle root", "tx")
 Rel(app, workspace, "DatasetSnapshot", "Signed")
+Rel(recovery, archive, "Trustee-granted restore role")
 
 @enduml

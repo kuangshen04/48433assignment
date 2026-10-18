@@ -27,7 +27,7 @@ participant "Relayer" as relayer
 participant "Blockchain" as chain #999999
 participant "Public CDN" as cdn
 
-== Phase 1 · Receive and validate (DRAFT → VALIDATED) ==
+== Phase 1 · Receive and validate (SUBMITTED → VALIDATED) ==
 client -> app: Submit EPCIS event, SignatureEnvelope,\ncaptureRecordId, profile reference
 app -> db: Validate; persist VALIDATED;\nenqueue archive intent in one transaction
 note right of db: Idempotent on captureRecordId + digest;\nno receipt is issued yet

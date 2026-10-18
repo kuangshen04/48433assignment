@@ -109,9 +109,10 @@ same verifier; any qualified archive holder is substitutable behind the acknowle
 *not* be substituted is the assurance level, which is carried explicitly rather than flattened — the interface
 is uniform, the trust claim is not.
 
-**Interface segregation.** `QueryPort` exposes one method, `edges(EdgeQuery)`, returning edge groups. There is
-no god interface that also returns handover status, compliance state or scores, precisely because such methods
-would let a caller bypass the rules the port exists to enforce. Module contracts are narrow for the same reason.
+**Interface segregation.** `QueryPort` exposes two graph-shaped operations — one hop (`edges`) and a bounded
+multi-hop read (`traverse`) — and nothing else. There is no god interface that also returns handover status,
+compliance state or scores, precisely because such methods would let a caller bypass the rules the port exists
+to enforce. Module contracts are narrow for the same reason.
 
 **Dependency inversion.** The core depends on abstractions — an archive port, a key port, a signature verifier,
 a clock — and never on a provider SDK. That is what allows the archive holder set to be configured, the KMS to
@@ -141,10 +142,11 @@ The dependency rules are worth stating as rules, because they are what keeps the
 
 ## 4.6 Context-level data architecture
 
-The data analytics system appears in the system context (Figure 1) as `Regulatory Analytics`, and it is drawn
-inside the system boundary on purpose. Two data-architectural facts follow from that placement: it consumes a
-*minimised, purpose-bound dataset snapshot* rather than raw tables, and it produces two data products — private
-findings and signed advisories — that return to the platform as messages, not as rows.
+The data analytics system appears in the system context (Figure 1) as `Regulatory Analytics`, the second of the
+two peer subsystems inside the system boundary, running in the regulator's own account. Two data-architectural
+facts follow from that placement: it consumes a *minimised, purpose-bound dataset snapshot* rather than raw
+tables, and it produces two data products — private findings and signed advisories — that return to the
+platform as messages, not as rows.
 
 The other data-bearing externals are equally explicit: the external archive is the authoritative store for
 encrypted payloads, the consortium KMS holds the keys that make that store readable, and the public chain holds
@@ -159,7 +161,7 @@ actually lives, which is exactly what this design refuses to leave implicit.
 | Queryable canonical copy | Operational PostgreSQL (`QueryStore`) | Canonical fields and derived edges in plaintext | Yes; excluded from recovery guarantee |
 | Authoritative payload | External archive (outside the platform) | Encrypted canonical payload, signature, envelope, manifest | **No** — this *is* the copy of record |
 | Public data mart | Snapshot origin + CDN | Versioned public projections | Yes |
-| Analytical mart | Insights mart (platform domain) | Aggregates over confirmed data; no private content | Yes |
+| Analytical mart | Insights materialised views (inside Operational PostgreSQL) | Aggregates over confirmed data; no private content | Yes |
 | Regulatory data | Analytics stores (regulator account) | Rule bodies, versions, findings, advisories | Rules are signed and reproducible; findings are evidential |
 
 **ETL/ELT.** Three flows exist and no more. (1) *Extract for analytics*: a scheduled, purpose-bound export of a
@@ -179,7 +181,8 @@ which is the point.
 
 ## 4.8 Component-level conceptual and logical model
 
-The conceptual entities and their relationships are visible in the component and code views (Figures 4 and 7):
+Figure 4 fixes which component owns each entity; the table below gives the concepts and their relationships;
+Figure 9 gives the physical tables they become.
 
 | Concept | Represents | Key relationships |
 |---|---|---|
@@ -213,10 +216,12 @@ canonical row; and every edge traceable to a single source event.
 | `profile_version` | PK `(profile_id, version)` | Immutable |
 | `query_event` | PK `capture_record_id`; index `(organisation_id, event_time)` | The plaintext copy; rebuildable, read-audited |
 
-Two physical choices carry design meaning. **`payload` is JSONB**, but only for the profile-declared extension
-fields: everything the platform must enforce is a typed column, because a constraint that lives in JSON is not a
-constraint. **Row-level predicates on `organisation_id`** back the application's scope filter, so a coding
-mistake in one module cannot silently widen a read.
+Two physical choices carry design meaning. **`payload` is JSONB**, and holds only the EPCIS fields the platform
+does not itself query — EPC and quantity lists, their units, transformation identifiers — validated at
+admission against the profile but never the subject of a uniqueness, ordering or scope rule. Everything the
+platform enforces is a typed column, because a constraint that lives in unindexed JSON is not a constraint.
+**Row-level predicates on `organisation_id`** back the application's scope filter, so a coding mistake in one
+module cannot silently widen a read.
 
 ## 4.10 Data architecture justification
 
@@ -265,8 +270,8 @@ Each principle is tied to a requirement and to a cost it is willing to pay:
   alternative is a team the project does not have.
 - Stateless compute (SQ-3) means every request pays a small hydration cost; that is traded for trivial failover.
 - Immutable artefacts (SQ-8) remove configuration drift; the price is that a role change requires a redeploy.
-- Declarative infrastructure (CL-4) is what makes "the platform cannot push to the regulator's account" a
-  property of the delivery pipeline rather than a promise.
+- Declarative infrastructure (CL-4) is what makes "the platform can deploy artefacts into the regulator's
+  account but cannot read from or operate them" a property of the delivery pipeline rather than a promise.
 - Horizontal worker scaling (SQ-4) costs concurrency complexity in the outbox; the alternative — a single worker —
   would make backlog a single-node problem.
 
@@ -318,9 +323,9 @@ ability to read canonical payloads.
 *Figure 12 — One event from submission to confirmed visibility, in five phases and sixteen steps.*
 
 The scenario was chosen because it exercises every boundary in the system: participant to platform, platform to
-archive holder, platform to key service, platform to chain, and platform to the public. Sixteen steps collapse
-eighteen lifecycle states into five phases: receive and validate, encrypt and archive, receipt issued, anchor to
-finality, confirm and project.
+archive holder, platform to key service, platform to chain, and platform to the public. Sixteen steps carry one
+event through five phases: receive and validate, encrypt and archive, receipt issued, anchor to finality,
+confirm and project.
 
 The ordering is the argument. A receipt is issued only after an external holder has signed for the bytes (steps
 7–8), and confirmation happens only after finality (step 14). No timeout promotes an event: a failure suspends it
@@ -340,7 +345,10 @@ classification of the data:
 | 8–9 | Receipt; anchor intent and leaf | Consortium | Platform → participant (receipt only) |
 | 10–13 | Merkle root; transaction reference; inclusion proof | Public commitment | Platform → public chain |
 | 14–15 | Versioned public projection | Public | Platform → CDN |
-| 16 | Trace page | Public | CDN → consumer |
+| 16 | Trace page for the submitter | Consortium | Application → portal |
+
+Step 16 is the submitter reading the confirmed event back. The consumer read is served by the CDN from the
+projection published in step 15 and is not a step in this figure: consumers never reach the application.
 
 ![Figure 13 — Dynamic view: recall investigation](../docs/public/diagrams/c4-dynamic-recall.svg)
 

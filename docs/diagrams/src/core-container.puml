@@ -22,9 +22,7 @@ System_Boundary(system, "Agricultural Supply Chain Tracker") {
     Container(cdn, "Public Snapshot Delivery", "Object storage + CDN", "Versioned PUBLIC consumer snapshots")
   }
 
-  Container_Boundary(regdomain, "Regulator control domain (regulator's own cloud account)") {
-    Container(analytics, "Regulatory Analytics", "Regulator-operated runtime", "Signed RuleVersions, screening, private findings, signed advisories")
-  }
+  Container(analytics, "Analytics Workspace", "Regulator-operated runtime, own account", "Signed RuleVersions, screening, private findings, signed advisories")
 }
 
 Container_Ext(archive, "External Archive", "WORM, outside platform control domain", "Encrypted canonical payload; signs ArchiveAck")
@@ -38,14 +36,14 @@ Rel_Down(erp, app, "EPCIS event")
 Rel_Right(portal, idp, "OIDC")
 Rel_Down(portal, app, "API")
 Rel_Down(app, db, "State, outbox, QueryStore")
-Rel_Right(app, workers, "Outbox")
 Rel_Down(workers, cdn, "Publishes snapshots")
-Rel_Left(app, kms, "DEK wrap")
+Rel_Left(workers, kms, "DEK wrap")
 Rel_Left(workers, archive, "Envelope, Ack")
 Rel_Down(relayer, archive, "Batch manifest")
 Rel_Down(relayer, db, "Leaves, intents")
 Rel_Right(relayer, chain, "Merkle root")
-BiRel_R(app, analytics, "DatasetSnapshot out; signed findings in")
+Rel_Right(app, analytics, "DatasetSnapshot (signed)")
+Rel_Left(analytics, workers, "Signed advisories, rule manifests")
 Rel_Up(workers, db, "Outbox poll")
 
 SHOW_LEGEND()

@@ -3,7 +3,7 @@
 *Draft — untrimmed. Rows covered: 2.1–2.8 and the 2.B bonus.*
 
 Requirements carry identifiers (`SQ`, `DM`, `CL`, `SP`, `AI`, `IoT`) and are traced to the stakeholders
-`S1`–`S12` defined in Section 1.1.3 and to the objectives `O1`–`O6`. Later sections refer back to these
+`S1`–`S12` defined in Section 1.1.3 and to the objectives `O1`–`O8`. Later sections refer back to these
 identifiers rather than restating the requirement.
 
 ## 2.1 System quality requirements

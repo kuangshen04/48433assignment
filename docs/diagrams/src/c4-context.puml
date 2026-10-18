@@ -3,14 +3,17 @@
 !include ../vendor/style.puml
 
 title System context — Agricultural Supply Chain Tracker
-LAYOUT_LEFT_RIGHT()
+LAYOUT_TOP_DOWN()
 
 Person(participantUser, "Participant staff", "Farm to retail")
 Person(consumer, "Consumer", "Scans a QR code")
 Person(regulatorOfficer, "Regulator officer", "Food authority")
 Person(governance, "Consortium governance", "Membership and keys")
 
-System(tracker, "Agricultural Supply Chain Tracker", "Shared attributable claims, verifiable history, scoped views")
+System_Boundary(scope, "Agricultural Supply Chain Tracker") {
+  System(tracker, "Traceability Core", "Shared attributable claims, verifiable history, scoped views")
+  System(analytics, "Regulatory Analytics", "Regulator's runtime domain: screening, findings, advisories")
+}
 
 System_Ext(devices, "IoT devices and gateways", "Sensors, scales, scanners")
 System_Ext(participantSystems, "Participant business systems", "ERP / WMS / TMS / IoT")
@@ -26,13 +29,14 @@ Rel_Right(devices, participantSystems, "Readings")
 Rel_Down(participantUser, tracker, "Captures, queries")
 Rel_Down(consumer, tracker, "Reads trace page")
 Rel_Down(regulatorOfficer, tracker, "Investigates, signs")
+Rel_Down(regulatorOfficer, analytics, "Reviews findings")
 Rel_Down(governance, tracker, "Governs membership")
-Rel_Left(tracker, archive, "Envelope, Ack")
-Rel_Left(tracker, kms, "Wrap / unwrap DEK")
+Rel_Left(tracker, archive, "Envelope, ack")
+Rel_Left(tracker, kms, "DEK wrap")
 Rel_Down(tracker, chain, "Merkle roots")
 Rel_Down(tracker, idp, "OIDC")
 Rel_Down(tracker, entityRegistry, "Entity verification")
 Rel_Right(tracker, regSystems, "Notices, exports")
-
+Rel_Right(tracker, analytics, "DatasetSnapshot; signed advisories")
 SHOW_LEGEND()
 @enduml

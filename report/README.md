@@ -22,11 +22,11 @@ document, so the trimming pass is substantial and should be planned rather than 
 |---|---|---|
 | 1. Project Context | 3600 | 600 |
 | 2. Requirements | 6974 | 1 400 |
-| 3. Views | 2672 | 1 400 + 8 figures |
-| 4. Rationale | 5654 | 2 000 + tables |
-| 5. Evaluation | 2868 | 600 |
+| 3. Views | 2906 | 1 400 + 8 figures |
+| 4. Rationale | 5761 | 2 000 + tables |
+| 5. Evaluation | 2875 | 600 |
 | Front matter, captions, appendix | — | 300 |
-| **Total so far** | **21768** | **≈ 5 400** |
+| **Total so far** | **22116** | **≈ 5 400** |
 
 Two trimming decisions will need a call from the group:
 
@@ -42,7 +42,7 @@ Two trimming decisions will need a call from the group:
 
 - **Language:** English. Diagrams also in English; they are also used by the Chinese design site under
   `docs/`.
-- **Identifiers:** stakeholders `S1`–`S12`, objectives `O1`–`O6`, risks `R1`–`R10`, constraints `C1`–`C8`,
+- **Identifiers:** stakeholders `S1`–`S12`, objectives `O1`–`O8`, risks `R1`–`R10`, constraints `C1`–`C8`,
   quality requirements `SQ-n`, quality scenarios `QS-n`, data requirements `DM-n`, data scenarios `DS-n`,
   cloud requirements `CL-n`, cloud scenarios `CS-n`, security requirements `SP-n`, AI/IoT requirements
   `AI-n` / `IoT-n`. Section 3 and 4 should cite these instead of restating requirements.
@@ -62,7 +62,7 @@ Thirteen figures are produced. Together they cover rows 3.1–3.10, 4.8–4.9 an
 | Component view (Traceability Core) | 3.5–3.7 | `docs/public/diagrams/core-component.svg` |
 | Component view (Batch Builder & Relayer) | 3.5–3.7 | `docs/public/diagrams/relayer-component.svg` |
 | Code view (Core classes and interfaces) | 3.8–3.10, 4.8–4.9 | `docs/public/diagrams/core-code.svg` |
-| Container view (Regulatory Analytics) | 3.2–3.4, 4.6 | `docs/public/diagrams/analytics-container.svg` |
+| Container view (Analytics Workspace) | 3.2–3.4, 4.6 | `docs/public/diagrams/analytics-container.svg` |
 | Component view (Analytics Workspace) | 3.5–3.7 | `docs/public/diagrams/analytics-component.svg` |
 | Code view (Analytics classes) | 3.8–3.10, 4.9 | `docs/public/diagrams/analytics-code.svg` |
 | Dynamic view — event acceptance | 4.16–4.17 | `docs/public/diagrams/c4-dynamic.svg` |
@@ -85,6 +85,37 @@ pwsh -File docs/diagrams/render.ps1
 ```
 
 Needs Java 11+. The PlantUML jar is downloaded on first run; the C4 macro library is vendored.
+
+## Consistency pass (closed, 2026-10-18)
+
+Two independent cold reads of the full draft (one rubric sweep, one adversarial architecture review) converged
+on the same class of defect: the prose and the figures disagreed. All of the following were fixed before the
+trimming pass, because trimming would otherwise preserve the errors:
+
+| Defect | Fix |
+|---|---|
+| §4.6 claimed the analytics system appeared in Figure 1; it did not | Figure 1 now carries a `System_Boundary` with both peer subsystems, and §4.6 states the placement accurately |
+| Archive / KMS / relayer ownership split between the orchestrator and the workers | §3.4.1, §3.3.2 and Figure 4 agree on one story: the orchestrator records the intent, the worker role executes it; Figure 4 no longer draws outbound edges to externals |
+| `ConfirmationStatus` declared a five-value published contract, while three figures used `DRAFT`, `VALIDATED`, `VERIFIED_*` | Enum extended to the real lifecycle (`SUBMITTED`…`REJECTED`); figures and §3.5.1 now use those names; the unverifiable "eighteen lifecycle states" claim is gone |
+| `ce \|\|--\|\| ack` (exactly one ack) against "one per event per holder" | Cardinality changed to `\|\|--o{` |
+| `operatorSignature` on `ArchiveAck` against "signed by a holder outside the platform" | Renamed `holderSignature` / `holder_signature` |
+| `QueryPort` had one method, yet recall needed a bounded recursive traversal | `traverse(EdgeQuery, depth)` added; §2.4.3, §3.5.1, §4.4 and Figure 4 now agree |
+| Recall dynamic view had the application writing to the archive and the chain | Workers and relayer are now participants; the application only records intent |
+| `RuleVersionManifest` called "the only artefact that leaves"; Figure 3 carries advisories too | Reworded to "the only artefact of the rule domain" |
+| "Four flows, and nothing else crosses a boundary" against five further edges | Softened, and the remaining crossing edges are named |
+| Relayer described with six components while Figure 5 and §4.5 count seven | `Finality Watcher` added to §3.4.2 |
+| Deployment figures had three orphan nodes and a reversed origin-pull edge | `recovery`, `attestor` and `regmirror` are connected; `cdn → origin` and `pwa → cdn` directions fixed; `relayer → db` restored in the reference view |
+| QS-3 and QS-4 had their quality attributes swapped in the ATAM utility tree | Corrected (`QS-3` availability, `QS-4` performance) |
+| AN-1 said "measured workload" with no measurement in the report | Replaced with the pilot figure and its arithmetic |
+| BO-9 cited the rubric in its Source column | Removed |
+| §2 said objectives `O1`–`O6` while Section 1 defines `O1`–`O8` | Corrected |
+| §4.7 named an `Insights mart` container that Figure 2 does not contain | Now the materialised views inside Operational PostgreSQL |
+| §4.8 claimed the conceptual model was visible in Figures 4 and 7 | Now states what each figure actually contributes |
+
+Still open from those reads, deliberately deferred to the trimming and closing passes: **the brief's data
+visualisation bullet has no requirement, objective or view** (K2); the four participant interfaces are one PWA
+container; accessibility is treated as connectivity, with no WCAG-level requirement; §5.2 has no `Not met`
+verdict; cost is order-of-magnitude only; and the glossary appendix is not written.
 
 ## Known gaps in Section 2 (recorded, not yet fixed)
 

@@ -20,6 +20,8 @@ skinparam sequence {
 
 participant "Regulator officer" as officer
 participant "Traceability App" as app
+participant "Workers" as workers
+participant "Relayer" as relayer
 participant "Analytics Workspace" as analytics #999999
 participant "Evidence owner" as owner #999999
 participant "External Archive" as archive #999999
@@ -42,15 +44,18 @@ note right of owner: The platform never sees plaintext.\nThe officer checks the 
 
 == Phase 3 · Formal notice ==
 officer -> app: Submit signed Recall Notice
-app -> archive: Write notice, obtain ArchiveAck
-archive --> app: Signed ArchiveAck
-app --> officer: Published as VERIFIED_PENDING_ANCHOR
+app -> workers: Record notice intent
+workers -> archive: Write notice, obtain ArchiveAck
+archive --> workers: Signed ArchiveAck
+workers --> app: Ack digest recorded
+app --> officer: Published as PENDING_ANCHOR
 note right of app: Publication does not wait for finality,\nbut it is not presented as CONFIRMED.
 
 == Phase 4 · Anchor and confirm ==
-app -> chain: Commit notice in the next Merkle batch
-chain --> app: Finality and inclusion proof
-app --> officer: VERIFIED_CONFIRMED
+relayer -> chain: Commit notice in the next Merkle batch
+chain --> relayer: Finality and inclusion proof
+relayer --> app: Inclusion proof recorded
+app --> officer: CONFIRMED
 
 note over officer, chain: Recall starts from an external decision, not from the platform.\nThe platform produces the scope and carries the signed notice;\nit does not withdraw stock, and it does not decide who is at fault.
 

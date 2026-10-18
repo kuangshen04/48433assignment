@@ -52,7 +52,7 @@ entity "archive_ack" as ack {
   archive_object_id : text
   envelope_digest : char(64)
   ciphertext_digest : char(64)
-  operator_signature : text
+  holder_signature : text
   received_at : timestamptz
 }
 
@@ -110,7 +110,7 @@ entity "query_event" as qe {
 
 submission ||--|| ce : materialises
 ce ||--o{ edge : derives
-ce ||--|| ack : acknowledged by
+ce ||--o{ ack : acknowledged by
 ce ||--|| leaf : committed as
 batch ||--o{ leaf : contains
 ce ||--o{ res : references
