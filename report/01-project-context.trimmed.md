@@ -50,9 +50,9 @@ claims (R10). Not attempted: state-level adversaries, build-pipeline and quantum
 an architecture decision), bankruptcy, and fraudulent onboarding (a named residual risk).
 
 **Constraints.** A blockchain is mandatory (C1); Australian and NSW law applies (C2); participants' systems must
-interoperate (C3); connectivity is intermittent (C4); 200 organisations and 10 000 events/day (C5); one student team,
-one semester (C6); 5 000 words (C7); no production credentials (C8). Delivery follows: one region, cloud only, PWA
-only, no contracted archive operator at launch.
+interoperate (C3); connectivity is intermittent (C4); 200 organisations and 10 000 events/day (C5); a small operating
+team (C6); no production access (C7). Delivery follows: one region, cloud only, PWA only, no contracted archive
+operator at launch.
 
 **Why these change the design.** The stakeholders fall into three clusters; device vendors (S12) are argued in §4.6.
 

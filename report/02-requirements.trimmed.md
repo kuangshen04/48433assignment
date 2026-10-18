@@ -101,8 +101,7 @@ state are not events).
 ## 2.3 Cloud adoption — rubric 2.5–2.6
 
 Participants want no infrastructure and no capital spend: a browser is enough, and a small producer will not run a
-server to join a supply chain. The operator wants the same — six people for one semester (C6) cannot patch a
-cluster. The regulator wants its workspace to run where the platform cannot read it.
+server to join a supply chain. The operator wants the same — a small team (C6) cannot patch a cluster. The regulator wants its workspace to run where the platform cannot read it.
 
 Four scenarios decide the service model. QS-4 (5 000 scans/s after a television item) asks who serves the bytes: an
 origin cannot, so delivery is a CDN service, not a server. DS-3 (a regulator requests a packer's report) asks who

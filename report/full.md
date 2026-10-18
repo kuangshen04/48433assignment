@@ -79,9 +79,9 @@ claims (R10). Not attempted: state-level adversaries, build-pipeline and quantum
 an architecture decision), bankruptcy, and fraudulent onboarding (a named residual risk).
 
 **Constraints.** A blockchain is mandatory (C1); Australian and NSW law applies (C2); participants' systems must
-interoperate (C3); connectivity is intermittent (C4); 200 organisations and 10 000 events/day (C5); one student team,
-one semester (C6); 5 000 words (C7); no production credentials (C8). Delivery follows: one region, cloud only, PWA
-only, no contracted archive operator at launch.
+interoperate (C3); connectivity is intermittent (C4); 200 organisations and 10 000 events/day (C5); a small operating
+team (C6); no production access (C7). Delivery follows: one region, cloud only, PWA only, no contracted archive
+operator at launch.
 
 **Why these change the design.** The stakeholders fall into three clusters; device vendors (S12) are argued in §4.6.
 
@@ -203,8 +203,7 @@ state are not events).
 ## 2.3 Cloud adoption — rubric 2.5–2.6
 
 Participants want no infrastructure and no capital spend: a browser is enough, and a small producer will not run a
-server to join a supply chain. The operator wants the same — six people for one semester (C6) cannot patch a
-cluster. The regulator wants its workspace to run where the platform cannot read it.
+server to join a supply chain. The operator wants the same — a small team (C6) cannot patch a cluster. The regulator wants its workspace to run where the platform cannot read it.
 
 Four scenarios decide the service model. QS-4 (5 000 scans/s after a television item) asks who serves the bytes: an
 origin cannot, so delivery is a CDN service, not a server. DS-3 (a regulator requests a packer's report) asks who
@@ -515,8 +514,8 @@ carry their rule version and watermark.
 
 ## 4.3 Where it runs, and who owns it — rubric 4.11–4.15
 
-**C1. Managed services, one image running as application or worker.** A six-person team for one semester has no
-operations capacity; IaaS with a self-managed cluster would move patching, HA and backup onto it.
+**C1. Managed services, one image running as application or worker.** A small team has no operations capacity; IaaS
+with a self-managed cluster would move patching, HA and backup onto it.
 
 **C2. Four accounts, delivered declaratively.** This is what makes "the platform can deploy into the regulator's
 account but cannot read from or operate it" a property of the pipeline; one account would put an administrator in

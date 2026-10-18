@@ -99,8 +99,8 @@ carry their rule version and watermark.
 
 ## 4.3 Where it runs, and who owns it — rubric 4.11–4.15
 
-**C1. Managed services, one image running as application or worker.** A six-person team for one semester has no
-operations capacity; IaaS with a self-managed cluster would move patching, HA and backup onto it.
+**C1. Managed services, one image running as application or worker.** A small team has no operations capacity; IaaS
+with a self-managed cluster would move patching, HA and backup onto it.
 
 **C2. Four accounts, delivered declaratively.** This is what makes "the platform can deploy into the regulator's
 account but cannot read from or operate it" a property of the pipeline; one account would put an administrator in
