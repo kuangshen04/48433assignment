@@ -1,11 +1,11 @@
-# 2. Requirements Analysis
+# 2. Requirements analysis
 
 The three gaps of Section 1 become obligations here: what must be checkable, what must stay unreadable, and what
 must survive loss.
 
 *Identifiers trace to the stakeholders `S1`–`S12` and objectives `O1`–`O8` in Section 1.*
 
-## 2.1–2.2 System qualities, scenarios and risks
+## 2.1 System qualities, and the scenarios that test them — rubric 2.1–2.2
 
 Eleven qualities drive the design. Four decide its shape — integrity (S6, S9, S11), privacy (S1, S5, S6),
 availability (S4–S6) and analysability (S1–S4, S6); the other seven constrain how it is built. Each row
@@ -22,7 +22,7 @@ states the requirement as a measurable test, the scenario that exercises it, and
 | SQ-7 | Privacy | No natural-person reference and no private content in the shared record | QS-7: a regulator requests a packer's lab report; QS-8: operations try to read findings | An immutable log becomes an unlawful personal-data store |
 | SQ-8 | Interoperability | Interpretable from profile and canonicalisation version alone; replaceable chain | QS-10: the chosen chain becomes uneconomic | Every participant needs a lossy mapping, and migration becomes a rewrite |
 | SQ-9 | Auditability | Every state change and disclosure attributable; replay reproduces derivation and advisories | QS-9: two processors claim one input lot | Conflicts cannot be defended or replayed |
-| SQ-10 | Cost and operability | One application, one managed database, no self-managed cluster; topology and monthly estimate documented | Checked by inspection of the deployment views (4.14–4.15) | The pilot needs a platform team per region |
+| SQ-10 | Cost and operability | One application, one managed database, no self-managed cluster; topology and monthly estimate documented | Checked by inspection of the deployment views (§4.3) | The pilot needs a platform team per region |
 | SQ-11 | Device evidence | Profile-required summaries with provenance; raw telemetry stays private | QS-12: a reefer exceeds its limit for 40 minutes | Raw telemetry enters the record, or evidence is missing where it matters |
 | SQ-12 | Regulatory screening | Signed, versioned rules; ML optional; a rule runs at a watermark and traces to its version | QS-11: a case is opened while the workspace is under maintenance | Screening is either platform-owned or absent |
 | SQ-13 | Analysability | Every insight view states its watermark and scope; figures reproduce from the projection | QS-13: a product line is reviewed at yesterday's watermark | Insight becomes a second, disagreeing read path |
@@ -33,10 +33,10 @@ natural persons into an immutable record, R5); synchronous calls to every depend
 graph database from day one; field-level encryption inside the shared record (the platform would still hold
 the keys); and a separate dashboard database. Business plausibility — yield, mass balance, fraud — is
 deliberately not adjudicated at admission: a rule that rejected an event because a quantity looked wrong
-would make the platform an adjudicator without authority. The decisions that address each risk are argued in
-4.1–4.5, and the alternatives that survive as alternatives are revisited in 5.4.
+would make the platform an adjudicator without authority. The decisions that address each risk are argued in §4.1,
+and the alternatives that survive as alternatives are revisited in §5.1.
 
-## 2.3–2.4 Data — the scenarios fix validation, storage, access and retention
+## 2.2 The data: elements, scenarios, storage — rubric 2.3–2.4
 
 Six requirements shape the data model: interpretable from its profile (DM-1); no readable private content on the
 platform (DM-2); one authoritative source with rebuildable copies (DM-3); retention per class with a defensible
@@ -98,7 +98,7 @@ document store (loses cross-event constraints and multi-row transactions), a gra
 graph is derived and must stay verifiable), and event sourcing for the whole application (profiles and job
 state are not events).
 
-## 2.5–2.6 Cloud adoption
+## 2.3 Cloud adoption — rubric 2.5–2.6
 
 Participants want no infrastructure and no capital spend: a browser is enough, and a small producer will not run a
 server to join a supply chain. The operator wants the same — six people for one semester (C6) cannot patch a
@@ -126,7 +126,7 @@ makes the separation unverifiable; **on-premises object storage** — it returns
 
 Residency, exit and cost follow from the same choices: Australian regions, standard PostgreSQL, portable formats.
 
-## 2.7–2.8 Security, privacy and regulation
+## 2.4 Security, privacy and regulation — rubric 2.7–2.8
 
 Every write is authorised against an organisation, a role and a delegation, bound per request (SP-1), and every
 canonical event is non-repudiable across rotation and revocation (SP-2). High-impact governance changes need dual
@@ -148,7 +148,7 @@ a labelled partial result rather than a silent miss (Food Act 2003 recall powers
 
 Appendix B maps each obligation behind those citations to where the design answers it.
 
-## 2.B AI/ML and IoT requirements (bonus)
+## 2.5 Device evidence and regulatory screening — rubric 2.B, bonus
 
 **IoT-1 summaries, not telemetry; IoT-2 devices as organisation delegations, not accounts; IoT-3 collection at
 the edge, availability at the platform, verifiability at the archive.** The cold-chain loop is local, so the

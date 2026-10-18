@@ -1,9 +1,9 @@
-# 4. Architectural Rationale and Decision-Making
+# 4. Architectural rationale and decision-making
 
 Section 3 says what the structure is. This section records the decisions behind it: one sentence each, the
 reason, and — only where a plausible alternative existed — what was rejected instead.
 
-## 4.1–4.5 Application: eight decisions — one deployable, one write path, one read entrance
+## 4.1 How the application is cut — rubric 4.1–4.5
 
 1. **One deployable, split by role rather than by service.** A service per concern would add a broker, sagas and
    an operational platform to serve 10 000 events/day.
@@ -22,19 +22,19 @@ reason, and — only where a plausible alternative existed — what was rejected
 8. **The signer is isolated.** Only the relayer holds the chain wallet, and it cannot read payloads; embedding the
    wallet in the application would enlarge the key-exposure surface.
 
-Those decisions are tactics. Each one's quality (4.1) and the pattern it forms (4.2, 4.3) are named here, with the
-alternative the pattern replaced.
+Those decisions are tactics. The quality each serves (rubric 4.1) and the pattern it forms (rubric 4.2–4.3) are named
+here, with the alternative the pattern replaced.
 
 | Pattern | Where it appears | Quality served | Rejected instead |
 |---|---|---|---|
-| Modular monolith, layered inside | The one deployable | Operability (SQ-10), modifiability | Services: broker, sagas, platform team (5.4 A4) |
+| Modular monolith, layered inside | The one deployable | Operability (SQ-10), modifiability | Services: broker, sagas, platform team (§5.1, A4) |
 | Ports and adapters at every external edge | Archive, KMS, chain, identity | Replaceability (SQ-8) | Direct SDK calls bind the leaf to one chain |
 | Transactional outbox | Admission through to archive | Reliability, RPO 0 (SQ-5) | Two-phase commit across services |
 | Read model derived from the log | `QueryStore`, public snapshots | Performance (SQ-4), privacy (SQ-7) | Decrypt per hop; per-field policy on immutable records |
 | State machine with anchored transitions | `ConfirmationStatus` | Integrity (SQ-1), auditability (SQ-9) | A boolean `processed` flag |
 | Versioned contracts, published enumerations | Profiles, code view | Interoperability (SQ-8) | Free-form strings, silent value drift |
 
-Five named smells, checked one by one (4.5).
+Five named smells, checked one by one (rubric 4.5).
 
 | Smell | Where it would appear | Evidence it does not |
 |---|---|---|
@@ -44,11 +44,11 @@ Five named smells, checked one by one (4.5).
 | Cyclic dependency | Application and workers | One direction — admission enqueues, workers execute, no callback |
 | Unstable dependency | Chain, archive and KMS SDKs | All behind ports; the core imports no vendor package |
 
-SOLID is visible where it matters (4.4): responsibilities split by reason to change, a new custody mode arrives as
+SOLID is visible where it matters (rubric 4.4): responsibilities split by reason to change, a new custody mode arrives as
 an addition, four modes share one envelope, the read interface has two operations, and dependencies point at
 interfaces.
 
-## 4.6–4.10 Data: five decisions — what is authoritative, what is rebuildable
+## 4.2 What is authoritative, what is rebuildable — rubric 4.6–4.10
 
 **D1. The archive is the copy of record; the database is not.** No single party, including the operator, may be
 able to destroy confirmed history, which is what makes RPO 0 possible (DM-3). A database plus WORM backup in the
@@ -97,7 +97,7 @@ These decisions satisfy DM-1 to DM-6: interpretability travels with the event, p
 archive is authoritative, retention is a recorded state machine, no natural-person field exists, and findings
 carry their rule version and watermark.
 
-## 4.11–4.15 Cloud: three decisions — managed services, four accounts, one region
+## 4.3 Where it runs, and who owns it — rubric 4.11–4.15
 
 **C1. Managed services, one image running as application or worker.** A six-person team for one semester has no
 operations capacity; IaaS with a self-managed cluster would move patching, HA and backup onto it.
@@ -122,7 +122,7 @@ The logical view answers who owns what; the reference view answers what we would
 one credential and one scaling unit: application and workers on request rate and outbox lag, the database as a
 managed primary with a reader, archive and KMS in a trustee account, public delivery behind a CDN.
 
-## 4.16–4.17 The write path and the recall path — the decisions above, in sequence
+## 4.4 The write path and the recall path — rubric 4.16–4.17
 
 ![Figure 12 — Dynamic view: event acceptance](../docs/public/diagrams/c4-dynamic.svg)
 
@@ -151,7 +151,7 @@ The recall path is where privacy is decided: scope at a fixed watermark with pro
 evidence request that becomes an audit record rather than a data pull, and a notice published as `PENDING_ANCHOR`
 before it is `CONFIRMED`.
 
-## 4.18–4.20 Security: six decisions — what is protected, and what is accepted
+## 4.5 What is protected, and what is accepted — rubric 4.18–4.20
 
 **S1. An event is confirmed only after a signature from outside the platform's account.** Otherwise the operator
 can manufacture a confirmed claim; a platform-signed timestamp would do exactly that.
@@ -192,7 +192,7 @@ there is nothing to compel; classification by construction means no "sensitive b
 risks remain stated rather than mitigated: a compromised runtime, a resourced colluder, and a holder's own legal
 obligations.
 
-## 4.B AI/ML and IoT architecture (bonus)
+## 4.6 Device evidence and screening, in the architecture — rubric 4.B, bonus
 
 **AI.** Screening runs in the regulator's workspace over signed rule versions: a model is an alternative
 implementation of the same interface, which is why the first release has no model loader. Every finding carries

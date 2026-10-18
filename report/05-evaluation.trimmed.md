@@ -1,9 +1,11 @@
-# 5. Architecture Evaluation and Alternatives
+# 5. Architecture evaluation and alternatives
 
 This section tests the promises made in Sections 1–4 against what the architecture delivers, and names where they
 fall short.
 
-## 5.1–5.2 Business objectives and how well they are met
+## 5.1 How well it does — rubric 5.1–5.4
+
+### The objectives, and how each is met — rubric 5.1–5.2
 
 | ID | Business objective | Source | Verdict | Evidence and residual gap |
 |---|---|---|---|---|
@@ -21,7 +23,7 @@ fall short.
 The evidentiary objectives are met strongly; both `Partly met` rows are what the design cannot close alone — a second
 region is a governance act, and a view layer is a client this report does not specify.
 
-## 5.3 ATAM
+### ATAM: what breaks, what does not, what trades off — rubric 5.3
 
 ATAM rather than HAZOP: no physical process is controlled, and failure modes are already enumerated as lifecycle
 states.
@@ -54,7 +56,7 @@ plane is the compromise. Shared visibility versus confidentiality: a narrower sc
 confidentiality and weaken the recall-authority story. Evidentiary strength versus forensics: hosting private
 content would help investigations and destroy the privacy claim.
 
-## 5.4 Realistic alternatives
+### What else could have been built — rubric 5.4
 
 **A1 — Permissioned consortium ledger.** Four to seven validators with BFT consensus give seconds-level finality and
 finer privacy, but need four independent operators with HSMs, on-call and a charter; none exists (R1). It wins if an

@@ -1,10 +1,10 @@
-# 3. Architecture Views
+# 3. Architecture views
 
 Each view answers one question and narrows the previous one: the context fixes the boundary, the container view
 opens it, the component views open the two containers that carry the guarantees, and the code views show the
 types that make those guarantees enforceable. Section 4 explains why; this section states what the structure is.
 
-## 3.1 View set
+## 3.1 The view set — the roadmap for rubric 3.1–3.10
 
 | View | Scope | Figures |
 |---|---|---|
@@ -16,7 +16,7 @@ types that make those guarantees enforceable. Section 4 explains why; this secti
 Names are stable across views; relationships carry intent, and transport strings appear only where the protocol
 is architecturally relevant. Diagrams are generated from versioned source, so report and repository cannot drift.
 
-## 3.2 System context
+## 3.2 System context — rubric 3.1
 
 ![Figure 1 — System context](../docs/public/diagrams/c4-context.svg)
 
@@ -38,7 +38,7 @@ availability is the platform's, and verifiability is the archive's — one owner
 legal identity is verified once against a business registry. Neither is issued by the platform, which is what
 makes the organisation, not the person, the unit of accountability.
 
-## 3.3 Containers
+## 3.3 Containers — rubric 3.2–3.4
 
 ![Figure 2 — Container view](../docs/public/diagrams/core-container.svg)
 
@@ -75,7 +75,7 @@ cannot read from or operate it, so "the platform cannot see the rules or the fin
 than a promise. That contract — what dataset may leave, what may return — is why the subsystem is modelled to
 component and code level instead of being drawn as a black box.
 
-## 3.4 Components
+## 3.4 Components — rubric 3.5–3.7
 
 ![Figure 4 — Traceability Core](../docs/public/diagrams/core-component.svg)
 
@@ -108,7 +108,7 @@ rule's applicability, not its content; `Screening Runner` runs deterministic rul
 watermark; `Advisory Publisher` applies the disclosure policy and signs. There is no model loader and no review
 queue in the first release, because it runs deterministic rules only.
 
-## 3.5 Code
+## 3.5 Code — rubric 3.8–3.9
 
 ![Figure 7 — Core code view](../docs/public/diagrams/core-code.svg)
 
@@ -128,15 +128,15 @@ regulator's account, and it carries only a digest of the rule body. `Finding` an
 `findingId`, so an advisory is a disclosure of an existing finding and a retraction is the same identifier
 re-signed; `DisclosurePolicy` constrains advisories, not findings.
 
-## 3.6 Cross-view consistency
+## 3.6 Cross-view consistency — rubric 3.10
 
 Every class is produced by one component and belongs to one container of Figure 2; Appendix A.2 is the full
 mapping. Consistency is maintained by four rules rather than by review: one name per element across views, one
 owning component per class, one interface per trust boundary, and enumerations treated as published contracts
 rather than implementation detail.
 
-## 3.7 What these views deliberately do not model
+## 3.7 What these views deliberately do not model — no rubric row
 
-Screens, routes and component state of the portal (they change weekly); persistence mapping (2.3–2.4 and 4.7); and
+Screens, routes and component state of the portal (they change weekly); persistence mapping (§2.2 and §4.2); and
 generated clients, except where they are the contract. Deployment and dynamic behaviour are Section 4, where
 they are used as evidence.
