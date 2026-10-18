@@ -79,7 +79,7 @@ Finding "0..1" --> "1" AdvisoryFinding : disclosed as
 DisclosurePolicy "1" --> "*" AdvisoryFinding : constrains
 
 note bottom of RuleVersionManifest
-  The only artifact that leaves this domain.
+  The only rule-definition artifact that leaves this domain.
   The platform archives it and anchors its digest;
   rule bodies never appear in CONSORTIUM data.
 end note

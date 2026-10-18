@@ -118,7 +118,8 @@ profile ||--o{ ce : validates
 ce ||--|| qe : materialised into
 
 note bottom of ce
-  Partitioned monthly on event_time.
+  Unpartitioned at pilot scale; partition by
+  event_time only when volume requires it.
   Indexes: (organisation_id, event_time),
   (epcis_event_id) unique per organisation.
   Append-only: no UPDATE, DELETE only at retention.

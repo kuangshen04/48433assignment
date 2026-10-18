@@ -82,7 +82,7 @@ a batch holds many leaves and chains to its predecessor.
 
 Five constraints matter: `capture_record_id` is the primary key of submission and canonical event, so idempotency
 identity is identity; `merkle_leaf` is unique on `capture_record_id`, which makes anchoring idempotent;
-`canonical_event` is partitioned monthly and append-only; `payload` holds only fields the platform does not query;
+`canonical_event` is append-only, partitioned only when volume requires it; `payload` holds only fields the platform does not query;
 row-level predicates on `organisation_id` back the scope filter.
 
 **D6. Analytics eats a minimised snapshot and returns messages.** The platform must not be able to read rules or
