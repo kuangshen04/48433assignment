@@ -29,6 +29,20 @@ Regulator tenancy (separate cloud account)
 
 第一版采用模块化单体。应用职责可以按 command、worker 和 query 逻辑隔离，但不预先部署完整微服务、broker、event store、graph database 和独立 read database。
 
+## 参考配置（C1–C3）
+
+第一版的产品级选型已经关闭为一套 reference configuration。它说明"可实施的形状"，不是采购承诺或生产 SLA。
+
+| 层 | 选型 | 关键约束 |
+|---|---|---|
+| 应用运行时 | 托管容器服务（同一镜像两种角色：application / workers） | 无自管集群；按 worker 数量水平扩 |
+| 数据库 | Aurora PostgreSQL，p-southeast-2，writer + 1 reader，Multi-AZ | PITR 35 天；每日快照跨区复制到 p-southeast-4；RDS Proxy |
+| 公链 | Ethereum 主网，不可升级的最小合约 | 30 分钟窗口、两 epoch finality；relayer 签名密钥在 KMS |
+| 归档 | 治理配置的持有方集合（默认监管方 mirror + 至少一个独立 mirror） | 参考实现：S3 Object Lock compliance + 受托方 attestor；门禁取集合内任一方 Ack |
+| 密钥 | 受托方账户的多区域 KMS | 平台只有 wrap/unwrap；无 disable/delete/admin |
+| 公开分发 | 对象存储 + CDN（CloudFront） | 版本化快照；召回时可强制回源 |
+
+产品名是参考实现，不是架构依赖：需要被架构保证的是**控制域归属、区域驻留、失败语义和证明格式**，这几项换供应商不会变。
 ## 租户划分与"运维"的判据
 
 | 层面 | 归属 | 说明 |

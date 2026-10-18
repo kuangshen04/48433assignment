@@ -2,7 +2,7 @@
 !include ../vendor/C4_Deployment.puml
 !include ../vendor/style.puml
 
-title Deployment view — reference configuration
+title Deployment view — logical placement and ownership
 
 Deployment_Node(device, "Participant device", "Browser, app or gateway", "Intermittent connectivity") {
   Container(pwa, "Portal (PWA)", "Browser", "Capture, query, offline queue")
@@ -25,10 +25,15 @@ Deployment_Node(trustee, "Australian regions — trustee account", "Separate acc
   Container(recovery, "Recovery identity", "Separate IAM", "Restores without platform")
 }
 
-Deployment_Node(regacct, "Regulator account", "Separate account", "Regulator-operated") {
+Deployment_Node(regacct, "Regulator account — analytics", "Separate account", "Regulator-operated") {
   Container(workspace, "Analytics Workspace", "Containers", "Rules, screening, advisories")
   ContainerDb(rules, "Rule registry", "Regulator store", "Rule bodies, versions")
   ContainerDb(findings, "Finding store", "Regulator store", "Findings, advisories")
+}
+
+Deployment_Node(regarch, "Regulator account — evidence", "Separate account", "Holds a ciphertext mirror") {
+  ContainerDb(regmirror, "Archive mirror", "WORM storage", "Ciphertext; signs ArchiveAck")
+  Container(attestor, "Archive attestor", "Signer service", "Verifies stored bytes, signs ArchiveAck")
 }
 
 Deployment_Node(chainNet, "Public blockchain", "External utility", "No validator operation")

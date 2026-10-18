@@ -39,7 +39,7 @@
 | Insights 只产出无归属的跨组织聚合，不做组织排名或绩效画像 | Semantic Modules（B25、B17） | Dashboard、报告 |
 | 边集可由明文重算并与查询结果比对（边推导是确定性函数，随版本冻结） | Core（B17） | 全 scope 方、epoch 授予后的成员 |
 | `QueryStore` 是明文物化副本，不是权威历史、不进恢复包 | Data Access + Core | Core rebuild、Operations |
-| 强制归档副本的持有方必须能签发 `ArchiveAck`；"独立"由三条验收测试判定 | Trust & Recovery（B8） | Operations、报告 |
+| 强制副本由治理配置的持有方集合承担，门禁取集合内任一方签发的合格 `ArchiveAck`（quorum 1，集合至少两项） | Trust & Recovery（B8、C3） | Operations、Governance、报告 |
 | Retention 的判定、执行、例外分属三个主体 | Data Access + Governance（B20） | Recovery、报告 |
 | 平台自身运维人员是独立 principal，明文访问需 break-glass 且留痕 | Identity/Governance（B16） | Core、Operations、审计 |
 

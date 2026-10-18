@@ -32,6 +32,8 @@ outline: false
 
 > 2026-10-18 第十次修订（外部冷读评审后的补强）：针对"声明很硬、机制跟不上"的几处补决策——**B3** 明确成员侧的解锁通道是 KEK epoch 授予，并承认收窄属架构变更；**B6** 说明为什么连可见性也等到 finality；**B8** 给强制副本加资格条件（必须能签发 `ArchiveAck`）与三条"独立性"验收测试；**B16** 把准入强度提到影响半径相应的高度，并引入 `PLATFORM_OPERATOR` 主体与 break-glass；**B17** 补边推导的可重放性，使"漏边"成为可举证事故；**B18** 补 `provisionalImpact` 遍历；**B20** 把 retention 的判定/执行/例外分给三个主体。新增设计：`QueryStore`（明文物化副本）与 `evidencePresence`。
 
+> 2026-10-18 第十一次修订（C1–C3 关闭）：把三项产品与运营参数定为参考配置——公链取 Ethereum 主网 + 不可升级合约 + 30 分钟窗口 + 两 epoch finality；数据库取 Aurora PostgreSQL（Sydney，writer + reader，PITR 35 天，跨区快照到 Melbourne）；归档改为**治理配置的持有方集合**（quorum 1，默认监管方 mirror + 至少一个独立 mirror），门禁取集合内任一合格 `ArchiveAck`。同时明确：持有副本不等于可读，监管方镜像放独立账户，持有方集合变更走 dual control。
+
 本页是原始决策日志，保留完整边界条件、否决方案和 trade-off，适合回答“为什么这样决定”。想了解“系统现在到底怎么划分”请从[系统地图](/architecture/system-map)开始；想按编号查结论请用[决策目录](/decisions/catalog)。
 
 ## 本页结构
@@ -39,7 +41,7 @@ outline: false
 - [第一层：背景充分支持的决定](#layer-a) — A1–A8
 - [第二层：已经接受的额外前提](#layer-b) — B1–B25
 - [已舍弃但保留的完整替代方案](#layer-d) — D1–D7
-- [第三层：仍需讨论的决定](#layer-c) — C1–C3
+- [第三层：产品与运营参数](#layer-c) — C1–C3（已关闭）
 - [当前总体结论](#summary)
 - [答辩时的一分钟版本](#one-minute)
 
@@ -765,6 +767,8 @@ Mirror 接收标准化 archive bundle：encrypted canonical payload、wrapped DE
 - 恢复保证不变：至少一份非平台副本可枚举、可导出；
 - 不需要先签一份合同才能上线。
 
+**"合格"由 C3 的持有方集合定义：** 门禁取治理配置的持有方集合中**任一方**签发的合格 `ArchiveAck`，不绑定特定机构。监管方 mirror 默认在集合里，但它的缺席不会停掉写入——这是"独立性"与"可用性"之间刻意留的余量。
+
 **但"合格"必须写死，否则放宽会变成放水。** 资格条件是能力而不是身份——持有方必须能对**实际保存的字节**签发 `ArchiveAck`（HSM 或组织签名密钥）。所以：
 
 | 候选持有方 | 能否满足门禁 |
@@ -772,6 +776,8 @@ Mirror 接收标准化 archive bundle：encrypted canonical payload、wrapped DE
 | 成员 / 监管方 / 审计方 mirror（持有签名密钥） | 能 |
 | 托管归档服务（提供 HSM 签发的归档对象） | 能 |
 | 普通对象存储桶 + object lock（只能存不能签） | **不能**，只能作为附加 mirror |
+
+**v1 的默认集合：** 监管方 mirror（独立账户）+ 至少一个成员 mirror 或商用 WORM，门禁取集合内任一方签发的合格 Ack（quorum 1）。监管方持有的是**密文副本**——持有不等于可读，离线解密仍需一次 KEK epoch 授予。它可能被 FOI 或诉讼调取，平台不控制第三方副本的依法披露，这一条属不承诺清单。
 
 **"独立"要写成可执行的验收测试，否则它只是形容词：** 平台对该账户/服务没有 delete / admin / billing 权限；删除需要持有方与平台之外的第三方共同批准；catalogue 能被非平台方独立枚举。三条里任一条不成立，就按"未兑现 B1"处理并写进报告——这正是 B1 反误读测试要求的诚实。
 
@@ -2187,62 +2193,63 @@ Consortium Key Service
 ```
 
 <a id="layer-c"></a>
-# 第三层：仍需讨论的决定
+# 第三层：产品与运营参数（2026-10-18 关闭）
 
-以下项目保留当前倾向和 trade-off，但尚未提升为架构基线。
+这三项在 Q&A 阶段保留为待定参数。现在按"公司级项目"的定位关闭为一套可实施的 reference configuration：关闭的是**架构可以依赖的配置**，不是采购合同，也不声称已达生产 SLA。
 
-## C1. Public-chain anchoring 采用什么网络和时间窗口？
+## C1. Public-chain anchoring：网络、窗口与迁移
 
-**已确认的边界：** canonical EPCIS payload 不上链；采用固定时间窗口的 deterministic Merkle batching，由平台 relayer 统一支付 gas 和提交 root。第一版不要求 independent secondary relayer。
+**决定：** Ethereum 主网 + 不可升级的最小合约 + 30 分钟窗口 + 两 epoch finality + KMS 托管的 relayer 签名密钥。
 
-**为什么部分参数尚未定案：** 网络选择与窗口长度不会改变 event、archive、receipt、manifest 或 proof 的逻辑边界。它们主要取决于实际事件量、gas 成本、finality 特性、生态稳定性和业务可接受的确认时延，因此可以在部署设计阶段比较后确定。
+- 合约只存 (batchId, root, prevRoot, windowStart, windowEnd, manifestDigest)；无 owner、无代理、不可升级，因此没有可被攻破的治理入口。
+- \CONFIRMED\ 的 finality 判据是 **finalised**（两个 epoch，约 12.8 分钟），不是 safe 或 latest。
+- 锚定窗口 30 分钟目标、60 分钟上限；空窗口不提交；\oldestPendingAge\ 超标告警。
+- relayer 签名密钥放 KMS，不落盘；首版仍是单 relayer（B7 不变）。
+- 迁移：leaf 绑定 \chainId + contractAddress\，换链只换地址与批次元数据，旧 proof 继续可验证。
 
-**已否决：** 完整 EPCIS plaintext/ciphertext 默认上公链；以及"平台数据库保存唯一 payload、公链只留 opaque hash"（否决理由见 A5 的方案二）。
+**为什么是 L1 而不是 L2：** 证据要活七年以上，"这条链届时是否存在、由谁排序"比单笔手续费重要；L2 省下的钱不抵"验证要依赖二层状态与 sequencer"这个新的外部依赖。Ethereum 的 finality 模型与 B22 的 15–60 分钟确认目标天然对齐：30 分钟窗口 + 约 13 分钟 finality ≈ 43 分钟，落在区间内。
 
-**需要接受的代价：** 系统依赖外部网络的 gas、finality、validator/stake security、治理升级和长期可用性；平台需要 relayer、transaction monitor、proof service 和 chain migration procedure。
+**已否决：** L2（Base/Arbitrum，依赖二层存续与 sequencer）；Bitcoin（概率最终性，6 确认约一小时起）；逐事件上链（量级与 nonce 管理失控）；可升级合约（把治理攻击面重新引回来）。
 
-**最后再回答：** 选择哪一个 public network；窗口取 15/30/60 分钟中的哪一个（B22 的 15–60 分钟目标区间内）；commitment contract 是否 immutable；如何迁移到新链并保持 anchor continuity；允许多长的 anchor/finality delay。
+**代价与假设：** 依赖外部网络的 gas、finality 与长期可用性。按列表价估算约 A–8 万/年（15 gwei、ETH A,000、单笔约 5 万 gas、每天 30–40 个非空窗口），需以实测 gas 与真实窗口数复核。
 
----
+## C2. PostgreSQL：产品级配置与恢复
 
-## C2. PostgreSQL 的部署地区、恢复目标和拆分阈值是什么？
+**决定：** Aurora PostgreSQL，\p-southeast-2\（Sydney），writer + 1 reader，Multi-AZ；PITR 35 天；每日快照跨区复制到 \p-southeast-4\（Melbourne）；RDS Proxy；KMS CMK 静态加密。
 
-**已确认的边界：** 第一版使用一个 managed PostgreSQL application database，通过 `registry`、`events`、`projection` 和 `operations` schema 做逻辑隔离；independent trace archive、public chain 和 participant artifact stores 保持外部边界。PostgreSQL 不是 canonical history 的唯一恢复来源。NSW trial 的 primary deployment 位于 Australian region（优先 NSW/Sydney），所有非公开 operational data 默认不出境。
+- reader 专供 export 与召回遍历，避免监管读负载与写入抢同一套存储。
+- 故障切换低于 60 秒，是四小时 core RTO 的主要贡献项。
+- 分区、图投影、broker 仍按 B22 的触发条件决定，不预设。
+- **为什么是 Aurora 而不是 RDS Multi-AZ：** 写入负载（1 万事件/天）对两者都轻，差别在读路径与切换速度。RDS 是次选，不是错误选择——报告需在成本表里说明这个取舍。
 
-NSW pilot 采用 B22 假设：10,000 canonical events/day、50 events/s offline-sync burst、PostgreSQL operational RPO 不超过五分钟、core platform RTO 不超过四小时、完整 Australian regional rebuild 不超过二十四小时。扩容由 SLO、rebuild time 和实测 workload 触发，不预先引入多数据库。
+**已否决：** 自管 PostgreSQL on EC2（把运维转嫁给小团队）；单 AZ；DynamoDB（放弃准入事务与递归查询）；CockroachDB（多区域复杂度换不到需求）；serverless PostgreSQL（冷启动与运维模型不匹配）。
 
-**为什么尚未完全定案：** PostgreSQL 足以提供事务、约束、JSON 和递归遍历，但背景也要求多产品线和地区，未来可能出现数据驻留或跨区域写入限制。
+**代价：** 强绑定一家云；成本高于 RDS；但打补丁、HA 与备份仍由托管服务承担。
 
-**已否决：** 第一版同时引入事务数据库、event store、graph database 和独立 read store，因为没有 workload 证据支持这些一致性边界。
+## C3. 归档与 KMS：持有方集合，而不是选定一家
 
-**需要接受的代价：** PostgreSQL 是共享运营依赖，存在共同故障域；复杂谱系或跨区域部署达到一定规模后可能需要分区或专用存储。
+**决定：** 归档不"选定一个 operator"，而是**由治理配置的合格持有方集合**；门禁取集合内任一方对实际保存字节签发的合格 \ArchiveAck\。v1 默认集合：**监管方 mirror（独立账户）+ 至少一个成员 mirror 或商用 WORM**。
 
-**待回答：** 最终 cloud service 的 backup/PITR 配置与成本验证；load/recovery tests 是否证明 B22 targets 可达。Read replica、partition、graph/read store 的初始触发条件已经由 B22 定义，但 production threshold 可按测试结果修订。
+- **门禁不绑特定持有方。** 若绑监管方，其 attestor 一维护就导致写入停摆，而且等于给了监管方一个隐性的确认否决权。
+- **集合至少两项。** quorum = 1，但只有一家时门禁可用性等于该家可用性（99.9% ≈ 每月约 43 分钟写入受阻）。
+- **持有不等于可读。** 监管方拿到的是密文副本；要离线读，需要一次 KEK epoch 授予（治理动作、留记录）。这样"谁能解密"不会随"谁存了副本"自动扩大。
+- **监管方镜像放独立账户**，不与 Analytics 运行时共用。
+- **资格条件是能力而非身份：** 能对实际保存字节签名（ECDSA P-256 / Ed25519）；不能提前删除；到期可删并签确认；catalogue 可被非平台方枚举；非公开数据澳境驻留。
+- **参考实现（非规定）：** S3 Object Lock compliance 模式 + 受托方 attestor（KMS 非对称密钥签名）+ 受托方账户的多区域 KMS。
 
----
+**为什么这样切：** 我们拥有接口与不变量，持有方的产品与采购是他们的事。写死某家产品会把别人的供应商绑进我们的架构；而"能否签名"这类能力要求必须由我们定，否则门禁无法验证。
 
-## C3. 独立控制域的恢复目标和具体运营安排是什么？
+**已否决：** 指定单一归档厂商（把别人的选型写进我们的架构）；平台自己账户的桶（B1 失效）；普通对象存储冒充持有方（不能签 Ack，只能当附加 mirror）；平台代管 KEK（独立性名存实亡）；自建 HSM。
 
-**已确认的边界：** 区分 Participant Environment、Shared SaaS Application Plane、Regulator-Operated Analytics Environment、External Trace Archive、Consortium-controlled Key Service 和 External Public Blockchain。其中 Shared SaaS Application Plane 与 Regulator-Operated Analytics Environment 同属系统边界内（B21），但运行时、数据边界和治理权分离；至少一个 WORM archive replica 必须位于平台控制域之外；额外企业/监管 mirrors 是可选的。Consortium KEK 使用专业 managed KMS，但其 account、policy 与 recovery authority 由联盟或独立受托方控制。
+**代价与残余风险：**
 
-NSW trial 的 mandatory archive 和 Consortium KMS 位于 Australian regions；恢复副本至少跨 Australian failure domain。Public chain 可以是 global network，因为链上只保存不直接识别个人的 commitment/Merkle root。
+- 监管方拒签或拖延会影响该副本的 Ack 可用性，由 quorum 兜底；若**所有**持有方都拒签，属政治事件而非架构问题。拒签是**可见的**权威行为，不是静默丢弃。
+- 监管方持有的副本可能被 FOI 或诉讼调取。平台不控制第三方持有的副本如何被依法披露——这一条进"不承诺"清单。
+- 持有方集合的变更属治理变更，走 dual control。
 
-已经获得可验证 external ArchiveAck/receipt 且仍处于 active retention/legal hold 的 canonical trace 采用 logical RPO=0 target；core service RTO 为四小时，完整 regional rebuild RTO 为二十四小时。该目标仍依赖选定 archive/KMS product、account governance、KMS recovery identity 和恢复演练证明能够达到。
+### 关闭之后
 
-故障语义也已经确定：write path 在失败步骤 fail closed 并可幂等续跑；既有 confirmed data 尽可能继续读取并暴露 freshness/degradation；ArchiveAck 之前不签 receipt，public-chain finality 之前不进入 `CONFIRMED`。B18 authorised official Recall/Safety Notice 可以 `VERIFIED_PENDING_ANCHOR` 快速发布，但不得冒充链上 finality。
-
-**为什么部分内容尚未定案：** 权力边界、Australian residency、retention terminal state 和 target RPO/RTO 已经确定，但背景没有给出愿意承接副本的组织、联盟治理实体或具体产品，不能虚构组织和供应商，也不能在恢复测试前把 targets 写成已实现 SLA。
-
-**已否决：** 仅罗列云服务品牌而不说明谁控制账号、密钥和恢复；也否决要求每个小型参与方部署完整基础设施。
-
-**需要接受的代价：** 跨控制域部署增加网络、安全、监控、升级和故障协调成本。
-
-**待回答：** 强制副本持有者与 KMS account owner 的具体组织；Australian replica/failure-domain 选择；archive/KMS 产品级 failover 与 restore procedure 能否满足 B22 RPO/RTO；KEK deletion protection、rotation 和 emergency recovery；是否需要第二 provider escrow；relayer wallet 和 gas budget；Participant Gateway 是否进入第一版。
-
-### C1–C3 在最终报告中的关闭条件
-
-Q&A 阶段可以保留产品选型待定，但最终 deployment/infrastructure view 不能全部保留为 TBD。提交前至少选定一套可实施的 reference deployment：具体 public network 与 anchor window、Australian cloud region/managed PostgreSQL 配置、WORM archive 产品及账户归属、KMS/recovery identity/跨故障域配置，以及对应恢复路径和验证方法。这是开发团队可执行的参考方案，不声称产品已签约或生产 SLA 已获得证明。
-
+三项都从"待定参数"变成"参考配置"：架构可以依赖它们，但不声称已签约、已采购或已达生产 SLA。仍属实施期确认项：实际 gas 与窗口数、Aurora 规格与成本实测、恢复演练能否证明 B22 的 RPO/RTO，以及持有方集合的现实组成。
 <a id="summary"></a>
 # 当前总体结论
 

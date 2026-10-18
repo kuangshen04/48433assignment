@@ -1,0 +1,58 @@
+@startuml c4-reference-deployment
+!include ../vendor/C4_Deployment.puml
+!include ../vendor/style.puml
+
+title Reference deployment — an implementable configuration
+
+Deployment_Node(device, "Participant device", "Browser or gateway", "Intermittent connectivity") {
+  Container(pwa, "Portal (PWA)", "Browser", "Capture, query, offline queue")
+}
+
+Deployment_Node(edge, "Amazon CloudFront", "Global edge", "Static snapshots") {
+  Container(cdn, "Snapshot cache", "CloudFront", "Versioned objects")
+}
+
+Deployment_Node(region, "AWS ap-southeast-2 — platform account", "Sydney region", "No self-managed cluster") {
+  Container(app, "Traceability Application", "ECS Fargate tasks", "Core and modules")
+  Container(workers, "Ingestion & Projection Workers", "ECS Fargate tasks", "Outbox-driven")
+  Container(relayer, "Batch Builder & Relayer", "Isolated ECS task", "Chain wallet in KMS")
+  ContainerDb(db, "Aurora PostgreSQL", "Writer + 1 reader, Multi-AZ", "State, outbox, QueryStore")
+  ContainerDb(s3, "Snapshot origin", "S3", "Versioned objects")
+  Container(proxy, "RDS Proxy", "Managed", "Connection pooling")
+}
+
+Deployment_Node(trustee, "AWS — trustee account", "Separate AWS account", "Consortium-controlled") {
+  ContainerDb(archive, "External archive", "S3 Object Lock (compliance), 7 years", "Ciphertext; replicated to ap-southeast-4")
+  Container(kms, "Consortium KMS", "Multi-Region CMK, HSM-backed", "Wraps event DEKs")
+  Container(attestor, "Archive attestor", "KMS asymmetric signing", "Signs ArchiveAck over stored bytes")
+  Container(recovery, "Recovery identity", "IAM role, trustee IdP only", "Restores without the platform")
+}
+
+Deployment_Node(regarch, "AWS — regulator evidence account", "Separate AWS account", "Optional second holder") {
+  ContainerDb(regmirror, "Archive mirror", "S3 Object Lock", "Ciphertext; signs ArchiveAck")
+  Container(regattestor, "Archive attestor", "KMS asymmetric signing", "Signs ArchiveAck")
+}
+
+Deployment_Node(regacct, "Regulator analytics account", "Any provider", "Regulator-operated") {
+  Container(workspace, "Analytics Workspace", "Containers", "Rules, screening, advisories")
+  ContainerDb(rules, "Rule and finding store", "Managed PostgreSQL", "Rules, findings, advisories")
+}
+
+Deployment_Node(chainNet, "Ethereum mainnet", "Public network", "Immutable anchoring contract")
+
+Rel(pwa, app, "API", "HTTPS")
+Rel(app, proxy, "SQL", "TLS")
+Rel(proxy, db, "Pooled", "TLS")
+Rel(workers, db, "Polls outbox", "SQL/TLS")
+Rel(app, kms, "Wrap/unwrap DEK", "mTLS")
+Rel(workers, archive, "Envelope, Ack", "HTTPS")
+Rel(workers, regmirror, "Envelope, Ack", "HTTPS")
+Rel(attestor, archive, "Reads object")
+Rel(regattestor, regmirror, "Reads object")
+Rel(workers, s3, "Publish", "Object API")
+Rel(s3, cdn, "Origin pull", "HTTPS")
+Rel(cdn, pwa, "Trace page", "HTTPS")
+Rel(relayer, chainNet, "Merkle root", "tx")
+Rel(app, workspace, "DatasetSnapshot", "Signed")
+
+@enduml

@@ -53,7 +53,7 @@ Two trimming decisions will need a call from the group:
 
 ## Figure sources
 
-Eleven C4 figures are produced. Together they cover rows 3.1–3.10 and 4.14–4.17.
+Twelve C4 figures are produced. Together they cover rows 3.1–3.10 and 4.14–4.17.
 
 | Figure | Serves rows | File |
 |---|---|---|
@@ -67,7 +67,8 @@ Eleven C4 figures are produced. Together they cover rows 3.1–3.10 and 4.14–4
 | Code view (Analytics classes) | 3.8–3.10, 4.9 | `docs/public/diagrams/analytics-code.svg` |
 | Dynamic view — event acceptance | 4.16–4.17 | `docs/public/diagrams/c4-dynamic.svg` |
 | Dynamic view — recall investigation | 4.17–4.18 | `docs/public/diagrams/c4-dynamic-recall.svg` |
-| Deployment view | 4.14–4.15 | `docs/public/diagrams/c4-deployment.svg` |
+| Deployment view — logical placement | 4.14–4.15 | `docs/public/diagrams/c4-deployment.svg` |
+| Deployment view — reference configuration | 4.14–4.15 | `docs/public/diagrams/c4-reference-deployment.svg` |
 
 Two caveats to keep in the report text:
 

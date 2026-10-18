@@ -27,7 +27,7 @@ Delegation Registry        subjectOrIntegrationPrincipal → organisation + allo
 Governance Record History  membership/key/delegation 变更的签署历史
 ```
 
-角色只保留少量固定值（OrgAdmin、EventPublisher、EvidenceManager、Viewer）用于划分权限范围；**不建模组织内部组织架构**。`ENCRYPTION` 用途的密钥供 [B23](/decisions/catalog#b23) 的内容加密接收方使用。
+角色只保留少量固定值（OrgAdmin、EventPublisher、EvidenceManager、Viewer）用于划分权限范围；**不建模组织内部组织架构**。另有一个**能力角色** `ARCHIVE_HOLDER`：它表示"该组织可以持有归档副本并签发 `ArchiveAck`"，与读 scope 是两次独立授予——监管方两者都有，但"能存副本"不等于"能解密"（见 [Trust & Recovery](/systems/trust-recovery)）。`ENCRYPTION` 用途的密钥供 [B23](/decisions/catalog#b23) 的内容加密接收方使用。
 
 ### 每请求显式绑定组织
 
@@ -79,7 +79,7 @@ Membership Governance 可以验证现实组织资格、批准角色和发布治�
 
 ### 使用 dual control 的变更
 
-Regulator role、lost-key recovery、KMS recovery、profile publication、**retention 提前删除与 policy 变更**、外部归档持有者/账户变更、chain migration，以及**平台 operator 权限授予**，都使用独立 dual control。
+Regulator role、lost-key recovery、KMS recovery、profile publication、**retention 提前删除与 policy 变更**、外部归档持有者集合与账户变更、chain migration，以及**平台 operator 权限授予**，都使用独立 dual control。
 
 ### 平台自身的人也是主体
 

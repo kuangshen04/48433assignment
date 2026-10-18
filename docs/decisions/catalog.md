@@ -184,19 +184,19 @@
 
 **Insights 只出无归属聚合**（监管问责与召回），禁止点名排名与绩效画像——否则平台就在用自己的口径制造一个没有签署者的判定。设计见 [Semantic Modules](/systems/semantic-modules)。
 
-## 第三层：仍需关闭的决定
+## 第三层：产品与运营参数（已关闭）
 
 <a id="c1"></a>
 ### C1 · Public network、anchor window 与迁移方案
-**Open.** Payload/leaf/manifest 逻辑已定；仍需选择具体网络、15–60 分钟内的窗口与 finality、contract mutability、gas/relayer，以及 chain migration continuity。
+**Conditional baseline.** Ethereum 主网 + 不可升级的最小合约 + 30 分钟窗口 + 两 epoch finality；relayer 签名密钥放 KMS；leaf 绑 `chainId + contractAddress` 以支持迁移。产品级细节见[待定事项](/decisions/open-items)。
 
 <a id="c2"></a>
 ### C2 · PostgreSQL 产品级部署与恢复配置
-**Open.** Australian primary region、单库起步与 RPO/RTO target 已定；仍需给出具体 service、PITR/backup、成本与 load/recovery evidence。
+**Conditional baseline.** Aurora PostgreSQL（Sydney，writer + 1 reader，Multi-AZ）；PITR 35 天、快照跨区复制到 Melbourne、RDS Proxy。RDS 为次选。
 
 <a id="c3"></a>
 ### C3 · 外部归档与 KMS 的运营主体与产品级恢复
-**Open.** 独立控制域与跨 Australian failure domain 已定；仍需选定副本持有者与账户归属（成员/监管方 mirror 或商用 WORM）、产品、recovery identity、key deletion protection、restore runbook、relayer wallet，以及 Participant Gateway 的首版范围。
+**Conditional baseline.** 归档由治理配置的**持有方集合**承担，门禁取集合内任一方签发的合格 `ArchiveAck`（quorum 1，集合至少两项）。默认集合：监管方 mirror（独立账户）+ 成员 mirror 或商用 WORM。持有副本不等于可读；参考实现为 S3 Object Lock compliance + 受托方 attestor + 多区域 KMS。
 
 ## 已舍弃但保留的替代方案
 
