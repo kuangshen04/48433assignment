@@ -71,13 +71,12 @@ relayer is the deliberate exception, and confining chain code there is the point
 
 ## 4.5 Avoidance of poor design
 
-| Smell | Avoided by |
-|---|---|
-| Feature concentration | Core is mechanism; business semantics live in six modules with declared dependencies |
-| Scattered functionality | One verifier, one state machine, one read entrance, one orchestrator that touches externals |
-| Dense structure | Bounded component counts: core 9, relayer 7, workspace 4 |
-| Cyclic dependency | Modules → `QueryPort` → store; core → ports → adapters; the graph is derived, so there is no back edge |
-| Unstable dependency | Domain code depends on interfaces; SDKs and provider formats are confined to adapters and the relayer |
+Each smell has one answer, and the answers are the patterns above. *Feature concentration*: the core is
+mechanism and business semantics live in six modules with declared dependencies. *Scattered functionality*: one
+verifier, one state machine, one read entrance, one orchestrator that touches externals. *Dense structure*:
+bounded component counts (core 9, relayer 7, workspace 4). *Cyclic dependency*: modules → `QueryPort` → store,
+core → ports → adapters, and the graph is derived so there is no back edge. *Unstable dependency*: domain code
+depends on interfaces, and SDKs and provider formats are confined to adapters and the relayer.
 
 The rules are what keep the picture from decaying: modules may call `QueryPort` and never the canonical tables;
 the core does not know modules exist; the core reaches providers only through ports.
@@ -106,17 +105,11 @@ out of scope at 10 000 events/day, and a lake is rejected because raw files woul
 
 ## 4.8 Component-level conceptual model
 
-Figure 4 fixes which component owns each entity; the table gives the concepts, Figure 9 gives the tables.
-
-| Concept | Key relationships |
-|---|---|
-| Submission | Materialises exactly one canonical event |
-| Canonical event | Validated against one profile version; acknowledged by one or more holders; committed as one leaf; references zero or more evidence records |
-| Evidence edge | Many per event; grouped by endpoints and type for presentation |
-| Evidence reference | Belongs to one event and one owner; holds a commitment, never content |
-| Archive acknowledgement | One per event per holder |
-| Anchored leaf and batch | Many leaves per batch; batches chain to predecessors |
-| Profile version | Many events per version; immutable |
+Figure 4 fixes which component owns each entity. The concepts are submission, canonical event, evidence edge,
+evidence reference, archive acknowledgement, leaf and batch, and profile version. A submission materialises
+exactly one canonical event; an event validates against one profile version, is acknowledged by one or more
+holders, commits as one leaf, and references zero or more evidence records; a batch contains many leaves and
+chains to its predecessor; a profile version governs many events and is immutable.
 
 ## 4.9 Code-level physical model
 
@@ -138,33 +131,23 @@ mistake in one module cannot widen a read.
 | DM-5 no personal data | No such field in the event model; the envelope carries no actor identity |
 | DM-6 reproducible outputs | Findings carry rule version and input watermark; derivation is versioned |
 
-## 4.11 Cloud requirements alignment
+## 4.11–4.13 Cloud requirements, principles and justification
 
-| Requirement | Mechanism |
-|---|---|
-| CL-1 no capex, no infrastructure team | Managed services throughout; participants use a browser |
-| CL-2 elastic consumer capacity | Versioned objects on a CDN; stateless application scale-out |
-| CL-3 residency and durability | Sydney primary, Melbourne copies for snapshots and archive |
-| CL-4 independent control domains | Four accounts, four owners |
-| CL-5 managed security operations | Provider IAM, KMS, audit logs and patching |
-| CL-6 exit and portability | EPCIS payloads, portable envelope, chain-agnostic leaf, standard SQL |
+| Principle | Requirement | Cost accepted |
+|---|---|---|
+| Managed services over servers | CL-1, CL-5, SQ-10: no capex, no infrastructure team | Higher unit cost, bought instead of a team |
+| Stateless compute, externalised state | SQ-3: failover without local state | A hydration cost on every request |
+| One immutable image, role by configuration | SQ-8, CL-5: no configuration drift | A role change needs a redeploy |
+| Declarative infrastructure for accounts, buckets, policies and keys | CL-4: "the platform can deploy into the regulator's account but cannot read from or operate it" is a pipeline property | Account topology becomes code that must be reviewed |
+| Horizontal scale by role | SQ-4: workers scale on outbox lag, the relayer does not scale | Outbox concurrency complexity |
+| Resilience by multi-AZ, retry and stable identifiers | SQ-3, SQ-5 | Idempotency is a design obligation on every side effect |
+| Observability as an output | SQ-9: watermarks, lag, two health signals | Instrumentation is built, not assumed |
+| Least privilege with accounts as boundaries | CL-3, CL-4, SP-5: residency and separation | Four accounts to operate |
+| Portable formats and standard SQL | CL-6: exit and portability | Some provider features are left unused |
 
-## 4.12 Cloud-native principles
-
-Managed services over servers; stateless compute with externalised state; one immutable image running as
-application or worker; declarative infrastructure for accounts, buckets, policies and keys; horizontal scale by
-role, with the relayer deliberately not scaled; resilience by multi-AZ, retry and stable identifiers;
-observability as an output (watermarks, lag, two health signals); least privilege with accounts as security
-boundaries; and no pets.
-
-## 4.13 Cloud-native justification
-
-Each principle is paid for: managed services cost more per unit and buy the team the project does not have;
-stateless compute adds hydration cost for trivial failover; immutable artefacts remove config drift at the price
-of a redeploy per role change; declarative infrastructure is what makes "the platform can deploy into the
-regulator's account but cannot read from or operate it" a pipeline property; horizontal workers add outbox
-concurrency. Two deviations are deliberate and recorded: a single primary with a reader rather than distributed
-SQL, and a single region with warm copies rather than active-active — both consequences of pilot scale.
+Two deviations are deliberate and recorded: a single managed primary with a reader rather than distributed SQL,
+and one region with warm copies rather than active-active. Both follow from pilot scale and are revisited only on
+measured pressure.
 
 ## 4.14 Deployment infrastructure
 
@@ -182,18 +165,13 @@ four accounts; the chain is an external utility with no validator operation.
 
 ## 4.15 Execution environments
 
-| Workload | Environment | Scaling unit | Credentials |
-|---|---|---|---|
-| Application | Managed containers | Request rate | Database, KMS unwrap |
-| Workers | Same image, worker role | Outbox lag | Database, archive, CDN |
-| Relayer | Isolated container | One instance | Chain wallet, database intents |
-| Database | Managed PostgreSQL, multi-AZ | Primary plus reader | IAM authentication |
-| Archive | Managed WORM in a trustee account | Provider-managed | Trustee key; platform role without delete |
-| Keys | Managed KMS in a trustee account | Provider-managed | Wrap and unwrap only |
-| Public delivery | Object storage plus CDN | Provider-managed | Origin access identity |
-
-The relayer row matters: it is the only workload with a credential that can spend money and publish to a public
-network, so it has no inbound path and no ability to read canonical payloads.
+Seven workloads, each with one credential and one scaling unit. The application and workers run the same image
+in managed containers, scaling on request rate and outbox lag; the relayer is an isolated container that
+deliberately does not scale; the database is a managed primary with a reader under IAM authentication; the
+archive and KMS are provider-managed in a trustee account, reachable only through a role that can write and wrap
+but not delete or administer; public delivery is object storage behind a CDN. The relayer is the only workload
+whose credential can spend money and publish to a public network, so it has no inbound path and no ability to
+read canonical payloads.
 
 ## 4.16 Dynamic view
 

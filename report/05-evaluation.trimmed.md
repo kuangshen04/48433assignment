@@ -1,34 +1,19 @@
 # 5. Architecture Evaluation and Alternatives
 
-## 5.1 Business objectives
+## 5.1–5.2 Business objectives and how well they are met
 
-| ID | Business objective | Source | Success measure |
-|---|---|---|---|
-| BO-1 | An immutable, attributable record of every stage | Brief: immutable record-keeping | Any confirmed event can be shown to exist and to have been published by a named organisation, without trusting the operator |
-| BO-2 | Every participant can contribute, including the smallest | Brief: interfaces for farmers, distributors, retailers; rural accessibility | A smallholder captures offline and submits valid events without enterprise software |
-| BO-3 | A regulator establishes incident scope quickly and defensibly | Brief: food-safety compliance | Scope produced from confirmed claims in minutes, with provenance per edge |
-| BO-4 | Consumers see a truthful, current-enough view | Brief: consumer interface | A scan returns an allowlisted projection that separates confirmed, pending, stale and absent |
-| BO-5 | Commercial and personal data are not exposed | Implied by privacy law and commercial reality | No private content readable by the platform; no natural-person field in shared history |
-| BO-6 | Growth across products and regions without a rebuild | Brief: multiple product lines and regions | A new product line is a new profile; a new region is a governance and deployment step |
-| BO-7 | Operable by a small team at pilot scale | Constraint C6 | One application, one managed database, no bespoke infrastructure |
-| BO-8 | Device evidence without handing over raw telemetry | Brief: IoT integration | A summary is attributable and checkable against private raw data |
-| BO-9 | Regulatory screening as a capability, ML optional | Brief: compliance | Rules signed, versioned and run at a watermark; absence degrades advice only |
-| BO-10 | Supply-chain insight is readable, not merely queryable | Brief: data visualisation | Volume, movement and dwell for a role's own scope at a named watermark |
-
-## 5.2 Evaluation
-
-| Objective | Verdict | Evidence | Residual gap |
-|---|---|---|---|
-| BO-1 | **Met** | Envelope, holder-signed acknowledgement, Merkle inclusion | Collusion is detected only by third-party comparison, not prevented |
-| BO-2 | **Met, conditionally** | Browser capture, offline queue, device-bound signing | Devices without key storage fall back to draft-and-sign-online |
-| BO-3 | **Met** | Traversal at a watermark with per-edge provenance; provisional set labelled | Cost grows with history; the graph-store trigger is defined but unmeasured |
-| BO-4 | **Met** | Versioned snapshots; explicit states; no "no record" inference | A cached snapshot can lag a notice; resolver rules specified, not implemented |
-| BO-5 | **Met, with residual risk** | Content off-platform; owner-chosen recipients | Metadata and access patterns are visible |
-| BO-6 | **Partly met** | Profiles and per-jurisdiction requirements are additive | Region growth needs a deployment and governance step; active-active out of scope |
-| BO-7 | **Met at pilot scale** | Managed services; one deployable; batched anchoring | Two more operated environments (regulator, trustee) |
-| BO-8 | **Met, conditionally** | Summaries are attributable; raw data stays private | Coverage depends on participant instrumentation |
-| BO-9 | **Met structurally** | Analytics at all three C4 levels; signed rule versions; ML interchangeable | Depends on the regulator operating its runtime; degradation is visible |
-| BO-10 | **Partly met** | Aggregation, watermark and scope designed; views read the same projection | The view layer is a thin client that is named, not specified |
+| ID | Objective | Source | Verdict | Evidence and residual gap |
+|---|---|---|---|---|
+| BO-1 | An immutable, attributable record of every stage | Brief | **Met** | Envelope, holder-signed acknowledgement, Merkle inclusion; collusion is detected only by third-party comparison, not prevented |
+| BO-2 | Every participant can contribute, including the smallest | Brief | **Met, conditionally** | Browser capture, offline queue, device-bound signing; devices without key storage fall back to draft-and-sign-online |
+| BO-3 | A regulator establishes incident scope quickly and defensibly | Brief | **Met** | Traversal at a watermark with per-edge provenance; cost grows with history and the graph-store trigger is unmeasured |
+| BO-4 | Consumers see a truthful, current-enough view | Brief | **Met** | Versioned snapshots with explicit states; a cached snapshot can lag a notice, and the resolver rules are specified but not implemented |
+| BO-5 | Commercial and personal data are not exposed | Implied | **Met, with residual risk** | Content off-platform with owner-chosen recipients; metadata and access patterns remain visible |
+| BO-6 | Growth across products and regions without a rebuild | Brief | **Partly met** | Profiles and per-jurisdiction requirements are additive; a region still needs a deployment and governance step |
+| BO-7 | Operable by a small team at pilot scale | C6 | **Met at pilot scale** | Managed services, one deployable, batched anchoring; two more operated environments exist |
+| BO-8 | Device evidence without handing over raw telemetry | Brief | **Met, conditionally** | Summaries are attributable and raw data stays private; coverage depends on participant instrumentation |
+| BO-9 | Regulatory screening as a capability, ML optional | Brief | **Met structurally** | Analytics at all three C4 levels with signed rule versions; depends on the regulator operating its runtime |
+| BO-10 | Supply-chain insight is readable, not merely queryable | Brief | **Partly met** | Aggregation, watermark and scope designed; the view layer is a thin client named, not specified |
 
 The honest summary: the evidentiary objectives are met strongly, growth is met by configuration rather than
 construction, coverage depends on devices and connectivity, and insight is met at the data layer with the

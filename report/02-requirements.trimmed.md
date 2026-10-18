@@ -184,36 +184,25 @@ produces a deterministic digest, and parks unverifiable authority in review rath
 | DB-4 | Semi-structured columns for declared extensions | Profiles add fields without migration (DM-1) |
 | DB-5 | Point-in-time recovery, row-level predicates, audited reads, managed operation | Rebuildable but not losable, scope at the data layer, no database fleet (SQ-5, SP-6, SQ-10) |
 
-## 2.5 Cloud-adoption requirements
-
-| ID | Requirement | Stakeholders |
-|---|---|---|
-| CL-1 | No capital expenditure, no infrastructure team | S1, S9 |
-| CL-2 | Elastic capacity for consumer bursts | S4, S5 |
-| CL-3 | Australian residency, cross-failure-domain durability | S6, C2 |
-| CL-4 | Separable control domains for analytics, archive and keys | S6, S10, R2 |
-| CL-5 | Managed identity, keys, audit logging, patching | S9 |
-| CL-6 | Portable formats, replaceable chain | S9, R9 |
-
-## 2.6 Cloud scenarios and XaaS choices
+## 2.5–2.6 Cloud adoption: requirements, scenarios and XaaS choices
 
 A harvest peak brings a 5–10× write and 100× read spike, absorbed by a managed database and a CDN. The regulator
 requires analytics in its own account, deployed as artefacts and operated by the regulator. If the platform
 account is lost, recovery runs on the archive, a trustee-held recovery identity and the chain.
 
-| Capability | Service model | Why |
+| Requirement | Service model chosen | Why |
 |---|---|---|
-| Application and workers | Managed containers | No cluster operations; horizontal workers |
-| Relational store | Managed database | Backup, PITR, patching, HA delegated |
-| Public delivery | Object storage plus CDN | Absorbs bursts; immutable versioned objects |
-| Archive and keys | WORM and KMS in a trustee account | Wrap and unwrap, never administer or delete |
+| CL-1 no capex, no infrastructure team | Managed services; participants use a browser | S1 and S9 cannot run servers |
+| CL-2 elastic consumer capacity | CDN for reads; stateless scale-out | Absorbs bursts without provisioning for peak |
+| CL-3 Australian residency, cross-failure-domain durability | Sydney primary, Melbourne copies | Non-public data never leaves Australia |
+| CL-4 separable control domains | Four accounts, four owners | Analytics and custody sit outside the platform's reach |
+| CL-5 managed identity, keys, audit, patching | Provider IAM, KMS, audit logs | The team operates no security stack |
+| CL-6 portable formats, replaceable chain | EPCIS payloads, portable envelope, chain-agnostic leaf | Exit without a rewrite |
 
-| Alternative | Why rejected |
-|---|---|
-| IaaS with self-managed clustering | Patching, HA and backup onto a six-person team (CL-1, SQ-10) |
-| Self-managed Kubernetes | No scaling requirement justifies a cluster (C5) |
-| One account for everything | One administrator in reach of every control plane (R2, CL-4) |
-| Managed blockchain service | Validator membership the project cannot populate (R1) |
+No self-managed cluster, broker or Kubernetes is used. Rejected: IaaS with self-managed clustering (patching, HA
+and backup onto a six-person team), self-managed Kubernetes (no scaling requirement justifies a cluster), a
+single account for platform, analytics and archive (one administrator in reach of every control plane), and a
+managed blockchain service (validator membership the project cannot populate).
 
 ## 2.7 Security and privacy requirements
 
