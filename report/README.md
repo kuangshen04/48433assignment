@@ -11,7 +11,7 @@ criteria in `spec.md`, row by row.
 | 2. Requirements Analysis | 2.1–2.8, 2.B bonus | 8 + 2 | **drafted** | [02-requirements.md](02-requirements.md) |
 | 3. Architecture Views | 3.1–3.10 | 10 | **drafted** | [03-architecture-views.md](03-architecture-views.md) |
 | 4. Rationale and Decisions | 4.1–4.20, 4.B bonus | 20 + 5 | **drafted** | [04-rationale.md](04-rationale.md) |
-| 5. Evaluation and Alternatives | 5.1–5.4 | 4 | not started | — |
+| 5. Evaluation and Alternatives | 5.1–5.4 | 4 | **drafted** | [05-evaluation.md](05-evaluation.md) |
 
 ## Draft size vs final budget
 
@@ -24,9 +24,9 @@ document, so the trimming pass is substantial and should be planned rather than 
 | 2. Requirements | 6 707 | 1 400 |
 | 3. Views | 2 484 | 1 400 + 8 figures |
 | 4. Rationale | 5 654 | 2 000 + tables |
-| 5. Evaluation | — | 500 |
+| 5. Evaluation | 2646 | 600 |
 | Front matter, captions, appendix | — | 300 |
-| **Total so far** | **18 381** | **≈ 5 400** |
+| **Total so far** | **21027** | **≈ 5 400** |
 
 Two trimming decisions will need a call from the group:
 
@@ -121,3 +121,12 @@ Priority for the next pass: **G12 (trimming) drives the rest** — decide the di
 | H6 | 4.B | The bonus section argues placement but cites no scenario number from 2.B; cross-referencing IS-1/IS-2 would tighten it | small |
 
 Priority: H3 (cost) is the one a reviewer will ask for first, because the cloud argument and the cheaper-alternative argument both lean on it.
+
+## Known gaps in Section 5 (recorded, not yet fixed)
+
+| ID | Row | Gap | Effort |
+|---|---|---|---|
+| J1 | 5.2 | Verdicts are qualitative; a simple score per objective (met / partly / not) would make the evaluation scannable | small |
+| J2 | 5.3 | The ATAM risk list is not cross-referenced to the risks in Section 1 (R1–R10), so a reader cannot tell which project risks became architectural risks | small |
+| J3 | 5.4 | Alternatives carry indicative cost only for the chosen design; A1/A2/A4 need at least a magnitude so the comparison is fair | small |
+| J4 | 5.4 | No "what would change our mind" threshold for A2 (e.g., if chain costs exceed X or policy forbids public networks) | small |
