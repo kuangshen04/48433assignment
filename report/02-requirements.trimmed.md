@@ -2,78 +2,36 @@
 
 *Identifiers trace to the stakeholders `S1`–`S12` and objectives `O1`–`O8` in Section 1.*
 
-## 2.1 System qualities and quality requirements
-
-### 2.1.1 From stakeholder interests to qualities
+## 2.1–2.2 System qualities, scenarios and risks
 
 Eleven qualities drive the design. Four decide its shape — integrity (S6, S9, S11), privacy (S1, S5, S6),
-availability (S4–S6) and analysability (S1–S4, S6); the other seven — non-repudiation, performance,
-recoverability, usability and accessibility, interoperability, auditability, cost — constrain how it is built.
-Stakeholder by stakeholder, the justification is in 1.2.
+availability (S4–S6) and analysability (S1–S4, S6); the other seven constrain how it is built. Each row
+states the requirement as a measurable test, the scenario that exercises it, and the risk if it is not met.
 
-### 2.1.2 Quality requirements
-
-| ID | Quality | Requirement | Measure / acceptance | Stakeholders |
+| ID | Quality | Requirement and measure | Scenario | Risk if unaddressed |
 |---|---|---|---|---|
-| SQ-1 | Integrity | A confirmed event cannot be altered or removed undetectably by a party that distrusts the operator | Detectable from published proofs alone | S6, S9, S11 |
-| SQ-2 | Non-repudiation | Attribution survives rotation, revocation and suspension | Verifiable from event and registry history alone | S1–S4, S6, S11 |
-| SQ-3 | Availability | One dependency lost degrades a capability, never to a false "no record" | Fault injection yields a declared state and marker | S4, S6 |
-| SQ-4 | Performance | Reads at the edge; traversal bounded | 5 000 requests/s at the CDN; 10 000 synchronous edges | S5, S6 |
-| SQ-5 | Recoverability | Trace rebuilt without the platform database | RPO 0 receipted; database ≤ 5 min; RTO ≤ 4 h; region ≤ 24 h | S6, S10, S11 |
-| SQ-6 | Usability and accessibility | A first-time smallholder captures without training; every screen works at low literacy or vision | Under three minutes at 2G; WCAG 2.2 AA; 200 % text; label plus icon per field | S1, S4 |
-| SQ-7 | Privacy | No natural-person reference, no private content in the shared record | Schema check at admission; privacy review of profiles | S1, S5, S6 |
-| SQ-8 | Interoperability | EPCIS 2.0 / CBV; versioned profiles; replaceable chain | Interpretable from profile and canonicalisation version | S2, S3, S11 |
-| SQ-9 | Auditability | Every state change and disclosure attributable and reproducible | Replay reproduces derivation and advisories | S6, S7, S11 |
-| SQ-10 | Cost and operability | One application, one managed database, no self-managed cluster | Topology and monthly estimate documented | S9 |
-| SQ-11 | Device evidence | Profile-required summaries with provenance; raw telemetry private | A summary resolves to publisher and private raw data | S1, S3, S12 |
-| SQ-12 | Regulatory screening | Signed, versioned regulator rules; ML optional | A rule runs at a watermark and traces to its version | S6, S7 |
-| SQ-13 | Analysability | Insight views over confirmed data inside the scoped read path | Every view states watermark and scope | S1–S4, S6 |
+| SQ-1 | Integrity | A confirmed event cannot be altered or removed undetectably; detectable from published proofs alone | QS-1: an operator deletes a batch, and the missing batch breaks the chain sequence | History is only as trustworthy as its host |
+| SQ-2 | Non-repudiation | Attribution survives rotation, revocation and suspension; verifiable from event and registry history alone | QS-2: a three-year-old event is verified after two key rotations and a suspension | Old claims become unattributable after a key compromise |
+| SQ-3 | Availability | One dependency lost degrades a capability, never to a false "no record"; fault injection yields a declared state | QS-3: a recall runs at 02:00 during an archive outage | A safety query answers "nothing found" exactly when it matters |
+| SQ-4 | Performance | 5 000 requests/s at the CDN; 10 000 synchronous edges, exported beyond | QS-4: 5 000 scans/s arrive after a television item | The origin melts during the one incident everyone watches |
+| SQ-5 | Recoverability | RPO 0 for receipted events; database ≤ 5 min; RTO ≤ 4 h; regional rebuild ≤ 24 h | QS-5: the platform account is lost after a receipt | Confirmed history dies with the platform |
+| SQ-6 | Usability and accessibility | Under three minutes at 2G; WCAG 2.2 AA; 200 % text; label plus icon per field | QS-6: a grower with no signal for 36 hours captures four events on a low-end phone | Coverage collapses in exactly the tiers the regulator needs |
+| SQ-7 | Privacy | No natural-person reference and no private content in the shared record | QS-7: a regulator requests a packer's lab report; QS-8: operations try to read findings | An immutable log becomes an unlawful personal-data store |
+| SQ-8 | Interoperability | Interpretable from profile and canonicalisation version alone; replaceable chain | QS-10: the chosen chain becomes uneconomic | Every participant needs a lossy mapping, and migration becomes a rewrite |
+| SQ-9 | Auditability | Every state change and disclosure attributable; replay reproduces derivation and advisories | QS-9: two processors claim one input lot | Conflicts cannot be defended or replayed |
+| SQ-10 | Cost and operability | One application, one managed database, no self-managed cluster; topology and monthly estimate documented | Checked by inspection of the deployment views (4.14–4.15) | The pilot needs a platform team per region |
+| SQ-11 | Device evidence | Profile-required summaries with provenance; raw telemetry stays private | QS-12: a reefer exceeds its limit for 40 minutes | Raw telemetry enters the record, or evidence is missing where it matters |
+| SQ-12 | Regulatory screening | Signed, versioned rules; ML optional; a rule runs at a watermark and traces to its version | QS-11: a case is opened while the workspace is under maintenance | Screening is either platform-owned or absent |
+| SQ-13 | Analysability | Every insight view states its watermark and scope; figures reproduce from the projection | QS-13: a product line is reviewed at yesterday's watermark | Insight becomes a second, disagreeing read path |
 
-## 2.2 Scenarios, risks and rejected alternatives
-
-### 2.2.1 Quality attribute scenarios
-
-Each is source, stimulus, artefact, environment, response and measure; the measure is what the design is judged
-against.
-
-- **QS-1 Tamper (SQ-1).** An operator deletes a batch; the missing batch breaks the chain sequence. *Measure:*
-  detection without the platform's cooperation.
-- **QS-2 Attribution (SQ-2).** An event is verified three years after its signer rotated twice and was
-  suspended. *Measure:* current key status is irrelevant to verification.
-- **QS-3 Degradation (SQ-3).** A recall runs at 02:00 during an archive outage. *Measure:* the window that
-  cannot be confirmed is marked, never reported as "no record".
-- **QS-4 Burst (SQ-4).** 5 000 scans/s arrive after a television item. *Measure:* the origin sees a fraction; no
-  read touches canonical tables.
-- **QS-5 Recovery (SQ-5).** The platform account is lost after a receipt. *Measure:* the trace rebuilds from
-  archive and chain alone.
-- **QS-6 Capture (SQ-6).** A grower with no signal for 36 hours captures four events on a low-end phone.
-  *Measure:* queued, idempotent on reconnect, under three minutes.
-- **QS-7 Evidence (SQ-7).** A regulator asks a packer for a laboratory report. *Measure:* delivery is provable
-  against the commitment; the platform holds no plaintext.
-- **QS-8 Isolation (SQ-7, SQ-9).** Operations try to read regulator findings. *Measure:* no credential path
-  exists, and the attempt is recorded.
-- **QS-9 Conflict (SQ-1, SQ-9).** Two processors claim one input lot. *Measure:* both appear with provenance.
-- **QS-10 Migration (SQ-8).** The chosen chain becomes uneconomic. *Measure:* old proofs verify; nothing is
-  re-signed.
-- **QS-11 Analytics down (SQ-12).** A case is opened during maintenance. *Measure:* trace continues; risk shows
-  as delayed, never "no risk".
-- **QS-12 Cold chain (SQ-11).** A reefer exceeds its limit for 40 minutes. *Measure:* the summary is checkable
-  against the owner's raw log.
-- **QS-13 Review (SQ-13).** A category manager reviews a product line at yesterday's watermark. *Measure:*
-  every figure resolves to confirmed events.
-
-### 2.2.2 Risks, decisions and rejected alternatives
-
-| Quality | Risk if unaddressed | Decision taken | Alternative rejected, and why |
-|---|---|---|---|
-| Integrity | The operator, or an attacker with its credentials, rewrites history silently | Public Merkle root plus an acknowledgement from outside the operator's account (R1) | **Database plus WORM backup** leaves the operator sole verifier; **permissioned ledger** needs validators we do not have |
-| Non-repudiation | Rotation or compromise makes old claims unattributable | One envelope for all custody modes; key history retained; past events never rewritten (R2) | **Platform-held participant key** allows impersonation; **per-employee keys** put people in an immutable record (R5) |
-| Availability and performance | An outage returns "nothing found"; bursts overwhelm the origin | Declared failure states; reads from materialised data; edge snapshots; bounded traversal | **Synchronous dependency calls** make any outage a product outage; **graph database day one** has no workload evidence |
-| Privacy | An immutable log becomes an unlawful personal-data store | No natural-person fields; private content off-platform behind a salted commitment | **Field-level encryption** leaves the platform holding keys; **per-event access lists** are unenforceable if it cannot read |
-| Analysability | Insight views drift into a second, disagreeing read path | Views served from the confirmed projection at a named watermark | **A separate dashboard database** adds a consistency boundary where stale figures look authoritative |
-
-Plausibility — yield, loss, mass balance, fraud — is not adjudicated at admission: a rule that rejected an event
-because a quantity looked wrong would make the platform an adjudicator without authority or observation.
+Rejected while setting these requirements: database plus WORM backup (leaves the operator the sole verifier);
+a permissioned ledger (needs validators this project does not have, R1); per-employee signing keys (puts
+natural persons into an immutable record, R5); synchronous calls to every dependency on the read path; a
+graph database from day one; field-level encryption inside the shared record (the platform would still hold
+the keys); and a separate dashboard database. Business plausibility — yield, mass balance, fraud — is
+deliberately not adjudicated at admission: a rule that rejected an event because a quantity looked wrong
+would make the platform an adjudicator without authority. The decisions that address each risk are argued in
+4.1–4.5, and the alternatives that survive as alternatives are revisited in 5.4.
 
 ## 2.3 Data management requirements and dictionary
 
