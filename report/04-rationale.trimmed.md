@@ -109,12 +109,16 @@ chains to its predecessor; a profile version governs many events and is immutabl
 
 ## 4.9 Code-level physical model
 
-Figure 9 shows eight tables. Five constraints carry design meaning: `capture_record_id` is the primary key of
-both submission and canonical event, so the idempotency identity is the identity; `merkle_leaf` is keyed by
-`leaf_index` with a unique `capture_record_id`, which is what makes anchoring idempotent; `canonical_event` is
-partitioned monthly on `event_time` and append-only; `payload` is JSONB and holds only fields the platform does
-not query, validated at admission; row-level predicates on `organisation_id` back the scope filter, so a coding
-mistake in one module cannot widen a read.
+![Figure 9 — Physical data model](../docs/public/diagrams/core-physical-model.svg)
+
+*Figure 9 — Eight tables; the constraints that carry design meaning are named below.*
+
+Five constraints matter. `capture_record_id` is the primary key of both submission and canonical event, so the
+idempotency identity is the identity; `merkle_leaf` is keyed by `leaf_index` with a unique `capture_record_id`,
+which is what makes anchoring idempotent; `canonical_event` is partitioned monthly on `event_time` and
+append-only; `payload` is JSONB and holds only fields the platform does not query, validated at admission;
+row-level predicates on `organisation_id` back the scope filter, so a coding mistake in one module cannot widen a
+read.
 
 ## 4.10 Data architecture justification
 
@@ -164,17 +168,28 @@ but not delete or administer; public delivery is object storage behind a CDN. Th
 whose credential can spend money and publish to a public network, so it has no inbound path and no ability to
 read canonical payloads.
 
-## 4.16 Dynamic view
+## 4.16 Dynamic views
 
 ![Figure 12 — Dynamic view: event acceptance](../docs/public/diagrams/c4-dynamic.svg)
 
 *Figure 12 — One event from submission to confirmed visibility, in five phases and sixteen steps.*
 
-The scenario exercises every boundary: participant to platform, platform to holder, to key service, to chain and
-to the public. Sixteen steps carry one event through five phases — receive and validate, encrypt and archive,
-receipt issued, anchor to finality, confirm and project. The ordering is the argument: a receipt is issued only
-after an outside holder has signed for the bytes, and confirmation only after finality. No timeout promotes an
-event; a failure suspends it where it stands and retries idempotently.
+The acceptance scenario exercises every boundary: participant to platform, platform to holder, to key service, to
+chain and to the public. Sixteen steps carry one event through five phases — receive and validate, encrypt and
+archive, receipt issued, anchor to finality, confirm and project. The ordering is the argument: a receipt is
+issued only after an outside holder has signed for the bytes, and confirmation only after finality. No timeout
+promotes an event; a failure suspends it where it stands and retries idempotently.
+
+![Figure 13 — Dynamic view: recall investigation](../docs/public/diagrams/c4-dynamic-recall.svg)
+
+*Figure 13 — Scope at a watermark, evidence request, signed notice.*
+
+The recall path is where privacy is decided, so it is drawn separately. The platform produces a scope at a fixed
+watermark and returns confirmed and provisional sets apart, never merged. An evidence request becomes an audit
+record rather than a data pull: the owner encrypts the content to the regulator's key and the platform never sees
+it. The formal notice is written to the archive by the workers, acknowledged by the holder, anchored by the
+relayer, and published as `PENDING_ANCHOR` before it is `CONFIRMED` — publication does not wait for finality, and
+it never claims more than the evidence supports.
 
 ## 4.17 Data flow through the dynamic view
 
