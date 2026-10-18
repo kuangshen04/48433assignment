@@ -90,29 +90,29 @@ because a quantity looked wrong would make the platform an adjudicator without a
 
 ### 2.3.2 Data dictionary
 
-Format and length are enforced at admission; source names the originating party.
+One or two elements per group are tabulated; the rest of each group is named below and follows the same rules.
+Format and length are enforced at admission, and source names the originating party.
 
 | Element | Format | Length | Description | Source | Serves |
 |---|---|---|---|---|---|
 | `captureRecordId` | UUID v4 | 36 | Idempotency key for one submission | Participant | DM-3, S1 |
 | `eventTime` | ISO 8601 with offset | 30 | Business time asserted by the publisher | Publisher | DM-1, SQ-9 |
-| `bizStep`, `disposition` | CBV URI | ≤ 255 | Business step and condition | Publisher | DM-1, S3 |
-| `bizLocation` | SGLN or GLN | 13–255 | Where the event occurred | Publisher | DM-1, S6 |
 | `epcList`, `quantityList` | EPC URIs / {class, quantity, uom} | ≤ 255 per entry | Instance and lot identifiers with quantities | Publisher | DM-1, O3 |
 | `quantity`, `uom` | Decimal 18,6 / UN/CEFACT | 22 / 3 | Asserted quantity and unit | Publisher | S2 |
 | `profileId`, `profileVersion` | Slug / semver | 64 / 20 | Validation profile and version | Governance | DM-1, SQ-8 |
-| `canonicalisationVersion` | Semver, frozen | 20 | Digest contract used for the payload | Platform | DM-1, SQ-9 |
 | `signerOrganisationId` | UUID v5 | 36 | Organisation accountable for the claim | Registry | SQ-2, DM-5 |
-| `keyId`, `signatureValue` | UUID / base64url | 36 / ≤ 1024 | Signing key and detached signature | Participant | SQ-2 |
-| `custodyMode` | Enum (4 values) | ≤ 32 | How the signing key is held | Participant | SQ-2 |
 | `canonicalPayloadDigest` | SHA-256 hex | 64 | The value actually signed | Platform | SQ-1 |
-| `ArchiveAckDigest`, `ciphertextDigest` | SHA-256 hex | 64 | Bind the acknowledgement to the stored bytes | Archive holder | SQ-1, SQ-5 |
-| `merkleLeafIndex`, `batchId`, `merkleRoot` | uint64, UUID, hex | 20, 36, 64 | Position in a published commitment | Platform, relayer | SQ-1, S11 |
 | `plaintextCommitment` | SHA-256 hex | 64 | Salted commitment to off-platform content | Owner | DM-2, SQ-7 |
-| `availabilityStatus` | Enum | ≤ 24 | Two availability facts, never collapsed | Platform, owner | SQ-3 |
-| `retentionPolicyId` | Slug | ≤ 64 | Retention rule in force | Governance | DM-4 |
 | `findingId`, `ruleVersion`, `dataWatermark` | UUID, semver, uint64 | 36, 20, 20 | Finding identity and the inputs it used | Regulator | DM-6, SQ-9 |
-| `disclosureScope` | Enum (4 values) | ≤ 40 | Who may see the finding | Regulator | SQ-7 |
+
+The remaining elements are named only, grouped by what they carry: EPCIS business content (`action`, `bizStep`,
+`disposition`, `bizLocation`, `readPoint`, `sourceList`/`destinationList`, `bizTransactionList`, `epcClass`,
+`parentID`/`childEPCs`, `transformationID`); versioning (`canonicalisationVersion`, `edgeDerivationVersion`);
+the signature pair (`keyId`, `signatureValue`, `signatureAlgorithm`, `assertedSignedAt`); custody
+(`custodyMode`); anchoring (`ArchiveAckDigest`, `ciphertextDigest`, `merkleLeafIndex`, `batchId`, `merkleRoot`,
+`transactionRef`, `inclusionProof`); evidence state (`availabilityStatus`, `retentionPolicyId`); and regulatory
+output (`severity`/`reasonCodes`, `disclosureScope`, `expiresAt`, `regulatorSignature`). Each is EPCIS/CBV-defined
+or profile-declared, typed and length-bounded at admission.
 
 ## 2.4 Data scenarios, storage, access and retention
 
@@ -178,14 +178,11 @@ produces a deterministic digest, and parks unverifiable authority in review rath
 
 | ID | Requirement | Why |
 |---|---|---|
-| DB-1 | Multi-row ACID transactions | Event, idempotency claim and outbox commit together |
+| DB-1 | Multi-row ACID transactions and referential integrity | Event, idempotency claim and outbox commit together; corrections reference events and leaves reference batches |
 | DB-2 | Exact decimal arithmetic and units | Quantities are never rounded silently (S2) |
-| DB-3 | Referential integrity | Corrections reference events; leaves reference batches |
-| DB-4 | Recursive queries with index support | Bounded traversal (SQ-4) |
-| DB-5 | Semi-structured columns for declared extensions | Profiles add fields without migration (DM-1) |
-| DB-6 | Point-in-time recovery, cross-domain backup | Rebuildable but not losable (SQ-5) |
-| DB-7 | Row-level predicates, audited reads | Scope at the data layer, not only in code (SP-6) |
-| DB-8 | Managed operation | No database fleet (SQ-10) |
+| DB-3 | Recursive queries with index support | Bounded traversal (SQ-4) |
+| DB-4 | Semi-structured columns for declared extensions | Profiles add fields without migration (DM-1) |
+| DB-5 | Point-in-time recovery, row-level predicates, audited reads, managed operation | Rebuildable but not losable, scope at the data layer, no database fleet (SQ-5, SP-6, SQ-10) |
 
 ## 2.5 Cloud-adoption requirements
 
@@ -242,10 +239,9 @@ account is lost, recovery runs on the archive, a trustee-held recovery identity 
 **Regulation.** The NSW Food Act 2003 and the Food Standards Code require conservative recall traversal, signed
 notices, and a clear split between "possibly affected" and "confirmed unsafe". The Australian Privacy Principles
 and NSW PPIPs require no personal identifiers in the immutable trace, minimisation at ingestion, and correction
-and deletion in the mutable layer. Records law requires per-class retention, terminal deletion states and
-anchored deletion records. Evidentiary expectations require chain of custody, independent acknowledgement and
-reproducible derivation. Government procurement requires Australian regions for non-public data and analytics in
-the regulator's own account.
+and deletion in the mutable layer. Records law requires per-class retention and anchored deletion records;
+evidentiary expectations require chain of custody and reproducible derivation; government procurement requires
+Australian regions for non-public data and analytics in the regulator's own account.
 
 ## 2.B AI/ML and IoT requirements (bonus)
 
