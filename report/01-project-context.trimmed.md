@@ -61,13 +61,12 @@ corporate key would do; because the smallest tier must publish, capture is brows
 the key never leaves the device and identifiers are client-generated.
 
 **The regulator (S6, S7) forces a boundary that would otherwise be invisible.** Analytics inside the platform's
-account would let the operator read every rule and finding; it runs in the regulator's own account instead.
+account would let the operator read every rule and finding.
 
-**Trust infrastructure (S8–S11) forces the record out of the operator's hands.** Cost is served, unilateral control
-is not — hence the external archive, the non-platform key holder and verification that needs no cooperation.
+**Trust infrastructure (S8–S11) takes the record out of the operator's hands.** Cost is served, unilateral control is
+not: hence the external archive, the non-platform key holder and verification with no cooperation.
 
-**R1 and R3** eliminate the permissioned ledger, which would fit the evidence requirement but needs validators this
-project does not have. **C1 and C2** are in tension — a public chain is mandatory, personal data must stay
-correctable — and the resolution follows: commitments on chain, ciphertext off it, personal data in the mutable
-layer.
+**R1 and R3** eliminate the permissioned ledger, which fits the evidence requirement but needs validators this project
+lacks. **C1 and C2** are in tension — a public chain is mandatory, personal data must stay correctable — and the
+resolution follows: commitments on chain, ciphertext off it, personal data in the mutable layer.
 

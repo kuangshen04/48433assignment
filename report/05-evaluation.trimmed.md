@@ -20,7 +20,7 @@ fall short.
 | BO-9 | Regulatory screening as a capability, ML optional | bonus | **Met structurally** | Analytics at all three C4 levels; depends on the regulator operating its runtime |
 | BO-10 | Supply-chain insight is readable, not merely queryable | brief 6 | **Partly met** | Aggregation and scope designed; the view layer is a thin client, not specified |
 
-The evidentiary objectives are met strongly; both `Partly met` rows are what the design cannot close alone — a second
+The evidentiary objectives are met strongly. Both `Partly met` rows are what the design cannot close alone: a second
 region is a governance act, and a view layer is a client this report does not specify.
 
 ### ATAM: what breaks, what does not, what trades off — rubric 5.3
@@ -39,12 +39,10 @@ states.
 | BO-5 | Confidentiality | QS-7 evidence request; QS-8 operations cannot read findings | H | H/M |
 | BO-9 | Availability | QS-11 analytics down while a case is open | H | M |
 
-**Risks.** The confirmation gate depends on parties outside the design: a holder or the chain can stall ingestion,
-and one relayer holds the only wallet (quorum of one, outbox buffering, key in KMS, deterministic leaves allow
-re-anchoring). A flat read scope leaves admission as the only confidentiality control (entity verification,
-sponsor, dual approval). The regulator may not operate its runtime (analytics is optional). A regional loss can take
-24 hours, a target proven only by drill. The field floor grows and burdens the smallest participants; retirement is
-a gap.
+**Risks.** The confirmation gate depends on parties outside the design: a holder or the chain can stall ingestion, and
+one relayer holds the only wallet (quorum of one, outbox buffering, key in KMS, deterministic leaves). A flat read
+scope leaves admission as the only confidentiality control. The regulator may not operate its runtime. A regional
+loss can take 24 hours, a target proven only by drill. The field floor grows and burdens the smallest participants.
 
 **Non-risks.** A monolith that will not scale — 10 000 events/day is one write every eight seconds. Chain cost
 exploding — one transaction per window. A plaintext copy contradicting privacy — it holds what the platform may
@@ -64,14 +62,14 @@ industry body funds them.
 
 **A2 — Trusted timestamping plus a transparency log.** WORM storage, RFC 3161 timestamps per batch digest and roots
 in an auditor-co-signed append-only log: two or three trusted institutions instead of a public network, far cheaper,
-and the strongest fallback. It wins if chain cost, finality variance or policy makes a public network untenable.
+and the strongest fallback. It wins only if C1 were relaxed — chain cost, finality variance or policy making a public
+network untenable.
 
 **A3 — Layer-2 anchoring.** The same envelope, leaves and proofs under a rollup: cost down by orders of magnitude and
 faster confirmation, at the price of a sequencer and a seven-year bet on that L2.
 
-**A4 — Microservices with an event bus.** The same responsibilities as separate services with per-service databases:
-independent scaling, paid for with sagas, a broker, a registry and a platform team. Cost without benefit at 10 000
-events/day.
+**A4 — Microservices with an event bus.** The same responsibilities as separate services: independent scaling, paid
+for with sagas, a broker, a registry and a platform team. Cost without benefit at 10 000 events/day.
 
 | Criterion | Chosen | A1 | A2 | A3 | A4 |
 |---|---|---|---|---|---|

@@ -6,15 +6,9 @@ types that make those guarantees enforceable. Section 4 explains why; this secti
 
 ## 3.1 The view set — the roadmap for rubric 3.1–3.10
 
-| View | Scope | Figures |
-|---|---|---|
-| Context | The system, its users and external systems | 1 |
-| Containers | Runnable units, responsibilities, interactions | 2, 3 |
-| Components | Traceability Core, the relayer, the analytics workspace | 4, 5, 6 |
-| Code | Major classes, one interface, three enumerations | 7, 8 |
-
-Names are stable across views; relationships carry intent, and transport strings appear only where the protocol
-is architecturally relevant. Diagrams are generated from versioned source, so report and repository cannot drift.
+Four views, each narrowing the last: context (Figure 1), containers (Figures 2–3), components (4–6) and code (7–8).
+Names are stable across views; relationships carry intent, and transport strings appear only where the protocol is
+architecturally relevant. Diagrams are generated from versioned source, so report and repository cannot drift.
 
 ## 3.2 System context — rubric 3.1
 
@@ -27,16 +21,15 @@ the regulator's rule domain. They are peers: the platform cannot author rules, a
 trace. The archive, the consortium KMS, the chain and the regulator's case systems sit outside, because their
 value comes from not being in the operator's account.
 
-**Devices attach to participants, not to the platform.** Sensors feed the participant's own systems, which
-publish EPCIS events. A device is a delegation of an organisation — allowed devices, locations and event types —
-not a platform user. What enters the shared record is a profile-declared summary (min/max/mean, excursion
-duration, alarm, with units and a time window) carried as an ordinary extension field; raw readings stay with
-the participant behind a reference and a salted commitment. Collection and alarming are therefore local,
-availability is the platform's, and verifiability is the archive's — one owner per tier (IoT-1…3, 4.B).
+**Devices attach to participants, not to the platform.** Sensors feed the participant's own systems, which publish
+EPCIS events. A device is a delegation of an organisation — allowed devices, locations and event types — not a
+platform user. What enters the record is a profile-declared summary; raw readings stay with the participant behind a
+reference and a salted commitment. Collection and alarming are local, availability is the platform's, verifiability
+the archive's (IoT-1…3, 4.B).
 
 **Identity arrives on two lines.** Humans authenticate through an external identity provider; an organisation's
-legal identity is verified once against a business registry. Neither is issued by the platform, which is what
-makes the organisation, not the person, the unit of accountability.
+legal identity is verified once against a business registry. Neither is issued by the platform — the organisation,
+not the person, is the unit of accountability.
 
 ## 3.3 Containers — rubric 3.2–3.4
 
@@ -86,18 +79,17 @@ Coordinator`, `Canonicalisation & Profile Validator`, `Signature & Authority Val
 Machine`, `Archive & Anchor Orchestrator`, `Evidence Graph Builder`, `Confirmed Event Store` and `QueryPort`.
 Three properties carry the argument: the orchestrator owns the confirmation gate and records the archive intent,
 while the worker role of the same image executes it; `QueryPort` exposes two graph-shaped operations, `edges()`
-and a bounded `traverse()`, and no operation that returns a business status; the store is append-only, so a
-correction is a new event.
+and a bounded `traverse()`, and nothing that returns a business status; the store is append-only, so a correction
+is a new event.
 
 ![Figure 5 — Relayer components](../docs/public/diagrams/relayer-component.svg)
 
 *Figure 5 — Components of the relayer, the only container that touches a chain.*
 
-The relayer is drawn separately because it is the only container with a credential that can spend money and
-write to a public network. Six of its seven components need no private key; only `Chain Submitter` does. Leaf
-allocation is deterministic, so a retry cannot create a second leaf for the same event, and the manifest writer
-places the batch manifest beside the payload, which is what lets recovery reconstruct which batch held an
-event without the platform database.
+The relayer is drawn separately because it is the only container with a credential that can spend money. Six of its
+seven components need no private key; only `Chain Submitter` does. Leaf allocation is deterministic, so a retry
+cannot create a second leaf, and the manifest writer places the batch manifest beside the payload, which is what lets
+recovery reconstruct which batch held an event without the platform database.
 
 ![Figure 6 — Analytics Workspace components](../docs/public/diagrams/analytics-component.svg)
 
@@ -115,11 +107,10 @@ queue in the first release, because it runs deterministic rules only.
 *Figure 7 — Thirteen classes, one interface, three enumerations.*
 
 Four properties are visible in the type model. `SignatureEnvelope` has no natural-person field, so attribution
-cannot acquire an employee reference. `AcceptanceReceipt` binds the `ArchiveAck` digest, so a receipt can only
-exist once an outside holder has confirmed persistence. `QueryPort` returns edge groups, never a business
-status, so no caller bypasses scope, non-collapsing or watermark. `ProtectedResourceRef` holds a salted
-commitment and a storage mode, never content. The three enumerations are published values: once in use, a value
-cannot be silently added or removed.
+cannot acquire an employee reference. `AcceptanceReceipt` binds the `ArchiveAck` digest, so a receipt can only exist
+once an outside holder has confirmed persistence. `QueryPort` returns edge groups, never a business status, so no
+caller bypasses scope, non-collapsing or watermark. `ProtectedResourceRef` holds a salted commitment and a storage
+mode, never content. The three enumerations are published values: once in use, a value cannot be silently changed.
 
 ![Figure 8 — Analytics code view](../docs/public/diagrams/analytics-code.svg)
 
@@ -134,9 +125,3 @@ Every class is produced by one component and belongs to one container of Figure 
 mapping. Consistency is maintained by four rules rather than by review: one name per element across views, one
 owning component per class, one interface per trust boundary, and enumerations treated as published contracts
 rather than implementation detail.
-
-## 3.7 What these views deliberately do not model — no rubric row
-
-Screens, routes and component state of the portal (they change weekly); persistence mapping (§2.2 and §4.2); and
-generated clients, except where they are the contract. Deployment and dynamic behaviour are Section 4, where
-they are used as evidence.

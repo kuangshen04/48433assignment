@@ -27,12 +27,12 @@ here, with the alternative the pattern replaced.
 
 | Pattern | Where it appears | Quality served | Rejected instead |
 |---|---|---|---|
-| Modular monolith, layered inside | The one deployable | Operability (SQ-10), modifiability | Services: broker, sagas, platform team (§5.1, A4) |
-| Ports and adapters at every external edge | Archive, KMS, chain, identity | Replaceability (SQ-8) | Direct SDK calls bind the leaf to one chain |
-| Transactional outbox | Admission through to archive | Reliability, RPO 0 (SQ-5) | Two-phase commit across services |
-| Read model derived from the log | `QueryStore`, public snapshots | Performance (SQ-4), privacy (SQ-7) | Decrypt per hop; per-field policy on immutable records |
-| State machine with anchored transitions | `ConfirmationStatus` | Integrity (SQ-1), auditability (SQ-9) | A boolean `processed` flag |
-| Versioned contracts, published enumerations | Profiles, code view | Interoperability (SQ-8) | Free-form strings, silent value drift |
+| Modular monolith, layered inside | The one deployable | Operability (SQ-10), modifiability | Services (§5.1, A4) |
+| Ports and adapters at every external edge | Archive, KMS, chain, identity | Replaceability (SQ-8) | A direct SDK call |
+| Transactional outbox | Admission through to archive | Reliability, RPO 0 (SQ-5) | Two-phase commit |
+| Read model derived from the log | `QueryStore`, public snapshots | Performance (SQ-4), privacy (SQ-7) | Per-hop decrypt |
+| State machine with anchored transitions | `ConfirmationStatus` | Integrity (SQ-1), auditability (SQ-9) | A boolean flag |
+| Versioned contracts, published enumerations | Profiles, code view | Interoperability (SQ-8) | Free-form strings |
 
 Five named smells, checked one by one (rubric 4.5).
 
@@ -68,10 +68,9 @@ lineage cannot decrypt per hop; three visibility classes exist and no middle tie
 be enforced on an immutable record; retention is per class and deletion needs three parties, so nobody deletes
 history alone (DM-4).
 
-**D5. One relational database, append-only canonical tables.** EPCIS fields are typed, admission needs one atomic
-step, traversal is a bounded recursive query and reporting is set-oriented (DM-1, SQ-4). A document store would
-lose cross-event constraints and multi-row transactions, a graph database would make the derived graph the truth,
-and event sourcing would model profiles and job state as events they are not.
+**D5. One relational database, append-only canonical tables.** Relational rather than document, graph or
+event-sourced, for the reasons in §2.2; canonical tables are append-only and the lineage edges are indexed for
+recursion (DM-1, SQ-4).
 
 The model that follows: a submission materialises one canonical event; an event validates against one profile
 version, is acknowledged by one or more holders, commits as one leaf and references zero or more evidence records;
@@ -120,7 +119,7 @@ and a single instance.
 
 The logical view answers who owns what; the reference view answers what we would buy. Seven workloads, each with
 one credential and one scaling unit: application and workers on request rate and outbox lag, the database as a
-managed primary with a reader, archive and KMS in a trustee account, public delivery behind a CDN.
+managed primary with a reader, archive and KMS in a trustee account, delivery behind a CDN.
 
 ## 4.4 The write path and the recall path — rubric 4.16–4.17
 
@@ -140,8 +139,8 @@ No timeout promotes an event, and a failure suspends it where it stands.
 | 14–15 | Versioned public projection | Public | Platform to CDN |
 | 16 | Trace page for the submitter | Consortium | Application to portal |
 
-Step 16 is the submitter reading the event back; the consumer read comes from the CDN at step 15 and never reaches
-the application.
+Step 16 is the submitter reading back; the consumer read comes from the CDN at step 15 and never reaches the
+application.
 
 ![Figure 13 — Dynamic view: recall investigation](../docs/public/diagrams/c4-dynamic-recall.svg)
 
@@ -185,21 +184,20 @@ owner) each cross once, which is why STRIDE is a coverage check rather than a ge
 
 Accepted, per requirement: compromised credentials (SP-1), provider-held keys (SP-2), metadata (SP-3), indirect
 identification (SP-4), colluding approvers (SP-5), a runtime that reads consortium plaintext (SP-6), a compelled
-regulator mirror (SP-7). SP-8 states the rest in the interface.
+regulator mirror (SP-7); SP-8 states the rest in the interface.
 
-No personal field in the record means deletion never negotiates with immutability; content off the platform means
-there is nothing to compel; classification by construction means no "sensitive but shared" tier can appear. Three
-risks remain stated rather than mitigated: a compromised runtime, a resourced colluder, and a holder's own legal
-obligations.
+No personal field means deletion never negotiates with immutability; content off the platform means nothing can be
+compelled; classification by construction means no "sensitive but shared" tier can appear. Three risks stay stated: a
+compromised runtime, a resourced colluder, and a holder's own legal obligations.
 
 ## 4.6 Device evidence and screening, in the architecture — rubric 4.B, bonus
 
-**AI.** Screening runs in the regulator's workspace over signed rule versions: a model is an alternative
-implementation of the same interface, which is why the first release has no model loader. Every finding carries
-its rule or model version and input watermark, so it reproduces; no output becomes an action without an officer's
-signature. Rejected: ML at admission (makes a model an adjudicator) and training on the platform's own copy.
+**AI.** Screening runs in the regulator's workspace over signed rule versions; a model is an alternative
+implementation of the same interface, which is why the first release has no model loader. Every finding carries its
+rule or model version and input watermark; no output becomes an action without an officer's signature. Rejected: ML
+at admission, and training on the platform's own copy.
 
-**IoT.** The boundary sits at the participant: profile-required summaries enter the record, raw readings stay
-behind a commitment, and devices are organisation delegations rather than users. Collection and alarming are
-local, availability is the platform's, verifiability is the archive's. Rejected: raw telemetry upload and
-platform-side real-time alerting, which would duplicate the participant's control loop.
+**IoT.** The boundary sits at the participant: profile-required summaries enter the record, raw readings stay behind a
+commitment, and devices are organisation delegations, not users. Collection and alarming are local, availability is
+the platform's, verifiability the archive's. Rejected: raw telemetry upload and platform-side alerting, which would
+duplicate the participant's control loop.
