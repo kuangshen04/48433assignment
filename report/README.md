@@ -10,7 +10,7 @@ criteria in `spec.md`, row by row.
 | 1. Project Context | 1.1 context, 1.2 relevance, 1.3 exclusions | 3 | **drafted** | [01-project-context.md](01-project-context.md) |
 | 2. Requirements Analysis | 2.1–2.8, 2.B bonus | 8 + 2 | **drafted** | [02-requirements.md](02-requirements.md) |
 | 3. Architecture Views | 3.1–3.10 | 10 | **drafted** | [03-architecture-views.md](03-architecture-views.md) |
-| 4. Rationale and Decisions | 4.1–4.20, 4.B bonus | 20 + 5 | not started | — |
+| 4. Rationale and Decisions | 4.1–4.20, 4.B bonus | 20 + 5 | **drafted** | [04-rationale.md](04-rationale.md) |
 | 5. Evaluation and Alternatives | 5.1–5.4 | 4 | not started | — |
 
 ## Draft size vs final budget
@@ -23,10 +23,10 @@ document, so the trimming pass is substantial and should be planned rather than 
 | 1. Project Context | 3 536 | 600 |
 | 2. Requirements | 6 707 | 1 400 |
 | 3. Views | 2 484 | 1 400 + 8 figures |
-| 4. Rationale | — | 1 400 + tables |
+| 4. Rationale | 5 654 | 2 000 + tables |
 | 5. Evaluation | — | 500 |
 | Front matter, captions, appendix | — | 300 |
-| **Total so far** | **12 727** | **≈ 5 400** |
+| **Total so far** | **18 381** | **≈ 5 400** |
 
 Two trimming decisions will need a call from the group:
 
@@ -53,7 +53,7 @@ Two trimming decisions will need a call from the group:
 
 ## Figure sources
 
-Twelve C4 figures are produced. Together they cover rows 3.1–3.10 and 4.14–4.17.
+Thirteen figures are produced. Together they cover rows 3.1–3.10, 4.8–4.9 and 4.14–4.17.
 
 | Figure | Serves rows | File |
 |---|---|---|
@@ -67,6 +67,7 @@ Twelve C4 figures are produced. Together they cover rows 3.1–3.10 and 4.14–4
 | Code view (Analytics classes) | 3.8–3.10, 4.9 | `docs/public/diagrams/analytics-code.svg` |
 | Dynamic view — event acceptance | 4.16–4.17 | `docs/public/diagrams/c4-dynamic.svg` |
 | Dynamic view — recall investigation | 4.17–4.18 | `docs/public/diagrams/c4-dynamic-recall.svg` |
+| Physical data model | 4.8–4.9 | `docs/public/diagrams/core-physical-model.svg` |
 | Deployment view — logical placement | 4.14–4.15 | `docs/public/diagrams/c4-deployment.svg` |
 | Deployment view — reference configuration | 4.14–4.15 | `docs/public/diagrams/c4-reference-deployment.svg` |
 
@@ -107,3 +108,16 @@ Assessed row by row against spec.md. None of these blocks Section 3; they are to
 | G14 | 2.6 | No order-of-magnitude cost (Aurora + gas + archive) | 4.11/4.13 will need one; cheaper-alternatives argument needs it too | small |
 
 Priority for the next pass: **G12 (trimming) drives the rest** — decide the dictionary subset first, because G1/G2/G4 all shrink with it. G5/G6/G7 are quick wins; G8/G9 are the two a marker is most likely to probe.
+
+## Known gaps in Section 4 (recorded, not yet fixed)
+
+| ID | Row | Gap | Effort |
+|---|---|---|---|
+| H1 | 4.2 | Tactics are stated in prose per quality; a tactic-to-quality matrix would scan faster and is what a marker looks for | small |
+| H2 | 4.5 | "Dense structure" is asserted with component counts; a dependency-direction figure or a small coupling table would prove it | small |
+| H3 | 4.11/4.13 | No order-of-magnitude monthly cost (Aurora, Fargate, storage, gas), which 4.11 implicitly needs when justifying managed services | small |
+| H4 | 4.17 | The recall data-flow is described in prose; a hop-by-hop table like the acceptance one would mirror it properly | small |
+| H5 | 4.19 | STRIDE rows lack a likelihood/impact qualifier, so "residual" reads as a note rather than a rating | small |
+| H6 | 4.B | The bonus section argues placement but cites no scenario number from 2.B; cross-referencing IS-1/IS-2 would tighten it | small |
+
+Priority: H3 (cost) is the one a reviewer will ask for first, because the cloud argument and the cheaper-alternative argument both lean on it.

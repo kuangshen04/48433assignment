@@ -1,0 +1,133 @@
+@startuml core-physical-model
+!include ../vendor/style.puml
+
+title Physical data model — canonical tables in PostgreSQL
+
+hide circle
+skinparam classAttributeIconSize 0
+
+entity "submission" as submission {
+  * capture_record_id : uuid <<PK>>
+  --
+  organisation_id : uuid <<FK>>
+  state : text
+  attempts : smallint
+  last_error : text
+  updated_at : timestamptz
+}
+
+entity "canonical_event" as ce {
+  * capture_record_id : uuid <<PK>>
+  --
+  organisation_id : uuid <<FK>>
+  epcis_event_id : text
+  event_type : text
+  event_time : timestamptz
+  biz_step : text
+  disposition : text
+  biz_location : text
+  payload : jsonb
+  profile_id : text
+  profile_version : text
+  canonicalisation_version : text
+  edge_derivation_version : text
+}
+
+entity "evidence_edge" as edge {
+  * edge_id : uuid <<PK>>
+  --
+  capture_record_id : uuid <<FK>>
+  from_object_id : text
+  to_object_id : text
+  edge_type : text
+  effective_from : timestamptz
+  effective_to : timestamptz
+}
+
+entity "archive_ack" as ack {
+  * ack_id : uuid <<PK>>
+  --
+  capture_record_id : uuid <<FK>>
+  holder_organisation_id : uuid <<FK>>
+  archive_object_id : text
+  envelope_digest : char(64)
+  ciphertext_digest : char(64)
+  operator_signature : text
+  received_at : timestamptz
+}
+
+entity "merkle_leaf" as leaf {
+  * leaf_index : bigint <<PK>>
+  --
+  capture_record_id : uuid <<FK>>
+  batch_id : uuid <<FK>>
+  leaf_hash : char(64)
+}
+
+entity "anchor_batch" as batch {
+  * batch_id : uuid <<PK>>
+  --
+  window_start : timestamptz
+  window_end : timestamptz
+  merkle_root : char(64)
+  previous_root : char(64)
+  chain_id : bigint
+  contract_address : text
+  transaction_ref : text
+  finalised_at : timestamptz
+}
+
+entity "protected_resource" as res {
+  * resource_id : uuid <<PK>>
+  --
+  capture_record_id : uuid <<FK>>
+  owner_organisation_id : uuid <<FK>>
+  plaintext_commitment : char(64)
+  storage_mode : text
+  availability_status : text
+  retention_policy_id : text
+}
+
+entity "profile_version" as profile {
+  * profile_id : text <<PK>>
+  * version : text <<PK>>
+  --
+  granularity : text
+  requires_fields : jsonb
+  consumer_allowlist : jsonb
+  published_at : timestamptz
+  signature : text
+}
+
+entity "query_event" as qe {
+  * capture_record_id : uuid <<PK>>
+  --
+  organisation_id : uuid
+  event_time : timestamptz
+  fields : jsonb
+  watermark : bigint
+}
+
+submission ||--|| ce : materialises
+ce ||--o{ edge : derives
+ce ||--|| ack : acknowledged by
+ce ||--|| leaf : committed as
+batch ||--o{ leaf : contains
+ce ||--o{ res : references
+profile ||--o{ ce : validates
+ce ||--|| qe : materialised into
+
+note bottom of ce
+  Partitioned monthly on event_time.
+  Indexes: (organisation_id, event_time),
+  (epcis_event_id) unique per organisation.
+  Append-only: no UPDATE, DELETE only at retention.
+end note
+
+note bottom of qe
+  Rebuildable plaintext copy (QueryStore).
+  Not part of the recovery package.
+  Read-audited per organisation.
+end note
+
+@enduml
