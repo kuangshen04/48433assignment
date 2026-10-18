@@ -50,6 +50,20 @@ participant's own systems, and the participant publishes EPCIS events from there
 is what keeps raw telemetry out of a shared record and keeps device fleet management out of the platform's
 responsibilities.
 
+**The device interface is deliberately narrow.** A device is registered as a delegation of an organisation —
+an integration principal plus a set of allowed devices, locations and event types — not as a platform user with
+an account. What crosses into the shared record is a profile-declared summary (min/max/mean, excursion
+duration, source-reported alarm, with units and a time window) carried as an ordinary EPCIS extension field, so
+it travels the same write path as any other event and needs no separate ingestion pipeline. The raw bundle
+stays with the participant behind a reference and a salted commitment; the platform records only whether the
+required summary is present, never what the sensor actually measured.
+
+Three latency tiers follow from that boundary, and each has exactly one owner: real-time collection and
+alarming at the edge (the participant), near-real-time availability once the event is received (the platform),
+and final verifiability once it is confirmed (the archive and the chain). The cold-chain control loop therefore
+belongs to the participant, and the platform's alarm is a post-confirmation advisory — requirements IoT-1 to
+IoT-3 in Section 2.B, with the rationale in Section 4.B.
+
 **Identity arrives on two independent lines.** Human authentication is delegated to an external identity
 provider over OIDC. The legal identity of an organisation is verified once, at onboarding, against a business
 registry. Neither is issued by the platform, and the second is what makes an organisation — rather than a

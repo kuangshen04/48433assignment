@@ -22,11 +22,11 @@ document, so the trimming pass is substantial and should be planned rather than 
 |---|---|---|
 | 1. Project Context | 3600 | 600 |
 | 2. Requirements | 6974 | 1 400 |
-| 3. Views | 2484 | 1 400 + 8 figures |
+| 3. Views | 2672 | 1 400 + 8 figures |
 | 4. Rationale | 5654 | 2 000 + tables |
 | 5. Evaluation | 2868 | 600 |
 | Front matter, captions, appendix | — | 300 |
-| **Total so far** | **21580** | **≈ 5 400** |
+| **Total so far** | **21768** | **≈ 5 400** |
 
 Two trimming decisions will need a call from the group:
 
@@ -139,10 +139,10 @@ Both are **requirements**, not decoration, so they must not live only in the bon
 |---|---|---|
 | Section 1 | O7, S12, R4 | O8, S7 |
 | Section 2 | SQ-11, QS-12, 2.B | SQ-12, QS-11, 2.B (AI-1…3) |
-| Section 3 | "devices attach to participants" (3.2) | Analytics at container, component and code level |
+| Section 3 | Device interface in 3.2 (delegation, summary schema, three latency tiers) | Analytics at container, component and code level |
 | Section 4 | 4.B (IoT-1…3) | 4.6, 4.B (AI-1…3) |
 | Section 5 | BO-8 + verdict | BO-9 + verdict |
 
 When trimming: keep **one requirement row, one scenario, one objective and one verdict** for each, plus the sentence that ML is optional while the capability is not. Do not delete the Section 3 sentence about devices attaching to participants — it is the design decision the brief actually asks about.
 
-Gap K1: Section 3 describes IoT only at the context boundary. If the +7 bonus is pursued, a short paragraph in 3.2 on the summary interface (device delegation, summary schema, three latency tiers) would make the IoT story visible in the views, not only in 2.B/4.B.
+**K1 closed.** Section 3.2 now carries the device interface: delegation-based device identity, the profile-declared summary schema, the reference-plus-commitment treatment of raw data, and the three latency tiers with one owner each. IoT is now visible in the views chapter, not only in 2.B / 4.B.
