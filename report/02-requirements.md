@@ -37,6 +37,8 @@ identifiers rather than restating the requirement.
 | SQ-8 | Interoperability | Events use the EPCIS 2.0 / CBV vocabulary; profiles are versioned and published; chain and vendor choices are replaceable | A third party can interpret an event from its profile and canonicalisation version alone | S2, S3, S11 |
 | SQ-9 | Auditability | Every state change and every disclosure decision is attributable and reproducible; analytics outputs are traceable to a rule version and an input watermark | Independent replay of edge derivation and advisory generation reproduces the same result | S6, S7, S11 |
 | SQ-10 | Cost / operability | The pilot runs as one modular application and one managed database, with no self-managed cluster | Deployment topology and monthly cost estimate documented; no per-region node fleet | S9 |
+| SQ-11 | Device evidence integration | Device-sourced evidence (cold chain, weights, scans) reaches the shared record as profile-required summaries with provenance, without the platform hosting raw telemetry | A profile can require a sensor summary; the summary is traceable to its publisher and to private raw data without publishing it | S1, S3, S12 |
+| SQ-12 | Regulatory screening capability | The system provides screening over confirmed claims, with rules owned and signed by the regulator; ML is optional, the capability is not | A rule version can be published, run at a watermark, and its output traced to that version; disabling it degrades advice, not trace | S6, S7 |
 
 ## 2.2 Quality scenarios, risk evaluation, decisions and rejected alternatives
 
@@ -113,6 +115,11 @@ boundary. *Measure:* old inclusion proofs still verify; no canonical event is re
 | Interoperability | Vendor and chain lock-in | EPCIS/CBV; versioned profiles and canonicalisation; chain-agnostic leaves; portable archive envelope | **Custom event model** — cheaper to design, but every participant needs a lossy mapping and third parties cannot interpret events |
 | Auditability | Findings cannot be defended; derivation cannot be checked | Rules signed and versioned by the regulator; edge derivation published and replayable; advisories carry rule version and watermark | **Advisory stored as platform opinion** — no attributable author. **Derived status stored as truth** — hides the evidence trail |
 | Cost | The pilot cannot be run by a small team | Modular monolith, one managed database, no broker, managed services, batched anchoring | **Microservices and a broker per concern** — operational cost without a scaling need; revisit only on measured pressure |
+
+
+**QS-11 — Analytics unavailable during an investigation (SQ-12).** A regulator opens a case while the analytics workspace is down for maintenance. *Artefact:* trace query, recall traversal, advisory feed. *Environment:* one subsystem unavailable. *Response:* trace and recall continue; the UI shows risk assessment as delayed and marks advisories as possibly incomplete; no "no risk found" is displayed. *Measure:* case work continues and the degradation is visible on the same screen as the result.
+
+**QS-12 — Cold-chain excursion evidence (SQ-11).** A reefer exceeds its temperature limit for 40 minutes in transit. *Artefact:* receiving claim, sensor summary, private raw log. *Environment:* normal operation, intermittent device connectivity. *Response:* the participant's own system alarms and acts; the receiving claim carries a profile-required excursion summary and a reference to private raw data; the regulator can later check the summary against the raw data through the owner. *Measure:* the summary is present and attributable; the raw log never reaches the platform.
 
 ## 2.3 Data management requirements and data dictionary
 

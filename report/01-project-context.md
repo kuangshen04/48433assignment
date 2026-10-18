@@ -40,6 +40,8 @@ single organisation.
 | O4 | Give consumers a truthful public view | A scan returns an allowlisted, versioned projection that never claims more than the evidence supports |
 | O5 | Keep commercial detail and private evidence out of the shared record | Raw telemetry, contracts and lab reports remain with their owners; the shared record holds only a commitment |
 | O6 | Stay operable by a small team at pilot scale | One modular application, one managed database, no bespoke infrastructure fleet |
+| O7 | Integrate device evidence without becoming a device platform | A sensor summary can be required by a profile and checked against private raw data; the platform holds no raw telemetry |
+| O8 | Make regulatory screening a capability, with ML as an option | Rules are owned, signed and versioned by the regulator; disabling analytics degrades advice, never traceability |
 
 **Explicit non-objectives** (stated here because they drive the architecture as much as the objectives do):
 the system does not prove that goods physically exist, does not adjudicate which of two conflicting claims

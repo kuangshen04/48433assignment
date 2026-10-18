@@ -20,6 +20,8 @@ evaluated against.
 | BO-5 | Commercial and personal data are not exposed by the record | Brief: implied by privacy law and by commercial reality | Private content is never readable by the platform; no natural-person field in shared history | SQ-7, SP-3, SP-4 |
 | BO-6 | The system can grow across products and regions without being rebuilt | Brief: "multiple product lines and regions" | A new product line is a new profile; a new region is a governance and deployment choice, not a redesign | SQ-8; profiles; per-jurisdiction requirements |
 | BO-7 | It can be operated by a small team at pilot scale | Constraint C6 | One application, one managed database, no bespoke infrastructure | SQ-10; deployment view |
+| BO-8 | Device evidence is integrated without handing over raw telemetry | Brief: integration with IoT devices | A cold-chain or weight summary is attributable and checkable against private raw data; the platform holds no raw readings | SQ-11; Figures 1, 4 |
+| BO-9 | Regulatory screening exists as a capability, with ML as an option | Brief: compliance with food-safety regulations; rubric 2.B / 4.B | Rules are signed, versioned and run at a watermark; their absence degrades advice, never traceability | SQ-12; Figures 3, 6, 8 |
 
 ## 5.2 Evaluation
 
@@ -32,6 +34,8 @@ evaluated against.
 | BO-5 No exposure of private data | **Met, with residual risk** | Content off-platform behind a commitment; content encrypted to recipients chosen by the owner | Metadata and access patterns are visible to the platform |
 | BO-6 Growth by configuration | **Partly met** | Profiles and per-jurisdiction requirements are additive | Region growth still requires a deployment and governance step; multi-region active-active is out of scope |
 | BO-7 Small-team operation | **Met at pilot scale** | Managed services; one deployable; batched anchoring | Two additional operated environments exist (regulator, trustee), which is a cost the pilot carries for independence |
+| BO-8 Device evidence integration | **Met, conditionally** | IoT enters through participant systems; profile-required summaries are attributable, raw data stays private | Devices without connectivity or calibration produce missing or late summaries; coverage depends on the participant's instrumentation |
+| BO-9 Regulatory screening capability | **Met structurally, conditional in practice** | Analytics is a first-class subsystem at all three C4 levels; rules are signed and versioned; ML is interchangeable | The capability depends on the regulator operating its runtime; if it does not, only trace and manual investigation remain |
 
 The honest summary: the architecture meets its evidentiary objectives strongly, meets the growth objective by
 configuration rather than by construction, and meets the coverage objective only where devices and connectivity
@@ -60,6 +64,8 @@ no decisions.
 | BO-5 Privacy | Confidentiality | QS-8: platform operations cannot read regulator findings | H | H |
 | BO-3 Defensibility | Auditability | QS-9: two conflicting transformation claims | M | M |
 | BO-6 Growth | Modifiability | QS-10: chain migration without re-signing history | M | M |
+| BO-8 Device evidence | Integrity, usability | QS-12: cold-chain summary vs private raw log | H | M |
+| BO-9 Screening capability | Availability | QS-11: analytics down while a case is open | H | M |
 
 ### 5.3.2 Risks
 
