@@ -130,15 +130,10 @@ re-signed; `DisclosurePolicy` constrains advisories, not findings.
 
 ## 3.6 Cross-view consistency
 
-Every class is produced by one component and belongs to one container; the mapping below is the check for 3.10.
-
-| Component | Classes |
-|---|---|
-| Capture API, Idempotency | `CaptureSubmission`, `ProtectedResourceRef` |
-| Validator, Signature Validator | `CanonicalEvent`, `ProfileVersion`, `SignatureEnvelope` |
-| Orchestrator | `ArchiveEnvelope`, `ArchiveAck`, `MerkleLeaf`, `AnchorBatch`, `AcceptanceReceipt` |
-| Store, Graph Builder, QueryPort | `EvidenceEdge`, `EdgeType`, `EdgeQuery`, `EdgeGroup` |
-| Analytics Workspace | `DatasetSnapshot`, `ScreeningRun`, `Rule`, `RuleVersion`, `RuleVersionManifest`, `Finding`, `AdvisoryFinding`, `DisclosurePolicy` |
+Every class is produced by one component and belongs to one container of Figure 2; Appendix A.2 is the full
+mapping. Consistency is maintained by four rules rather than by review: one name per element across views, one
+owning component per class, one interface per trust boundary, and enumerations treated as published contracts
+rather than implementation detail.
 
 ## 3.7 What these views deliberately do not model
 
