@@ -173,24 +173,25 @@ it never claims more than the evidence supports.
 Step 16 is the submitter reading the event back; the consumer read is served by the CDN from step 15 and is not a
 step in this figure, because consumers never reach the application.
 
-## 4.18 Threat-model boundaries and entry points
+## 4.18–4.20 Threat model: boundaries, threats and accepted risk
 
-Nine entry points, each with one enforcement and one failure mode. The **participant API** takes signed events
-and queries, enforcing signature, authority, organisation binding and rate limits, and rejects with a retryable
-error rather than a partial acceptance. The **portal** takes sessions and capture forms behind an external IdP
-with a per-request acting organisation, and loses only the session — drafts stay queued. The **cross-tenant
-channel** carries snapshots and advisories as signed messages both ways, rejecting unsigned input. The **archive
-holder** boundary takes an envelope out and an acknowledgement in, and the gate simply does not advance until one
-arrives. The **key service** takes wrap and unwrap requests and denies delete and admin, so writes stop at
-pending-archive while reads continue. The **chain** takes roots out and finality in through a relayer-only
-wallet. **Platform staff** have no standing access, and a refused break-glass is itself recorded. **Onboarding**
-verifies identity and keys with a sponsor and dual approval. The **evidence owner** receives a request and
-returns content the platform cannot decrypt, so absence is recorded as "cannot confirm", never "not provided".
+The model starts from boundaries rather than from a threat catalogue: every principal that can cause a write, a
+read or a disclosure gets exactly one enforced entry point, and STRIDE is then used as a coverage check.
 
-Three of those boundaries leave the platform's account — archive, key service and regulator — and each is crossed
-only with a signed message whose verification does not depend on the platform's own claims.
+**Participant-facing.** The API takes signed events, enforcing signature, authority, organisation binding and
+rate limits, and rejects with a retryable error rather than a partial acceptance; the portal takes sessions and
+forms behind an external IdP with a per-request acting organisation, and loses only the session, because drafts
+stay queued; onboarding verifies identity and keys with a sponsor and dual approval, so no partial membership
+exists.
 
-## 4.19 STRIDE threats and mitigations
+**Leaving the account.** The archive takes an envelope and returns an acknowledgement, and the gate simply does
+not advance until one arrives; the key service wraps and unwraps but cannot delete or administer, so writes stop
+at pending-archive while reads continue; the chain takes roots and returns finality through a wallet only the
+relayer holds; the regulator receives signed snapshots and advisories, and rejects anything unsigned.
+
+**Internal.** Staff have no standing access, and a refused break-glass is itself recorded and anchored; the
+evidence owner receives an audited request and returns content the platform cannot decrypt, so absence is
+recorded as "cannot confirm", never "not provided".
 
 | Category | Threat | Mitigation | Residual |
 |---|---|---|---|
@@ -201,24 +202,18 @@ only with a signed message whose verification does not depend on the platform's 
 | Denial of service | Event flood; a holder set that never acknowledges | Quotas, backpressure, bounded queues; at least two configured holders | A sustained flood degrades other participants |
 | Elevation of privilege | An operator reads plaintext; a regulator reaches evidence outside a case | No standing access; case-scoped grants; anchored access record | A compromised break-glass path is a high-severity incident, not a silent one |
 
-## 4.20 Security and privacy justification
+**What is accepted, per requirement.** Compromised participant credentials (SP-1); provider-held signing keys
+(SP-2); metadata and access patterns (SP-3); indirect identification through locations and small-farm identifiers
+(SP-4); colluding approvers (SP-5); a runtime that reads consortium plaintext (SP-6); a regulator mirror that may
+be compelled to disclose (SP-7). Nothing beyond that is claimed, and SP-8 says so in the interface.
 
-Every security requirement in 2.7 has a named mechanism and an accepted residual risk. Writes are bound to an
-envelope and a per-request acting organisation (SP-1), with compromised participant credentials accepted; key
-history makes attribution survive rotation (SP-2), with keys delegated to providers accepted. Private content
-lives off-platform with owner-chosen recipients (SP-3), so metadata and access patterns are what remain. No
-natural-person field enters the record (SP-4), leaving only indirect identification through locations and
-small-farm identifiers. Dual control protects high-impact change (SP-5), and colluding approvers are accepted.
-Reads are audited and break-glass is recorded (SP-6), while the runtime itself can read consortium plaintext.
-Dataset snapshots bound what analytics can pull (SP-7), though the regulator's mirror may be compelled to
-disclose. Non-guarantees are stated rather than implied (SP-8).
+The privacy argument rests on three moves rather than one control: no personal field in the shared record, so
+deletion never has to negotiate with an immutable log; content off the platform, so there is nothing to compel;
+classification by construction, so no "sensitive but shared" middle tier can appear. What remains is metadata,
+treated as data with its own minimisation and retention. Three risks are stated rather than mitigated: a
+compromised runtime can read consortium plaintext, a resourced colluder can assert a false reality, and a
+holder's copy may be disclosed under its own legal obligations.
 
-The privacy argument rests on three moves: no personal fields in the shared record, so deletion never negotiates
-with an immutable log; content not on the platform, so it cannot be compelled to hand over what it does not
-hold; and classification by construction, so there is no "sensitive but shared" middle tier. What remains is
-metadata, treated as data with its own minimisation and retention. Three residual risks are stated rather than
-mitigated: a compromised runtime can read consortium plaintext, a resourced colluder can assert a false reality,
-and a holder's copy may be disclosed under its own legal obligations.
 
 ## 4.B AI/ML and IoT architecture (bonus)
 
