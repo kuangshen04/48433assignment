@@ -9,7 +9,7 @@ criteria in `spec.md`, row by row.
 |---|---|---|---|---|
 | 1. Project Context | 1.1 context, 1.2 relevance, 1.3 exclusions | 3 | **drafted** | [01-project-context.md](01-project-context.md) |
 | 2. Requirements Analysis | 2.1–2.8, 2.B bonus | 8 + 2 | **drafted** | [02-requirements.md](02-requirements.md) |
-| 3. Architecture Views | 3.1–3.10 | 10 | figures exist, prose pending | see `docs/architecture/c4-*.md` |
+| 3. Architecture Views | 3.1–3.10 | 10 | **drafted** | [03-architecture-views.md](03-architecture-views.md) |
 | 4. Rationale and Decisions | 4.1–4.20, 4.B bonus | 20 + 5 | not started | — |
 | 5. Evaluation and Alternatives | 5.1–5.4 | 4 | not started | — |
 
@@ -22,11 +22,11 @@ document, so the trimming pass is substantial and should be planned rather than 
 |---|---|---|
 | 1. Project Context | 3 536 | 600 |
 | 2. Requirements | 6 707 | 1 400 |
-| 3. Views | — | 1 200 + 6 figures |
+| 3. Views | 2 484 | 1 400 + 8 figures |
 | 4. Rationale | — | 1 400 + tables |
 | 5. Evaluation | — | 500 |
 | Front matter, captions, appendix | — | 300 |
-| **Total** | **10 243** | **≈ 5 400** |
+| **Total so far** | **12 727** | **≈ 5 400** |
 
 Two trimming decisions will need a call from the group:
 
@@ -84,3 +84,26 @@ pwsh -File docs/diagrams/render.ps1
 ```
 
 Needs Java 11+. The PlantUML jar is downloaded on first run; the C4 macro library is vendored.
+
+## Known gaps in Section 2 (recorded, not yet fixed)
+
+Assessed row by row against spec.md. None of these blocks Section 3; they are to be closed in the trimming pass or just before submission.
+
+| ID | Row | Gap | Why it matters | Effort |
+|---|---|---|---|---|
+| G1 | 2.3 | The data dictionary's "Serves" column mixes requirement IDs and stakeholder IDs | 2.3 asks for a connection to *customer and stakeholder* needs; should be S-ids only, or two columns | small |
+| G2 | 2.3 | Missing elements: organisation/key/delegation registries, profile document, batch manifest, acceptance receipt, inclusion proof, evidence-request audit record, watermark/health fields | These are the elements most of the security argument rests on | medium |
+| G3 | 2.4 | No explicit retention period per data class (only a seven-year capacity assumption) | 2.4 requires retention to be defined, not just its terminal states | small |
+| G4 | 2.4 | No data volume estimate (events, rows, GB over seven years) | Storage justification reads as opinion without magnitude | small |
+| G5 | 2.2 | Risk table has no impact/likelihood rating | 2.2 asks to *evaluate* risks, not only list them | small |
+| G6 | 2.2 | Some scenarios lack a measurable response (SQ-6 usability, SQ-4 partially) | "Moderated pilot session" is not a measure | small |
+| G7 | 2.1 | SQ rows do not point back to objectives O1–O6 | Makes 4.1 (quality alignment) harder to write | small |
+| G8 | 2.7 | Security requirements omit build and run concerns: secrets, dependency/image scanning, patching, log retention | Reviewers ask "who patches the platform" | small |
+| G9 | 2.8 | Privacy is stated as minimisation, but there is no data-flow view (which field goes to which domain, for how long, readable by whom) | This is the artefact a privacy reviewer looks for | medium |
+| G10 | 2.B | IoT requirements are qualitative: no sampling rate, reporting interval, summary window, device count or volume | 2.B asks for requirements through scenarios, which implies numbers | small |
+| G11 | whole | No requirements traceability matrix (stakeholder → SQ/DM/CL/SP → design element) | 4.1 and 4.11 will otherwise re-derive it | medium |
+| G12 | whole | Trimming plan not executed: 6 707 words against a 1 400 target; the "15 dictionary elements" decision is still open | Needed before submission | medium |
+| G13 | 2.4 | Backup/PITR appears as DB-6 but without a restore-drill acceptance sentence | Pairs with the C3 validation scenarios | small |
+| G14 | 2.6 | No order-of-magnitude cost (Aurora + gas + archive) | 4.11/4.13 will need one; cheaper-alternatives argument needs it too | small |
+
+Priority for the next pass: **G12 (trimming) drives the rest** — decide the dictionary subset first, because G1/G2/G4 all shrink with it. G5/G6/G7 are quick wins; G8/G9 are the two a marker is most likely to probe.
