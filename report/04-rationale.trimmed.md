@@ -3,7 +3,7 @@
 Section 3 says what the structure is. This section records the decisions behind it: one sentence each, the
 reason, and — only where a plausible alternative existed — what was rejected instead.
 
-## 4.1–4.5 Application: eight decisions
+## 4.1–4.5 Application: eight decisions — one deployable, one write path, one read entrance
 
 1. **One deployable, split by role rather than by service.** A service per concern would add a broker, sagas and
    an operational platform to serve 10 000 events/day.
@@ -27,7 +27,7 @@ it (4.2, 4.3); responsibilities split by reason to change, new modes arrive as a
 one envelope, the read interface has two operations and dependencies point at interfaces (4.4); and the core is
 mechanism with one verifier, one state machine and no cycle (4.5).
 
-## 4.6–4.10 Data: five decisions
+## 4.6–4.10 Data: five decisions — what is authoritative, what is rebuildable
 
 **D1. The archive is the copy of record; the database is not.** No single party, including the operator, may be
 able to destroy confirmed history, which is what makes RPO 0 possible (DM-3). A database plus WORM backup in the
@@ -76,7 +76,7 @@ These decisions satisfy DM-1 to DM-6: interpretability travels with the event, p
 archive is authoritative, retention is a recorded state machine, no natural-person field exists, and findings
 carry their rule version and watermark.
 
-## 4.11–4.15 Cloud: three decisions
+## 4.11–4.15 Cloud: three decisions — managed services, four accounts, one region
 
 **C1. Managed services, one image running as application or worker.** A six-person team for one semester has no
 operations capacity; IaaS with a self-managed cluster would move patching, HA and backup onto it.
@@ -101,7 +101,7 @@ The logical view answers who owns what; the reference view answers what we would
 one credential and one scaling unit: application and workers on request rate and outbox lag, the database as a
 managed primary with a reader, archive and KMS in a trustee account, public delivery behind a CDN.
 
-## 4.16–4.17 The write path and the recall path
+## 4.16–4.17 The write path and the recall path — the decisions above, in sequence
 
 ![Figure 12 — Dynamic view: event acceptance](../docs/public/diagrams/c4-dynamic.svg)
 
@@ -130,7 +130,7 @@ The recall path is where privacy is decided: scope at a fixed watermark with pro
 evidence request that becomes an audit record rather than a data pull, and a notice published as `PENDING_ANCHOR`
 before it is `CONFIRMED`.
 
-## 4.18–4.20 Security: six decisions, and what they accept
+## 4.18–4.20 Security: six decisions — what is protected, and what is accepted
 
 **S1. An event is confirmed only after a signature from outside the platform's account.** Otherwise the operator
 can manufacture a confirmed claim; a platform-signed timestamp would do exactly that.

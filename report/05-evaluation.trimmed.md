@@ -1,5 +1,8 @@
 # 5. Architecture Evaluation and Alternatives
 
+This section tests the promises made in Sections 1–4 against what the architecture delivers, and names where they
+fall short.
+
 ## 5.1–5.2 Business objectives and how well they are met
 
 | ID | Objective | Source | Verdict | Evidence and residual gap |

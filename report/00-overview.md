@@ -23,3 +23,6 @@ capability, not an accident — but it cannot read private evidence, forge a hol
 confirmed batch without detection.
 
 **What it deliberately does not do.** Decide whether a claim is true, execute recalls, or hold raw telemetry.
+
+**The claim the rest of this report defends.** No single party — not the operator, not the archive, not a regulator —
+can silently rewrite confirmed history. Sections 1–4 establish it; Section 5 tests it and names where it falls short.

@@ -1,5 +1,8 @@
 # 2. Requirements Analysis
 
+The three gaps of Section 1 become obligations here: what must be checkable, what must stay unreadable, and what
+must survive loss.
+
 *Identifiers trace to the stakeholders `S1`–`S12` and objectives `O1`–`O8` in Section 1.*
 
 ## 2.1–2.2 System qualities, scenarios and risks
@@ -33,7 +36,7 @@ deliberately not adjudicated at admission: a rule that rejected an event because
 would make the platform an adjudicator without authority. The decisions that address each risk are argued in
 4.1–4.5, and the alternatives that survive as alternatives are revisited in 5.4.
 
-## 2.3–2.4 Data
+## 2.3–2.4 Data — the scenarios fix validation, storage, access and retention
 
 Six requirements shape the data model: interpretable from its profile (DM-1); no readable private content on the
 platform (DM-2); one authoritative source with rebuildable copies (DM-3); retention per class with a defensible
