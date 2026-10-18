@@ -184,25 +184,15 @@ produces a deterministic digest, and parks unverifiable authority in review rath
 | DB-4 | Semi-structured columns for declared extensions | Profiles add fields without migration (DM-1) |
 | DB-5 | Point-in-time recovery, row-level predicates, audited reads, managed operation | Rebuildable but not losable, scope at the data layer, no database fleet (SQ-5, SP-6, SQ-10) |
 
-## 2.5–2.6 Cloud adoption: requirements, scenarios and XaaS choices
+## 2.5–2.6 Cloud adoption
 
-A harvest peak brings a 5–10× write and 100× read spike, absorbed by a managed database and a CDN. The regulator
-requires analytics in its own account, deployed as artefacts and operated by the regulator. If the platform
-account is lost, recovery runs on the archive, a trustee-held recovery identity and the chain.
-
-| Requirement | Service model chosen | Why |
-|---|---|---|
-| CL-1 no capex, no infrastructure team | Managed services; participants use a browser | S1 and S9 cannot run servers |
-| CL-2 elastic consumer capacity | CDN for reads; stateless scale-out | Absorbs bursts without provisioning for peak |
-| CL-3 Australian residency, cross-failure-domain durability | Sydney primary, Melbourne copies | Non-public data never leaves Australia |
-| CL-4 separable control domains | Four accounts, four owners | Analytics and custody sit outside the platform's reach |
-| CL-5 managed identity, keys, audit, patching | Provider IAM, KMS, audit logs | The team operates no security stack |
-| CL-6 portable formats, replaceable chain | EPCIS payloads, portable envelope, chain-agnostic leaf | Exit without a rewrite |
-
-No self-managed cluster, broker or Kubernetes is used. Rejected: IaaS with self-managed clustering (patching, HA
-and backup onto a six-person team), self-managed Kubernetes (no scaling requirement justifies a cluster), a
-single account for platform, analytics and archive (one administrator in reach of every control plane), and a
-managed blockchain service (validator membership the project cannot populate).
+The platform is PaaS: one managed container service running the application and the workers, a managed
+relational database with a read replica and automatic scaling, object storage behind a CDN for public snapshots,
+and a managed KMS in the trustee's account. Participants need no infrastructure — a browser is enough — and the
+operator needs no cluster: no self-managed Kubernetes, no message broker, because at pilot scale both add
+operations without adding capability. The regulator's analytics workspace is deployed as artefacts into its own
+account and operated there, because the point of the separation is that the platform cannot read it. Residency,
+exit and cost follow from the same choices: Australian regions, standard PostgreSQL, portable formats.
 
 ## 2.7 Security and privacy requirements
 

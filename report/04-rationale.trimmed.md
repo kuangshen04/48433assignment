@@ -131,15 +131,15 @@ mistake in one module cannot widen a read.
 
 | Principle | Requirement | Cost accepted |
 |---|---|---|
-| Managed services over servers | CL-1, CL-5, SQ-10: no capex, no infrastructure team | Higher unit cost, bought instead of a team |
-| Stateless compute, externalised state | SQ-3: failover without local state | A hydration cost on every request |
-| One immutable image, role by configuration | SQ-8, CL-5: no configuration drift | A role change needs a redeploy |
-| Declarative infrastructure for accounts, buckets, policies and keys | CL-4: "the platform can deploy into the regulator's account but cannot read from or operate it" is a pipeline property | Account topology becomes code that must be reviewed |
-| Horizontal scale by role | SQ-4: workers scale on outbox lag, the relayer does not scale | Outbox concurrency complexity |
-| Resilience by multi-AZ, retry and stable identifiers | SQ-3, SQ-5 | Idempotency is a design obligation on every side effect |
-| Observability as an output | SQ-9: watermarks, lag, two health signals | Instrumentation is built, not assumed |
-| Least privilege with accounts as boundaries | CL-3, CL-4, SP-5: residency and separation | Four accounts to operate |
-| Portable formats and standard SQL | CL-6: exit and portability | Some provider features are left unused |
+| Managed services over servers | no capital expenditure, no infrastructure team (2.5) | Higher unit cost, bought instead of a team |
+| Stateless compute, externalised state | failover without local state (SQ-3) | A hydration cost on every request |
+| One immutable image, role by configuration | no configuration drift (SQ-8) | A role change needs a redeploy |
+| Declarative infrastructure for accounts, buckets, policies and keys | the platform can deploy into the regulator's account but cannot read from or operate it | Account topology becomes code that must be reviewed |
+| Horizontal scale by role | worker lag drives scale; the relayer does not scale (SQ-4) | Outbox concurrency complexity |
+| Resilience by multi-AZ, retry and stable identifiers | degradation, not loss (SQ-3, SQ-5) | Idempotency is a design obligation on every side effect |
+| Observability as an output | watermarks, lag, two health signals (SQ-9) | Instrumentation is built, not assumed |
+| Least privilege with accounts as boundaries | residency and separation (SP-5) | Four accounts to operate |
+| Portable formats and standard SQL | exit and portability | Some provider features are left unused |
 
 Two deviations are deliberate and recorded: a single managed primary with a reader rather than distributed SQL,
 and one region with warm copies rather than active-active. Both follow from pilot scale and are revisited only on
