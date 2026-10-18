@@ -15,19 +15,19 @@ Stakeholder by stakeholder, the justification is in 1.2.
 
 | ID | Quality | Requirement | Measure / acceptance | Stakeholders |
 |---|---|---|---|---|
-| SQ-1 | Integrity | A confirmed event cannot be altered or removed without detection by a party that distrusts the operator | Detectable from published proofs alone | S6, S9, S11 |
-| SQ-2 | Non-repudiation | Attribution survives rotation, revocation and suspension | Verifiable from the event and registry history alone | S1–S4, S6, S11 |
-| SQ-3 | Availability | One dependency lost degrades a capability, never to a false "no record" | Fault injection yields a declared state and a visible marker | S4, S6 |
+| SQ-1 | Integrity | A confirmed event cannot be altered or removed undetectably by a party that distrusts the operator | Detectable from published proofs alone | S6, S9, S11 |
+| SQ-2 | Non-repudiation | Attribution survives rotation, revocation and suspension | Verifiable from event and registry history alone | S1–S4, S6, S11 |
+| SQ-3 | Availability | One dependency lost degrades a capability, never to a false "no record" | Fault injection yields a declared state and marker | S4, S6 |
 | SQ-4 | Performance | Reads at the edge; traversal bounded | 5 000 requests/s at the CDN; 10 000 synchronous edges | S5, S6 |
-| SQ-5 | Recoverability | Trace rebuilt without the platform database | RPO 0 receipted; database RPO ≤ 5 min; RTO ≤ 4 h; region ≤ 24 h | S6, S10, S11 |
-| SQ-6 | Usability and accessibility | A first-time smallholder captures without training; every screen works for low literacy or low vision | Under three minutes at 2G; WCAG 2.2 AA; 200 % text; label plus icon per field | S1, S4 |
+| SQ-5 | Recoverability | Trace rebuilt without the platform database | RPO 0 receipted; database ≤ 5 min; RTO ≤ 4 h; region ≤ 24 h | S6, S10, S11 |
+| SQ-6 | Usability and accessibility | A first-time smallholder captures without training; every screen works at low literacy or vision | Under three minutes at 2G; WCAG 2.2 AA; 200 % text; label plus icon per field | S1, S4 |
 | SQ-7 | Privacy | No natural-person reference, no private content in the shared record | Schema check at admission; privacy review of profiles | S1, S5, S6 |
-| SQ-8 | Interoperability | EPCIS 2.0 / CBV; versioned profiles; replaceable chain | Interpretable from profile and canonicalisation version alone | S2, S3, S11 |
-| SQ-9 | Auditability | Every state change and disclosure is attributable and reproducible | Replay reproduces derivation and advisories | S6, S7, S11 |
+| SQ-8 | Interoperability | EPCIS 2.0 / CBV; versioned profiles; replaceable chain | Interpretable from profile and canonicalisation version | S2, S3, S11 |
+| SQ-9 | Auditability | Every state change and disclosure attributable and reproducible | Replay reproduces derivation and advisories | S6, S7, S11 |
 | SQ-10 | Cost and operability | One application, one managed database, no self-managed cluster | Topology and monthly estimate documented | S9 |
-| SQ-11 | Device evidence | Profile-required summaries with provenance; raw telemetry private | A summary resolves to publisher and to private raw data | S1, S3, S12 |
+| SQ-11 | Device evidence | Profile-required summaries with provenance; raw telemetry private | A summary resolves to publisher and private raw data | S1, S3, S12 |
 | SQ-12 | Regulatory screening | Signed, versioned regulator rules; ML optional | A rule runs at a watermark and traces to its version | S6, S7 |
-| SQ-13 | Analysability | Insight views over confirmed data, inside the scoped read path | Every view states watermark and scope | S1–S4, S6 |
+| SQ-13 | Analysability | Insight views over confirmed data inside the scoped read path | Every view states watermark and scope | S1–S4, S6 |
 
 ## 2.2 Scenarios, risks and rejected alternatives
 
@@ -66,8 +66,8 @@ against.
 
 | Quality | Risk if unaddressed | Decision taken | Alternative rejected, and why |
 |---|---|---|---|
-| Integrity | The operator, or an attacker with its credentials, rewrites history silently | Public Merkle root plus an acknowledgement from outside the operator's account | **Database plus WORM backup** leaves the operator sole verifier; **permissioned ledger** needs validators we do not have (R1) |
-| Non-repudiation | Rotation or compromise makes old claims unattributable | One envelope for all custody modes; key history retained; past events never rewritten | **Platform-held participant key** allows impersonation (R2); **per-employee keys** put people in an immutable record (R5) |
+| Integrity | The operator, or an attacker with its credentials, rewrites history silently | Public Merkle root plus an acknowledgement from outside the operator's account (R1) | **Database plus WORM backup** leaves the operator sole verifier; **permissioned ledger** needs validators we do not have |
+| Non-repudiation | Rotation or compromise makes old claims unattributable | One envelope for all custody modes; key history retained; past events never rewritten (R2) | **Platform-held participant key** allows impersonation; **per-employee keys** put people in an immutable record (R5) |
 | Availability and performance | An outage returns "nothing found"; bursts overwhelm the origin | Declared failure states; reads from materialised data; edge snapshots; bounded traversal | **Synchronous dependency calls** make any outage a product outage; **graph database day one** has no workload evidence |
 | Privacy | An immutable log becomes an unlawful personal-data store | No natural-person fields; private content off-platform behind a salted commitment | **Field-level encryption** leaves the platform holding keys; **per-event access lists** are unenforceable if it cannot read |
 | Analysability | Insight views drift into a second, disagreeing read path | Views served from the confirmed projection at a named watermark | **A separate dashboard database** adds a consistency boundary where stale figures look authoritative |
@@ -245,13 +245,13 @@ Australian regions for non-public data and analytics in the regulator's own acco
 
 ## 2.B AI/ML and IoT requirements (bonus)
 
-**IoT-1 Summary, not telemetry.** Profile-required summaries only; raw readings stay private.
-**IoT-2 Device identity without an account per sensor.** Devices are organisation delegations.
-**IoT-3 Three latency tiers.** Collection at the edge, availability after receipt, verifiability after
-confirmation; the cold-chain loop is local, the platform's alarm post-confirmation.
-**AI-1 Deterministic rules first.** Versioned and signed by the regulator; ML optional, never gating a write.
-**AI-2 Reproducibility.** Every finding names its rule or model version and its input watermark.
-**AI-3 Human decision.** No model output becomes a recall decision without a signed assessment.
+**IoT-1 summaries, not telemetry; IoT-2 devices as organisation delegations, not accounts; IoT-3 collection at
+the edge, availability at the platform, verifiability at the archive.** The cold-chain loop is local, so the
+platform's alarm is post-confirmation.
+
+**AI-1 deterministic rules first, versioned and signed by the regulator, with ML optional and never gating a
+write; AI-2 every finding names its rule or model version and its input watermark; AI-3 no model output becomes
+a recall decision without a signed assessment.**
 
 **IS-1 Cold-chain excursion.** The participant's system alarms and acts; a summary and reference ride on the
 receiving claim; the platform is not the primary alarm path.
@@ -262,4 +262,4 @@ platform supplies minimised data and cannot read the rule.
 |---|---|
 | Raw telemetry on the platform | Turns the trace into a time-series warehouse; privacy exposure; unmanageable retention |
 | Platform-side real-time alerting | Adds a hard latency requirement and duplicates the participant's control loop |
-| ML in the write path | Makes a model an adjudicator; training data is a purpose-bound snapshot in the regulator's domain |
+| ML in the write path | Makes a model an adjudicator; training data belongs in the regulator's domain |
