@@ -53,3 +53,23 @@ Incorporate Cloud, Security and Privacy decisions into C4 diagrams.
 ### Architectural Rationale
 
 Clearly explain how your design meets the cloud adoption, security and privacy requirements.
+
+## Week 12 Peer Review 4 – Architecture Evaluation
+
+Incorporate the feedback collected during the previous peer review for improving the initial architecture design to the final architecture design, and conduct evaluation through the following aspects:
+
+### Architectural context
+
+The architectural context is well described.
+
+### System qualities
+
+The effect of the main required system qualities is well explained.
+
+### Significant scenarios
+
+Scenarios illustrate how the most important competing qualities are resolved by the architecture.
+
+### Architecture alternatives
+
+At least one alternative architectural response to the significant scenarios is described.
