@@ -181,7 +181,7 @@ The component view sets responsibility boundaries for the conceptual entities; t
 
 `SignatureEnvelope` binds an organisation and signing evidence but no employee identity; `AcceptanceReceipt` references external `ArchiveAck`; `ProtectedResourceRef` contains a salted commitment and a storage mode rather than private content. `EvidenceEdge`, `EdgeQuery` and `EdgeGroup` carry provenance, scope and watermark. `RuleVersionManifest` discloses a rule digest, not its body; `Finding` and `AdvisoryFinding` share a stable identity.
 
-Conceptually, submissions become canonical events linked to profile versions, evidence references, acknowledgement, leaf and batch. Logically, derived edges and projections belong to query components, not to the archived record. Across views each class has one owning component and container, external dependencies enter through ports, and enumerations are published contracts (Appendix A). Figure 9 resolves the same event, submission, leaf and batch identities into physical keys and relations — the deliberate bridge between the conceptual, logical and physical models. The SQL tables are not a second source of business truth.
+Conceptually, submissions become canonical events linked to profile versions, evidence references, acknowledgement, leaf and batch. Logically, derived edges and projections belong to query components, not to the archived record. Across views each class has one owning component and container, external dependencies enter through ports, and enumerations are published contracts (Figures 4 and 7). Figure 9 resolves the same event, submission, leaf and batch identities into physical keys and relations — the deliberate bridge between the conceptual, logical and physical models. The SQL tables are not a second source of business truth.
 
 ## 4. Architectural rationale and decisions
 
@@ -318,30 +318,66 @@ The selected design is not universally optimal: it favours independently verifia
 
 ---
 
-## Appendix A — Evidence index
+## Appendix A — Glossary
 
-| Claim or requirement | Primary evidence |
+### A.1 Standards and domain terms
+
+| Term | In one sentence |
 |---|---|
-| SQ-1/2, SP-1/2 | Figures 4, 5, 7, 12; Section 4.4 signed acknowledgment and chain proof. |
-| SQ-3/5, DM-3/4 | Figures 2, 9–12; archive, outbox, retention and recovery boundaries. |
-| SQ-4/9, DM-1/6 | Figures 4, 7, 9, 13; QueryPort, provenance, derivation and watermark. |
-| SQ-6/8/10 | Figures 1, 2, 10, 11; offline capture, EPCIS profiles, managed modular deployment. |
-| SQ-7, SP-3–8 | Figures 1, 3, 6, 8, 12–13; owner-held evidence and regulator isolation. |
-| SQ-11–13 | Figures 1, 3, 6, 8; participant IoT summaries and regulator/insight projections. |
-| Code-to-component-to-container | Figures 7/8 → 4/6 → 2/3; stable names, one owner per model, boundary ports. |
+| GS1 | The standards body behind EPC product identifiers and the EPCIS event format. |
+| [EPCIS 2.0](https://www.gs1.org/standards/epcis) | GS1's standard for supply-chain event data: what happened to which objects, where and when. |
+| [CBV](https://www.gs1.org/standards/epcis) | The Core Business Vocabulary fixing allowed business steps and dispositions, so participants share terms. |
+| Lot / batch | A quantity produced or handled together; "lot" is the commercial term, "batch" the production one. |
+| Aggregation / transformation | EPCIS event types for packing items into containers, and for turning inputs into outputs. |
+| Cold chain | Temperature-controlled movement whose devices produce continuous readings; only summaries are accepted here. |
+| Provenance / lineage | The derived graph of which lot became which; the evidence a recall traversal follows. |
 
-## Appendix B — Regulation and terminology
+### A.2 System terms
 
-| Obligation or term | Interpretation in this design |
+| Term | In one sentence |
+|---|---|
+| Attributable claim | An EPCIS event signed by a verified organisation; the unit of the shared record. |
+| Confirmation gate | The rule that an event is CONFIRMED only after an outside holder signs for the bytes and a chain root is final. |
+| Holder / trustee | The independent operator of the archive and key service, outside the platform's control domain. |
+| DEK / KEK | A per-event data-encryption key, wrapped by a key-encryption key held by the consortium, not the platform. |
+| ArchiveAck | The holder's signature over the stored ciphertext; without it no receipt is issued. |
+| Merkle root / inclusion proof | A hash committing to a batch, plus the short proof that a leaf belongs to it. |
+| WORM | Write-once-read-many storage; what makes the archive a copy of record. |
+| Watermark | The fixed input version at which a query or finding was computed. |
+| Non-collapsing | Returning contradictory claims side by side instead of choosing the more plausible one. |
+| QueryPort / QueryStore | The single scoped read interface, and the rebuildable plaintext copy behind it. |
+
+### A.3 Notation and symbols
+
+| Symbol | Meaning |
+|---|---|
+| Person / system / external system | C4 shapes: who uses it, what is in scope, what sits outside (Figures 1, 10). |
+| Container / data store / component | Deployable unit, persistent store, unit of responsibility (Figures 2–6, 10–11). |
+| Solid / dashed arrow, numbered label | Synchronous call / asynchronous event; numbers give step order (Figures 12–13). |
+| `<<signed>>` `<<immutable>>` `<<regulator-private>>` | Lifecycle constraint on a class, not an access modifier (Figures 7–8). |
+| `<<PK>>` `<<FK>>`, crow's foot | Primary key, foreign key, "many" on a relation (Figure 9). |
+
+### A.4 Acronyms
+
+| Acronym | Expansion |
+|---|---|
+| APPs / ATAM | Australian Privacy Principles / Architecture Tradeoff Analysis Method |
+| BFT / CBV | Byzantine fault tolerance / Core Business Vocabulary |
+| CDN / CQRS | Content delivery network / command-query responsibility segregation |
+| DEK / KEK | Data-encryption key / key-encryption key |
+| HSM / IAM | Hardware security module / identity and access management |
+| KMS / NFR | Key-management service / non-functional requirement |
+| PITR / PWA | Point-in-time recovery / progressive web application |
+| RPO / RTO | Recovery point objective / recovery time objective |
+| SOLID / STRIDE | Five design principles / the six threat categories |
+| TSA / WCAG | Timestamping authority / Web Content Accessibility Guidelines |
+
+## Appendix B — Regulation
+
+| Obligation | How the design answers it |
 |---|---|
 | NSW Food Act / Food Standards Code | Supports conservative recall evidence and signed notices; does not authorise automated findings of fact. |
-| Privacy Act / APPs; NSW privacy obligations | Minimise immutable identity, scope reads, keep evidence owner-held and retain mutable correction paths. |
-| Records retention and legal hold | Class-based rules, logged transitions, multi-party deletion controls and anchored audit evidence. |
-| EPCIS / CBV | GS1 event semantics / Core Business Vocabulary; extended through retained versioned profiles. |
-| ArchiveAck; DEK; KEK | Holder-signed persistence acknowledgement; per-event data-encryption key; externally controlled key-encryption key. |
-| Merkle root; finality; inclusion proof | Batch commitment; chain confirmation threshold; evidence that a leaf belongs to a root. |
-| QueryPort; watermark; non-collapsing | Single scoped read interface; fixed input version; preservation of contradictory lineage claims. |
-| PWA; CDN; KMS; PITR | Progressive Web App; content delivery network; key-management service; point-in-time recovery. |
-| ATAM; STRIDE; SOLID | Architecture Tradeoff Analysis Method; threat categories; object-oriented design principles. |
-| C4; CQRS; IAM; WORM; BFT | Software architecture view model; command/query responsibility separation; identity and access management; write-once-read-many; Byzantine fault tolerance. |
-| RPO; RTO; WCAG; NFR | Recovery point objective; recovery time objective; Web Content Accessibility Guidelines; non-functional requirement. |
+| Privacy Act 1988 and the APPs; NSW privacy law | Minimises immutable identity, scopes reads, keeps evidence owner-held and retains a mutable correction path. |
+| Records retention and legal hold | Class-based rules, logged transitions, multi-party deletion and anchored audit evidence. |
+
+Terminology that the body uses without expansion is defined in Appendix A.
