@@ -26,7 +26,7 @@ This assignment reflects industry practice in which software architectures are d
 
 **How/When to submit**
 
-The assignment is to be delivered, as a printable digital document, to a Turnitin assignment box on Canvas by midnight 23**Oct 2026.**An assignment submitted after the due date will be considered late and will lose marks as per FEIT policy.
+The assignment is to be delivered, as a printable digital document, to a Turnitin assignment box on Canvas by midnight 30**Oct 2026.**An assignment submitted after the due date will be considered late and will lose marks as per FEIT policy.
 
 **Brief overview of the Software Architecture Document**
 
