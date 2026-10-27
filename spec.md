@@ -3,7 +3,7 @@
 - This is a group assignment to be completed by groups. The groups need to be Self Assigned on Canvas.
 - The assignment requires development and delivery of a written software architecture as described below.
 - The assignment is worth **45 marks**(45%).
-- The assignment is not expected to exceed **5000 words.** It should also contain a number of architecture diagrams.
+- The assignment is not expected to exceed **5000 words**(appendix excluded). It should also contain a number of architecture diagrams.
 - You must develop an architecture for one of the case studies available on Canvas. The diagrams in the assignment can be completed using C4 model.
 
 **Related Assessment**
