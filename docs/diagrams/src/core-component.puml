@@ -20,7 +20,9 @@ Container_Boundary(core, "Traceability Core") {
 Component_Ext(modules, "Semantic Modules (same process)", "Handover, Recall, Compliance, Consumer, Insights")
 Component_Ext(idgov, "Organisation & Key Registry", "Approved members, user role mappings, key history and identity change audit")
 Component_Ext(profiles, "Product Profile Registry", "Governance-published, immutable versions")
+System_Ext(participantSystems, "Participant business systems / IoT adapter", "Live telemetry and short-lived buffering; retained abnormal evidence")
 
+Rel(participantSystems, capture, "Signed journey summaries and excursion events", "HTTPS")
 Rel(capture, idem, "Check and register")
 Rel(capture, canon, "Raw event")
 Rel(canon, sig, "Canonical payload + digest")

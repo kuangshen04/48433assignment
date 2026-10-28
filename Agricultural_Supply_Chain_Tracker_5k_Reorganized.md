@@ -105,18 +105,23 @@ Derived queries and insights carry data watermarks for reproducibility. Critical
 |---|---|---|
 | `captureRecordId` | UUID v4 / 36 | Submission identity and idempotency; participant; DM-3/S1. |
 | `eventTime` | ISO 8601 with offset / 30 | Publisher-asserted business time; publisher; DM-1/S6. |
+| `observationWindowStart`, `observationWindowEnd` | ISO 8601 with offset / 30 each | IoT summary observation interval; gateway; SQ-11/S3. |
+| `monitoringCoverage` | Decimal(5,2) / 6 | Percentage of the observation interval monitored, 0–100; gateway; SQ-11/S3. |
+| `monitoringGaps` | JSON timestamp-pair array / ≤16 KiB | Unmonitored intervals within the observation window; gateway; SQ-11/S3. |
 | `epcList`, `quantityList` | EPC URI / class, quantity, UOM; ≤255 per entry | Lot/instance and quantities; publisher; O3/S2. |
 | `quantity`, `uom` | Decimal(18,6) / UN-CEFACT; 22 / 3 | Asserted amount and unit; publisher; S2. |
 | `profileId`, `profileVersion` | Slug / semver; 64 / 20 | Frozen validation language; governance; DM-1/SQ-8. |
 | `signerOrganisationId` | UUID v5 / 36 | Accountable organisation, not a person; registry; DM-5/SQ-2. |
 | `keyId`, `publicKey` | UUID / base64-encoded public key; 36 / ≤1024 | Organisation-authorised key and retained verification material; organisation; SQ-2. |
-| `admittedAt` | ISO 8601 UTC / 30 | Platform admission time associated with retained membership/key status; platform; SQ-2. |
+| `admittedAt` | ISO 8601 UTC / 30 | Platform acceptance time and retained membership/key status; distinct from observation time and chain finality; platform; SQ-2/11. |
 | `canonicalPayloadDigest` | SHA-256 hex / 64 | Signed canonical content; platform; SQ-1. |
 | `receiptDigest` | SHA-256 hex / 64 | Acceptance evidence bound into the Merkle leaf; platform; SQ-1/2. |
 | `plaintextCommitment` | Salted SHA-256 hex / 64 | Reference to owner-held evidence; owner; DM-2. |
 | `dataWatermark` | uint64 / 20 | Fixed query/projection input version; projection worker; SQ-9/13 and S2–S6. |
 
 The table covers the fields where architecture is decided; EPCIS 2.0/CBV supplies the standard business-event fields, and a retained versioned network profile constrains accepted extensions. Admission enforces typed, length-bounded profile fields. Profiles may add product-specific fields but cannot remove the core traceability floor, so a new product line changes approved validation rather than the shared event semantics.
+
+The IoT profile defines these monitoring extensions and summary statistics; they remain in the existing canonical payload, not separate telemetry tables. Abnormal evidence reuses `ProtectedResourceRef` and `plaintextCommitment`.
 
 `captureRecordId` is a transport idempotency identity, distinct from the EPCIS business event identifier. A correction does not overwrite the signed statement, and structural validity permits conflicting claims, whereas current organisation membership, signing-key status, required fields and idempotency collisions are admission checks. A query consumer sees the recorded assertion and its lifecycle status, not a platform-issued certification. Admission checks membership and key status at platform receipt time; it does not establish the true signing time. Acceptance records retain that status and the original key for later verification. Key compromise may still require external investigation.
 

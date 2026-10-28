@@ -4,9 +4,9 @@
 
 title Deployment view — platform recovery and independent verification
 
-Deployment_Node(device, "Participant device / business system", "Browser or gateway", "Intermittent connectivity") {
+Deployment_Node(device, "Participant device / business system", "Browser or gateway", "Intermittent connectivity; IoT adapter: live views, temporary telemetry buffer, bounded excursion retries") {
   Container(pwa, "Portal (PWA)", "Browser", "Capture, query and proof export")
-  ContainerDb(local, "Participant records", "Local storage / existing system", "Retains signed submissions and exported proofs")
+  ContainerDb(local, "Participant records", "Local storage / existing system", "Signed submissions, proofs and retained abnormal windows; routine readings expire after final-event acceptance")
 }
 Deployment_Node(edge, "CDN edge", "Global PoPs", "Static snapshots") {
   Container(cdn, "Snapshot cache", "CDN", "Versioned public objects")
@@ -25,6 +25,7 @@ Deployment_Node(dr, "Australian recovery region", "Managed backup storage", "Con
 Deployment_Node(chainNet, "Public blockchain", "Independent network", "Finalised commitments; no business payload")
 Rel(pwa, local, "Retain submissions and proofs")
 Rel(pwa, app, "Capture, query, export", "HTTPS")
+Rel(device, app, "IoT adapter: signed summaries / excursions", "HTTPS")
 Rel(app, db, "Atomic event, receipt and anchor intent", "SQL/TLS")
 Rel(workers, db, "Projection / export work", "SQL/TLS")
 Rel(workers, snapshots, "Publish", "Object API")
