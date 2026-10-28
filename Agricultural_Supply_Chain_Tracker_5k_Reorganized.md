@@ -46,7 +46,7 @@ The brief also requires food-safety compliance, IoT integration, multiple produc
 | ID | Constraint / planning envelope |
 |---|---|
 | C1 | Blockchain-based solution. |
-| C2 | NSW regulatory scope. |
+| C2 | Assumed initial jurisdiction: NSW, to bound first-release compliance analysis; regional load scalability remains required. |
 | C3 | Interoperability with participants’ existing systems. |
 | C4 | Intermittent rural connectivity. |
 | C5–C7 | Pilot: 200 organisations, 10 000 events/day across all participating regions; small operating team; no production access. |
@@ -281,7 +281,7 @@ Figure 6 identifies nine physical tables. Five decisive constraints bind the log
 
 For a transformation, canonical event types carry the claimed input and output identifiers. `Evidence Graph Builder` derives versioned edges but does not impose uniqueness on consumed lots: the same input may appear in multiple competing assertions. A recall query uses a fixed watermark and includes provenance on every traversed edge, so an officer can reproduce the scope rather than silently relying on a later, changed dataset. The event record, edge derivation version and public projection remain separately identifiable during replay.
 
-No warehouse or data lake is warranted at 10,000 events/day: materialised insights meet the initial use cases without duplicating private content or adding another consistency boundary. The projection workers are the only ELT step — canonical events in, versioned marts out — so nothing downstream becomes a second source of truth. Additional geographic regions share the event model and lineage store; another legal jurisdiction requires compliance assessment. New product profiles extend validation without rewriting the event model.
+No warehouse or data lake is warranted at 10,000 events/day: materialised insights meet the initial use cases without duplicating private content or adding another consistency boundary. The projection workers are the only ELT step — canonical events in, versioned marts out — so nothing downstream becomes a second source of truth. Additional geographic regions share the event model and lineage store; entering another legal jurisdiction requires compliance assessment beyond the assumed initial NSW scope. New product profiles extend validation without rewriting the event model.
 
 ### 4.3 Cloud-native execution and deployment — rubric 4.11–4.15
 
