@@ -1,11 +1,12 @@
 $ErrorActionPreference = 'Stop'
-# Regenerate the C4 SVGs used by docs/architecture/c4-core.md.
+# Regenerate active SVG diagrams and the PNG previews embedded in the report.
 # Requires Java 11+ and network access on first run (the PlantUML jar is downloaded once).
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $vendor = Join-Path $root 'vendor'
 $src = Join-Path $root 'src'
 $out = Join-Path $root '..\public\diagrams'
+$preview = Join-Path $root 'preview'
 $jar = Join-Path $vendor 'plantuml.jar'
 
 if (-not (Test-Path $jar)) {
@@ -16,12 +17,17 @@ if (-not (Test-Path $jar)) {
 }
 
 New-Item -ItemType Directory -Force -Path $out | Out-Null
+New-Item -ItemType Directory -Force -Path $preview | Out-Null
 Push-Location $src
 try {
     java -jar $jar -tsvg -o (Resolve-Path $out).Path *.puml
     if ($LASTEXITCODE -ne 0) { throw "PlantUML failed with exit code $LASTEXITCODE" }
+    java -jar $jar -tpng -o (Resolve-Path $preview).Path *.puml
+    if ($LASTEXITCODE -ne 0) { throw "PlantUML PNG rendering failed with exit code $LASTEXITCODE" }
 } finally {
     Pop-Location
 }
 Write-Host "Rendered:"
-Get-ChildItem $out -Filter *.svg | ForEach-Object { "  " + $_.Name }
+Get-ChildItem $src -Filter *.puml | ForEach-Object {
+    "  " + $_.BaseName + '.svg / .png'
+}

@@ -1,5 +1,5 @@
 @startuml analytics-code
-!include ../vendor/style.puml
+!include ../../vendor/style.puml
 title Code view (major classes) — Regulatory Analytics
 
 hide empty members

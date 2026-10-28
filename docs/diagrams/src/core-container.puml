@@ -15,14 +15,13 @@ System_Boundary(system, "Agricultural Supply Chain Tracker") {
 
   Container_Boundary(platform, "Platform control domain") {
     Container(portal, "Participant & Regulator Portal", "PWA in browser", "Capture forms, lineage and recall views, evidence requests, exports")
-    Container(app, "Traceability Application", "Modular monolith (Core + 6 modules)", "Admission validation, confirmation gate, evidence graph, single QueryPort")
-    Container(workers, "Ingestion & Projection Workers", "Outbox-driven workers", "Idempotent retry, projection rebuild, export, retention, advisory intake")
+    Container(app, "Traceability Application", "Modular monolith (Core + 5 modules)", "Admission validation, confirmation gate, evidence graph, single QueryPort, scoped insights")
+    Container(workers, "Ingestion & Projection Workers", "Outbox-driven workers", "Idempotent retry, projection rebuild, export, retention")
     Container(relayer, "Batch Builder & Relayer", "Isolated worker with chain wallet", "Merkle batching, root submission, inclusion proofs")
-    ContainerDb(db, "Operational PostgreSQL", "Managed PostgreSQL", "Submission state, current registries, outbox, QueryStore, projections")
+    ContainerDb(db, "Operational PostgreSQL", "Managed PostgreSQL", "Submission state, current registries, outbox, QueryStore, lineage and insight projections")
     Container(cdn, "Public Snapshot Delivery", "Object storage + CDN", "Versioned PUBLIC consumer snapshots")
   }
 
-  Container(analytics, "Analytics Workspace", "Regulator-operated runtime, own account", "Signed RuleVersions, screening, private findings, signed advisories")
 }
 
 Container_Ext(archive, "External Archive", "WORM, outside platform control domain", "Encrypted canonical payload; signs ArchiveAck")
@@ -42,8 +41,6 @@ Rel_Left(workers, archive, "Envelope, Ack")
 Rel_Down(relayer, archive, "Batch manifest")
 Rel_Down(relayer, db, "Leaves, intents")
 Rel_Right(relayer, chain, "Merkle root")
-Rel_Right(app, analytics, "DatasetSnapshot (signed)")
-Rel_Left(analytics, workers, "Signed advisories, rule manifests")
 Rel_Up(workers, db, "Outbox poll")
 
 SHOW_LEGEND()

@@ -2,7 +2,7 @@
 
 ## 0. Architecture at a glance
 
-This system is a cross-organisation record of **attributable supply-chain claims**, not an ERP or an arbiter of physical truth. Participants publish versioned GS1 EPCIS events; other participants and regulators can inspect their provenance, competing claims and derived lineage. A claim is **CONFIRMED** only after an independent holder acknowledges its archived bytes and a batch commitment reaches public-chain finality. Thus a single operator cannot silently rewrite confirmed history, although signatures cannot prove that a claim describes reality. A modular application handles admission and scoped queries; workers handle archiving and projections; an isolated relayer anchors Merkle roots; public scans use CDN snapshots. Regulatory screening runs in a separate regulator-controlled domain. This architecture buys verifiability and recoverability at the cost of external-holder availability, asynchronous confirmation and cross-organisation governance.
+This system is a cross-organisation record of **attributable supply-chain claims**, not an ERP or an arbiter of physical truth. Participants publish versioned GS1 EPCIS events; other participants and regulators can inspect their provenance, competing claims and derived lineage. A claim is **CONFIRMED** only after an independent holder acknowledges its archived bytes and a batch commitment reaches public-chain finality. Thus a single operator cannot silently rewrite confirmed history, although signatures cannot prove that a claim describes reality. A modular application handles admission and scoped queries; workers handle archiving and projections; an isolated relayer anchors Merkle roots; public scans use CDN snapshots. Authorised regulators use the platform’s scoped investigation and export functions. This architecture buys verifiability and recoverability at the cost of external-holder availability, asynchronous confirmation and cross-organisation governance.
 
 For example, a retailer investigating a contaminated lot must traverse aggregation and transformation claims towards upstream producers. If two processors dispute an input lot, the trace preserves both provenance paths; it reports *possibly affected* material rather than selecting a winner. This makes traceability an evidence service for human decisions, not an automated food-safety verdict.
 
@@ -10,7 +10,7 @@ For example, a retailer investigating a contaminated lot must traverse aggregati
 
 ### 1.1 Problem, objectives and interested parties — rubric 1.1
 
-Agricultural products pass between firms with incompatible identifiers, records and batch semantics. During a recall, reconstructing upstream and downstream movements requires contacting each firm; delay and inconsistent claims can undermine a defensible investigation. The proposed trace connects statements without taking over participants' operational systems. Its business objectives are: O1 affordable/offline participation; O2 attributable and tamper-evident history; O3 defensible incident scope; O4 a truthful consumer-facing state; O5 scoped commercial visibility and owner-controlled private evidence; O6 operability by a small team; O7 device evidence without becoming an IoT platform; and O8 reproducible regulatory screening, with ML optional.
+Agricultural products pass between firms with incompatible identifiers, records and batch semantics. During a recall, reconstructing upstream and downstream movements requires contacting each firm; delay and inconsistent claims can undermine a defensible investigation. The proposed trace connects statements without taking over participants' operational systems. Its business objectives are: O1 affordable/offline participation; O2 attributable and tamper-evident history; O3 defensible incident scope; O4 a truthful consumer-facing state; O5 scoped commercial visibility and owner-controlled private evidence; O6 operability by a small team; O7 device evidence without becoming an IoT platform.
 
 | Stakeholder | Architectural interest and consequence |
 |---|---|
@@ -51,19 +51,18 @@ The following qualities connect stakeholder needs to measurable architecture tes
 | SQ-4 Performance / S4,S5 | QS-4 public demand reaches 5,000 scans/s; bound synchronous traversal to 10,000 edges. | Use edge snapshots and an indexed query copy rather than origin joins at scan time. |
 | SQ-5 Recovery / S6,S9 | QS-5 platform account lost after receipt: receipted-event RPO 0; DB RPO ≤5 min, RTO ≤4 h, regional rebuild ≤24 h. | Archive, manifests and proofs must outlive platform tables; targets require drills. |
 | SQ-6 Accessibility / S1 | QS-6 four captures during 36 h offline; usable at 2G, WCAG 2.2 AA and 200% text. | Durable client queue, local identifiers and appropriate signing fallback. |
-| SQ-7 Privacy / S1,S6 | QS-7 regulator requests a laboratory report; QS-8 operator seeks regulator findings. | No private plaintext or natural-person fields in shared canonical records. |
+| SQ-7 Privacy / S1,S6 | QS-7 regulator requests a laboratory report; access is limited to authorised case participants. | Owner-controlled evidence access; no private plaintext or natural-person fields in shared canonical records. |
 | SQ-8 Interoperability / S1–S4 | Interpret an event from retained profile/canonicalisation versions; QS-10 chain replacement. | EPCIS/CBV profiles and chain-independent digests. |
 | SQ-9 Auditability / S6,S11 | QS-9 two processors assert the same input lot; replay preserves both claims and provenance. | Non-collapsing evidence graph, versioned derivation and watermarks. |
 | SQ-10 Operability / S9 | Small team operates one deployable application and managed database. | Avoid an orchestrated microservice estate without a scaling driver. |
 | SQ-11 Device evidence / S3 | QS-12 a reefer exceeds limits for 40 minutes. | Profile-required, signed summaries with raw samples left at source. |
-| SQ-12 Regulatory screening / S6 | QS-11 analytics unavailable during an open case; every finding is reproducible. | Screening is asynchronous and not on the capture/recall critical path. |
 | SQ-13 Insights / S2–S6 | QS-13 reproduce a product-line figure at yesterday's watermark. | Materialised, scoped projections; no independent untraceable analytics truth. |
 
 Rejected: operator-controlled WORM backup (no independent verification, SQ-1/5), per-employee immutable identities (SQ-7), synchronous external reads (SQ-3/4), authoritative graph storage (derived edges cease to be independently reconstructable, SQ-9), and ML-based admission (unauthorised adjudication). Section 4 traces these risks to tactics.
 
 ### 2.2 Data management, scenarios and storage — rubric 2.3–2.4
 
-DM-1 requires events interpretable under their original profile; DM-2 forbids readable PRIVATE content on the platform; DM-3 distinguishes the authoritative archive from rebuildable copies; DM-4 defines per-class retention and legal hold; DM-5 excludes natural-person canonical identifiers; DM-6 binds findings to rule versions and data watermarks. Critical architecture-specific elements are:
+DM-1 requires events interpretable under their original profile; DM-2 forbids readable PRIVATE content on the platform; DM-3 distinguishes the authoritative archive from rebuildable copies; DM-4 defines per-class retention and legal hold; DM-5 excludes natural-person canonical identifiers. Derived queries and insights carry data watermarks for reproducibility. Critical architecture-specific elements are:
 
 | Element | Format / max length | Description; source; need |
 |---|---|---|
@@ -76,7 +75,7 @@ DM-1 requires events interpretable under their original profile; DM-2 forbids re
 | `canonicalPayloadDigest` | SHA-256 hex / 64 | Signed canonical content; platform; SQ-1. |
 | `plaintextCommitment` | Salted SHA-256 hex / 64 | Reference to owner-held evidence; owner; DM-2. |
 | `ArchiveAckDigest` | SHA-256 hex / 64 | Digest of holder's signed persistence acknowledgement; holder; DM-3. |
-| `findingId`, `ruleVersion`, `dataWatermark` | UUID / semver / uint64; 36 / 20 / 20 | Reproducible finding identity; regulator; DM-6. |
+| `dataWatermark` | uint64 / 20 | Fixed query/projection input version; projection worker; SQ-9/13 and S2–S6. |
 
 The table covers the fields where architecture is decided; EPCIS 2.0/CBV supplies the standard business-event fields, and a retained versioned network profile constrains accepted extensions. Admission enforces typed, length-bounded profile fields. Profiles may add product-specific fields but cannot remove the core traceability floor, so a new product line changes approved validation rather than the shared event semantics.
 
@@ -88,7 +87,7 @@ One managed relational database provides typed EPCIS columns, exact decimals, re
 
 ### 2.3 Cloud needs, adoption scenarios and service models — rubric 2.5–2.6
 
-Participants need browser access rather than owned infrastructure; C6 rules out routine cluster patching; the regulator needs a control plane inaccessible to the platform operator. QS-4 requires edge rather than origin serving, DS-3 requires external evidence ownership, and QS-8 requires regulator-controlled analytics. The resulting choices are:
+Participants need browser access rather than owned infrastructure; C6 rules out routine cluster patching. QS-4 requires edge rather than origin serving, while DS-3 requires external evidence ownership. Regulators use scoped portal queries and exports. The resulting choices are:
 
 | Capability | Model / selected responsibility | Rejected alternative |
 |---|---|---|
@@ -97,18 +96,17 @@ Participants need browser access rather than owned infrastructure; C6 rules out 
 | Public delivery | CDN plus versioned object snapshots | Per-scan origin/API reads. |
 | Canonical archive and wrapping keys | Separate trustee-owned object storage and managed KMS | Operator-controlled backup and platform-held KEK. |
 | Chain | Paid public network, batched root submission | Consortium validators with no operators. |
-| Regulatory analytics | PaaS inside regulator account | Platform-administered shared tenant. |
 | Identity | External identity provider and business registry | In-house passwords or platform-issued legal identity. |
 
 Australian deployment locations, standards-based PostgreSQL and portable canonical formats support residency and exit planning.
 
-### 2.4 Security, privacy, regulation and optional device/AI requirements — rubric 2.7–2.8 and 2.B
+### 2.4 Security, privacy, regulation and device requirements — rubric 2.7–2.8 and 2.B
 
-SP-1 binds every write to an acting organisation, role and delegation; SP-2 keeps signatures and historical authorisation verifiable; SP-3 prevents the platform from decrypting owner-held evidence; SP-4 excludes natural-person fields from immutable history; SP-5 requires dual approval for high-impact governance; SP-6 audits reads and break-glass; SP-7 keeps regulator rules/findings private; SP-8 records residual threats. **Confidentiality:** QS-7/8 test independent evidence ownership and analytics isolation. **Integrity:** QS-1/2 test public commitments and key history. **Availability:** QS-3/5 test explicitly degraded reads and separately recoverable receipts. Australian Privacy Principles/Privacy Act, NSW privacy obligations, NSW Food Act and Food Standards Code inform minimisation, retention, recall evidence and signed notices; Appendix B maps each obligation to its answer.
+SP-1 binds every write to an acting organisation, role and delegation; SP-2 keeps signatures and historical authorisation verifiable; SP-3 prevents the platform from decrypting owner-held evidence; SP-4 excludes natural-person fields from immutable history; SP-5 requires dual approval for high-impact governance; SP-6 audits reads and break-glass; SP-8 records residual threats. **Confidentiality:** QS-7 tests authorised evidence disclosure without exposing owner-held plaintext to the platform. **Integrity:** QS-1/2 test public commitments and key history. **Availability:** QS-3/5 test explicitly degraded reads and separately recoverable receipts. Australian Privacy Principles/Privacy Act, NSW privacy obligations, NSW Food Act and Food Standards Code inform minimisation, retention, recall evidence and signed notices; Appendix B maps each obligation to its answer.
 
 **IoT (2.B).** In a cold-chain excursion, a participant's device/system collects readings and alarms locally; a profile-required windowed summary, unit, provenance and commitment accompany an EPCIS event. Devices are organisation delegations, not independent platform identities. Raw streams and platform-side alarm paths stay out, which preserves a verifiable evidence reference while limiting retention.
 
-**AI/ML (2.B).** A regulator-controlled screening run uses a signed deterministic rule at a fixed watermark; an optional future model must produce the same reproducible, advisory output. ML at admission and platform-side training are rejected: neither may become an automatic finding of wrongdoing or block a valid statement.
+Regulatory investigation uses trace queries, evidence exports and human review. Automated regulatory screening and ML are outside the proposed scope; the platform does not determine wrongdoing.
 
 ## 3. Architecture views
 
@@ -118,45 +116,36 @@ Four views narrow in sequence: context fixes the boundary, containers show runti
 
 ![Figure 1 — System context](docs/diagrams/preview/c4-context.png)
 
-*Figure 1 — Two peer subsystems, four groups of users, eight external systems.*
+*Figure 1 — One traceability system, four groups of users and eight external systems.*
 
-Traceability Core holds shared canonical claims, never the regulator's rule authority; Regulatory Analytics receives only a minimised export and returns signed disclosure messages. Devices feed participant systems, which submit profile-conformant EPCIS summaries. Humans authenticate through an identity provider; the business registry establishes the accountable organisation. The archive, KMS and chain remain external because their evidentiary role depends on not being administered solely by the platform.
+Traceability Core holds shared canonical claims and supplies scoped investigation, export and insight views to authorised users, including regulators. Devices feed participant systems, which submit profile-conformant EPCIS summaries. Humans authenticate through an identity provider; the business registry establishes the accountable organisation. The archive, KMS and chain remain external because their evidentiary role depends on not being administered solely by the platform.
 
 ![Figure 2 — Core containers](docs/diagrams/preview/core-container.png)
 
 *Figure 2 — Containers of the platform control domain and the external systems they depend on.*
 
-![Figure 3 — Analytics containers](docs/diagrams/preview/analytics-container.png)
-
-*Figure 3 — The regulator's workspace, its rule registry and its finding store.*
-
 | Container | Responsibility and key interaction |
 |---|---|
 | Portal | PWA capture, handover, regulator investigation, QR/insight views; uses the application or public CDN. |
 | Traceability Application | Admission, confirmation gate, canonical event store, evidence graph and single read interface. |
-| Ingestion/Projection Workers | Archive persistence, retries, lineage/projection rebuild, exports, retention and advisory intake. |
+| Ingestion/Projection Workers | Archive persistence, retries, lineage/projection rebuild, exports and retention. |
 | Batch Builder/Relayer | Deterministic leaves, manifests, Merkle batches, chain submission, finality and proofs. |
 | Operational PostgreSQL | Transactional state, registries, outbox and rebuildable plaintext QueryStore. |
 | Public Snapshot Delivery | Versioned public objects served by a CDN, not origin database joins. |
-| Analytics Workspace | Regulator-owned rule registry, screening, private findings and signed disclosures. |
 
-Admission commits submission state and archive intent atomically; workers operate asynchronously. QueryPort reads the scoped materialisation rather than contacting archive or chain per query. Only the relayer holds the chain wallet. The analytics domain cannot rewrite canonical history; the platform cannot read its rule bodies or findings. Figure 3 makes that control separation explicit.
+Admission commits submission state and archive intent atomically; workers operate asynchronously. QueryPort reads the scoped materialisation rather than contacting archive or chain per query. Only the relayer holds the chain wallet. Regulators use the same scoped read interface; insight projections are derived from canonical events and cannot rewrite their history.
 
 ### 3.2 Components and code — rubric 3.5–3.10
 
-![Figure 4 — Traceability Core components](docs/diagrams/preview/core-component.png)
+![Figure 3 — Traceability Core components](docs/diagrams/preview/core-component.png)
 
-*Figure 4 — Components of Traceability Core and the modules that consume its read interface.*
+*Figure 3 — Components of Traceability Core and the modules that consume its read interface.*
 
-![Figure 5 — Relayer components](docs/diagrams/preview/relayer-component.png)
+![Figure 4 — Relayer components](docs/diagrams/preview/relayer-component.png)
 
-*Figure 5 — Components of the relayer, the only container that touches a chain.*
+*Figure 4 — Components of the relayer, the only container that touches a chain.*
 
-![Figure 6 — Analytics Workspace components](docs/diagrams/preview/analytics-component.png)
-
-*Figure 6 — Four components, inside the regulator's account.*
-
-The Core separates Capture API; Idempotency/Outbox Coordinator; Canonicalisation/Profile Validator; Signature/Authority Validator; Submission State Machine; Archive/Anchor Orchestrator; Evidence Graph Builder; Confirmed Event Store; and QueryPort. The orchestrator owns the gate, workers execute intents, and QueryPort exposes `edges()` and bounded `traverse()` but no business-truth verdict. The relayer isolates the single spending credential; deterministic leaves and archive-side manifests make proof regeneration possible. Analytics has Dataset Intake, Rule Loader/Validator, Screening Runner and Advisory Publisher; the first release has no ML model loader.
+The Core separates Capture API; Idempotency/Outbox Coordinator; Canonicalisation/Profile Validator; Signature/Authority Validator; Submission State Machine; Archive/Anchor Orchestrator; Evidence Graph Builder; Confirmed Event Store; and QueryPort. The orchestrator owns the gate, workers execute intents, and QueryPort exposes `edges()` and bounded `traverse()` but no business-truth verdict. The relayer isolates the single spending credential; deterministic leaves and archive-side manifests make proof regeneration possible. The Insights module consumes QueryPort and presents scoped product-line and cold-chain summaries from worker-maintained projections.
 
 The component view sets responsibility boundaries for the conceptual entities; the code view specifies their types and relationships.
 
@@ -167,21 +156,17 @@ The component view sets responsibility boundaries for the conceptual entities; t
 | Archive/Anchor Orchestrator | Acknowledgement, leaf, batch | `ArchiveAckDigest`, `merkleLeafIndex`, `batchId`, batch root |
 | Evidence Graph Builder | Derived edge | source and target identifiers, `edgeDerivationVersion`, watermark |
 
-![Figure 7 — Core code view](docs/diagrams/preview/core-code.png)
+![Figure 5 — Core code view](docs/diagrams/preview/core-code.png)
 
-*Figure 7 — Thirteen classes, one interface, three enumerations.*
+*Figure 5 — Thirteen classes, one interface, three enumerations.*
 
-![Figure 8 — Analytics code view](docs/diagrams/preview/analytics-code.png)
+![Figure 6 — Physical data model](docs/diagrams/preview/core-physical-model.png)
 
-*Figure 8 — Eight classes; the manifest carries a rule digest, never the rule body.*
+*Figure 6 — Nine tables; the constraints that matter are named in §4.2.*
 
-![Figure 9 — Physical data model](docs/diagrams/preview/core-physical-model.png)
+`SignatureEnvelope` binds an organisation and signing evidence but no employee identity; `AcceptanceReceipt` references external `ArchiveAck`; `ProtectedResourceRef` contains a salted commitment and a storage mode rather than private content. `EvidenceEdge`, `EdgeQuery` and `EdgeGroup` carry provenance, scope and watermark.
 
-*Figure 9 — Nine tables; the constraints that matter are named in §4.2.*
-
-`SignatureEnvelope` binds an organisation and signing evidence but no employee identity; `AcceptanceReceipt` references external `ArchiveAck`; `ProtectedResourceRef` contains a salted commitment and a storage mode rather than private content. `EvidenceEdge`, `EdgeQuery` and `EdgeGroup` carry provenance, scope and watermark. `RuleVersionManifest` discloses a rule digest, not its body; `Finding` and `AdvisoryFinding` share a stable identity.
-
-Conceptually, submissions become canonical events linked to profile versions, evidence references, acknowledgement, leaf and batch. Logically, derived edges and projections belong to query components, not to the archived record. Across views each class has one owning component and container, external dependencies enter through ports, and enumerations are published contracts (Figures 4 and 7). Figure 9 resolves the same event, submission, leaf and batch identities into physical keys and relations — the deliberate bridge between the conceptual, logical and physical models. The SQL tables are not a second source of business truth.
+Conceptually, submissions become canonical events linked to profile versions, evidence references, acknowledgement, leaf and batch. Logically, derived edges and projections belong to query components, not to the archived record. Across views each class has one owning component and container, external dependencies enter through ports, and enumerations are published contracts (Figures 3 and 5). Figure 6 resolves the same event, submission, leaf and batch identities into physical keys and relations — the deliberate bridge between the conceptual, logical and physical models. The SQL tables are not a second source of business truth.
 
 ## 4. Architectural rationale and decisions
 
@@ -210,27 +195,26 @@ Responsibility by reason to change implements **SRP** (validation, graph constru
 | Admission, idempotency, registries, outbox | Managed PostgreSQL; point-in-time recovery. |
 | QueryStore and derived lineage | PostgreSQL materialisation; rebuildable with replay/versioned derivation. |
 | Public view and insight marts | Versioned snapshots/materialised views; rebuildable, watermark-labelled. |
-| Regulatory rules/findings | Independent regulator workspace; private; signed advisories cross the boundary. |
 
-Figure 9 identifies nine physical tables. Five decisive constraints bind the logical model: `capture_record_id` identifies submissions/canonical events; `merkle_leaf.capture_record_id` is unique; canonical events are append-only, with partitioning deferred until volume requires it; nonqueried payload remains separate; organisation predicates enforce the single scoped read path. Conceptual submission → event → profile/acknowledgement/leaf/batch relationships reconcile with Figure 4's store, graph and gate. Corrections add EPCIS error/corrective records rather than altering signed history. Edge derivation is versioned and replayable; conflicting claims coexist instead of being reconciled by hidden business heuristics.
+Figure 6 identifies nine physical tables. Five decisive constraints bind the logical model: `capture_record_id` identifies submissions/canonical events; `merkle_leaf.capture_record_id` is unique; canonical events are append-only, with partitioning deferred until volume requires it; nonqueried payload remains separate; organisation predicates enforce the single scoped read path. Conceptual submission → event → profile/acknowledgement/leaf/batch relationships reconcile with Figure 3's store, graph and gate. Corrections add EPCIS error/corrective records rather than altering signed history. Edge derivation is versioned and replayable; conflicting claims coexist instead of being reconciled by hidden business heuristics.
 
 For a transformation, canonical event types carry the claimed input and output identifiers. `Evidence Graph Builder` derives versioned edges but does not impose uniqueness on consumed lots: the same input may appear in multiple competing assertions. A recall query uses a fixed watermark and includes provenance on every traversed edge, so an officer can reproduce the scope rather than silently relying on a later, changed dataset. The event record, edge derivation version and public projection remain separately identifiable during replay.
 
-No warehouse or data lake is warranted at 10,000 events/day: materialised insights meet the initial use cases without duplicating private content or adding another consistency boundary. The projection workers are the only ELT step — canonical events in, versioned marts out — so nothing downstream becomes a second source of truth. A new region requires a separate deployment and governance decision; a new product profile should not require rewriting the canonical event model. These choices address DM-1–6 without implying the platform can verify the physical truth of an event.
+No warehouse or data lake is warranted at 10,000 events/day: materialised insights meet the initial use cases without duplicating private content or adding another consistency boundary. The projection workers are the only ELT step — canonical events in, versioned marts out — so nothing downstream becomes a second source of truth. A new region requires a separate deployment and governance decision; a new product profile should not require rewriting the canonical event model. These choices address DM-1–5 without implying the platform can verify the physical truth of an event.
 
 ### 4.3 Cloud-native execution and deployment — rubric 4.11–4.15
 
-![Figure 10 — Logical deployment](docs/diagrams/preview/c4-deployment.png)
+![Figure 7 — Logical deployment](docs/diagrams/preview/c4-deployment.png)
 
-*Figure 10 — Logical placement: which control domain owns which node.*
+*Figure 7 — Logical placement: which control domain owns which node.*
 
-![Figure 11 — Reference deployment](docs/diagrams/preview/c4-reference-deployment.png)
+![Figure 8 — Reference deployment](docs/diagrams/preview/c4-reference-deployment.png)
 
-*Figure 11 — A reference configuration that can be procured and built.*
+*Figure 8 — A reference configuration that can be procured and built.*
 
 Managed execution, declarative infrastructure, workload isolation, stateless application replicas and asynchronous worker scaling are the applied cloud-native principles. One container image runs as request-serving application or background worker; workers scale by outbox lag, portal/API by request demand, public delivery independently at the CDN. Stateful PostgreSQL remains managed rather than being placed in an application pod. This avoids administering Kubernetes or a self-managed IaaS cluster, consistent with C6; scale-out is based on observed load, not a promise of unlimited throughput.
 
-Four administrative domains express ownership: the platform; an independent trustee holding archive and keys; the regulator's analytics workspace; and the regulator's evidence mirror. IAM and the deployment pipeline may deliver approved artefacts into the regulator's account, but cannot grant the platform standing read or operations access there.
+Three administrative domains express ownership: the platform, an independent trustee holding archive and keys, and an optional regulator-operated evidence mirror. The mirror is an additional archive holder, not a regulatory analysis service; the confirmation gate requires only one qualified acknowledgement. Regulators access investigation and export functions through the platform portal.
 
 The reference placement is a Sydney primary with Melbourne recovery copies, a managed PostgreSQL writer and reader with point-in-time recovery, an outbound-only single relayer with its wallet in KMS, object storage for the archive, and CDN delivery for public snapshots. The reference chain is Ethereum mainnet. The non-upgradeable anchoring contract enforces batch sequencing and prior-root linkage; the relayer observes Ethereum consensus finality before marking a root final. Active-active writes, self-run validators and a dedicated warehouse are not justified at pilot scale.
 
@@ -238,15 +222,15 @@ A qualified holder must be separately administered, retain and enumerate archive
 
 ### 4.4 Dynamic evidence flows and trust boundaries — rubric 4.16–4.20
 
-![Figure 12 — Dynamic view: event acceptance](docs/diagrams/preview/c4-dynamic.png)
+![Figure 9 — Dynamic view: event acceptance](docs/diagrams/preview/c4-dynamic.png)
 
-*Figure 12 — One event from submission to confirmed visibility.*
+*Figure 9 — One event from submission to confirmed visibility.*
 
-![Figure 13 — Dynamic view: recall investigation](docs/diagrams/preview/c4-dynamic-recall.png)
+![Figure 10 — Dynamic view: recall investigation](docs/diagrams/preview/c4-dynamic-recall.png)
 
-*Figure 13 — Scope at a watermark, evidence request, signed notice.*
+*Figure 10 — Scope at a watermark, evidence request, signed notice.*
 
-In Figure 12, (1) a participant submits the canonical event, organisation signature and client idempotency key; (2) admission validates profile and historical authority and commits state plus archive intent; (3) a worker obtains a wrapped per-event key from the externally governed KMS, stores an encrypted envelope with a qualified holder and records its signed `ArchiveAck`; (4) the platform issues a receipt and batches its deterministic leaf; (5) a segregated relayer publishes the chained Merkle root, observes finality and exposes inclusion proof; (6) only then does the event become CONFIRMED and contribute to public snapshots. Failed dependencies leave it pending; timeouts never silently promote it.
+In Figure 9, (1) a participant submits the canonical event, organisation signature and client idempotency key; (2) admission validates profile and historical authority and commits state plus archive intent; (3) a worker obtains a wrapped per-event key from the externally governed KMS, stores an encrypted envelope with a qualified holder and records its signed `ArchiveAck`; (4) the platform issues a receipt and batches its deterministic leaf; (5) a segregated relayer publishes the chained Merkle root, observes finality and exposes inclusion proof; (6) only then does the event become CONFIRMED and contribute to public snapshots. Failed dependencies leave it pending; timeouts never silently promote it.
 
 | Flow crossing | Classification | Enforced boundary |
 |---|---|---|
@@ -254,11 +238,10 @@ In Figure 12, (1) a participant submits the canonical event, organisation signat
 | Platform → KMS/holder | Wrapped key, ciphertext and signed acknowledgement | Trustee account; no holder-readable plaintext. |
 | Relayer → public chain | Batch root, sequence and transaction reference | Public commitment; no business payload. |
 | Worker → public CDN | Versioned PUBLIC projection | Controlled disclosure/snapshot version. |
-| Platform ↔ regulator domain | Minimised export; signed advisory | Signed contract, regulator-owned processing. |
 
-Figure 13 fixes recall traversal at a data watermark, preserves provisional claims separately and records a regulator evidence request as an auditable reference rather than an arbitrary data pull. An official notice becomes CONFIRMED only after its canonical signing/anchoring requirements; the system establishes scope but businesses execute the recall. This prevents a transient dependency failure from being misreported as proof that no affected lot exists.
+Figure 10 fixes recall traversal at a data watermark, preserves provisional claims separately and records a regulator evidence request as an auditable reference rather than an arbitrary data pull. An official notice becomes CONFIRMED only after its canonical signing/anchoring requirements; the system establishes scope but businesses execute the recall. This prevents a transient dependency failure from being misreported as proof that no affected lot exists.
 
-**STRIDE coverage** follows the actual entry points: participant API/onboarding, portal reads, staff and evidence requests, exports to archive/KMS/chain/regulator, and internal worker/wallet control.
+**STRIDE coverage** follows the actual entry points: participant API/onboarding, portal reads, staff and evidence requests, exports to archive/KMS/chain and authorised regulators, and internal worker/wallet control.
 
 | Category / threat | Mitigation and boundary | Residual risk |
 |---|---|---|
@@ -269,13 +252,13 @@ Figure 13 fixes recall traversal at a data watermark, preserves provisional clai
 | Denial of service: flood or missing holder | Quotas, bounded queues, backpressure, retry; qualified holder set | Sustained saturation or absent acknowledgements. |
 | Elevation of privilege: operator or wallet compromise | No standing staff access, dual-approved anchored break-glass; isolated outbound relayer | Colluding approvers or compromised KMS/wallet. |
 
-These controls address SP-1–7 within stated trust boundaries. Anchoring proves a commitment, not physical truth. The platform runtime still reads CONSORTIUM plaintext; collusion, access metadata and partner insolvency remain risks. External holders control their own evidence, and the operator cannot alone fabricate a valid holder signature.
+These controls address SP-1–6 and SP-8 within stated trust boundaries. Anchoring proves a commitment, not physical truth. The platform runtime still reads CONSORTIUM plaintext; collusion, access metadata and partner insolvency remain risks. External holders control their own evidence, and the operator cannot alone fabricate a valid holder signature.
 
-### 4.5 IoT and AI/ML in the architecture — rubric 4.B, bonus
+### 4.5 IoT integration and insight views — rubric 4.B, bonus
 
 IoT ingestion begins at the participant's sensors and local control system, which performs collection and real-time alarms. The integration adapter publishes a profile-conformant summary (window, unit, min/max/mean, excursion duration/alarm), device delegation and commitment to owner-retained samples. Neither raw streams nor mandatory platform-side alerting enter the shared record. This preserves a verifiable evidence reference while limiting retention and protecting rural intermittent links.
 
-Regulatory screening consumes a minimised, versioned snapshot in the regulator account. A signed deterministic rule is evaluated against a known watermark; the private finding records rule version and inputs, while a scoped advisory is separately signed before disclosure. An ML scorer could implement the same advisory interface later; the pilot ships no model loader. The model must not gate admission or automatically issue an enforcement/recall decision. Independence costs a second operating environment, and screening can be temporarily unavailable without preventing canonical trace queries. Insight views are derived from the same materialised lineage, labelled by acting organisation, projection version and watermark. Product-line aggregation therefore cannot silently override disputed claims or reinterpret a provisional edge as established provenance. The portal provides role-specific capture, handover, investigation and insight entry points; detailed screen design is deferred, while offline capture, accessible field labels and state distinctions remain architectural acceptance criteria.
+Insight views are derived from the same materialised lineage, labelled by acting organisation, projection version and watermark. Product-line aggregation therefore cannot silently override disputed claims or reinterpret a provisional edge as established provenance. The portal provides role-specific capture, handover, investigation and insight entry points; detailed screen design is deferred, while offline capture, accessible field labels and state distinctions remain architectural acceptance criteria.
 
 ## 5. Evaluation and feasible alternatives
 
@@ -290,20 +273,19 @@ The Brief column names which of the brief's seven key requirements each row answ
 | O3 Recall scope | 5 | Supported: non-collapsing, watermarked indexed lineage | Completeness follows participants' event coverage. |
 | O4 Consumer view | 2 | Supported: versioned CDN states and signed notices | Cache propagation may lag a new notice. |
 | O5 Evidence/privacy | implied | Supported: owner-held PRIVATE data; scoped consortium read | Metadata and runtime plaintext remain. |
-| O6 Pilot operability | implied | Plausible: one deployable, managed services, batch anchoring | External holders and regulator domain need operators. |
+| O6 Pilot operability | implied | Plausible: one deployable, managed services, batch anchoring | External archive holders still need operators. |
 | O7 IoT evidence | 3 | Conditional: summaries plus source commitments | Instrumentation and source retention differ by firm. |
-| O8 Reproducible screening | bonus | Structural: regulator rule versions and watermarks | Regulator must operate the workspace. |
 | Product lines, regions, insights | 4, 6 | Partly supported: profiles and materialised views | Region expansion and front-end visual design remain work. |
 
 ### 5.2 ATAM: sensitivities, risks and trade-offs — rubric 5.3
 
 ATAM is chosen over HAZOP because this platform records evidence rather than controlling physical processes. High-importance drivers are integrity after operator loss, non-repudiation across key rotations, recall under archive outage, 5 000 public scans per second, offline capture and PRIVATE evidence disclosure.
 
-Sensitivity points are the anchoring window (cost against confirmation delay), qualified-holder liveness (receipt throughput against independence), the query traversal bound (recall completeness against latency) and visibility scope (regulatory authority against commercial confidentiality). Risks are an unavailable holder or chain, a single relayer spending credential, inadequate admission governance, a regulator unwilling to run its workspace, and an untested regional recovery time.
+Sensitivity points are the anchoring window (cost against confirmation delay), qualified-holder liveness (receipt throughput against independence), the query traversal bound (recall completeness against latency) and visibility scope (regulatory authority against commercial confidentiality). Risks are an unavailable holder or chain, a single relayer spending credential, inadequate admission governance, and an untested regional recovery time.
 
 Accepted trade-offs are provisional visibility before finality, metadata leakage instead of hosting private content, and small-team operability over independent scaling of every module. No benchmark or recovery drill has yet proved the targets; the reference deployment is a buildable proposal, not an operational result. Test priority follows from that: signature and authority replay, independent archive enumeration after platform loss, holder and chain outage injection, non-collapsing recall under load, and low-end offline capture. A failed test reopens the requirement; it does not license a quietly weaker guarantee.
 
-The key assessment is not whether the architecture eliminates all failures. Confirmation deliberately trades immediacy for independently checkable persistence and finality; rural accessibility trades synchronous verification for durable local capture; regulatory independence trades operational simplicity for separation of rule authority.
+The key assessment is not whether the architecture eliminates all failures. Confirmation deliberately trades immediacy for independently checkable persistence and finality; rural accessibility trades synchronous verification for durable local capture.
 
 ### 5.3 Alternative architectures — rubric 5.4
 
@@ -343,7 +325,7 @@ The selected design is not universally optimal: it favours independently verifia
 | ArchiveAck | The holder's signature over the stored ciphertext; without it no receipt is issued. |
 | Merkle root / inclusion proof | A hash committing to a batch, plus the short proof that a leaf belongs to it. |
 | WORM | Write-once-read-many storage; what makes the archive a copy of record. |
-| Watermark | The fixed input version at which a query or finding was computed. |
+| Watermark | The fixed input version at which a query or insight was computed. |
 | Non-collapsing | Returning contradictory claims side by side instead of choosing the more plausible one. |
 | QueryPort / QueryStore | The single scoped read interface, and the rebuildable plaintext copy behind it. |
 
@@ -351,11 +333,10 @@ The selected design is not universally optimal: it favours independently verifia
 
 | Symbol | Meaning |
 |---|---|
-| Person / system / external system | C4 shapes: who uses it, what is in scope, what sits outside (Figures 1, 10). |
-| Container / data store / component | Deployable unit, persistent store, unit of responsibility (Figures 2–6, 10–11). |
-| Solid / dashed arrow, numbered label | Synchronous call / asynchronous event; numbers give step order (Figures 12–13). |
-| `<<signed>>` `<<immutable>>` `<<regulator-private>>` | Lifecycle constraint on a class, not an access modifier (Figures 7–8). |
-| `<<PK>>` `<<FK>>`, crow's foot | Primary key, foreign key, "many" on a relation (Figure 9). |
+| Person / system / external system | C4 shapes: who uses it, what is in scope, what sits outside (Figures 1, 7). |
+| Container / data store / component | Deployable unit, persistent store, unit of responsibility (Figures 2–4, 7–8). |
+| Solid / dashed arrow, numbered label | Synchronous call / asynchronous event; numbers give step order (Figures 9–10). |
+| `<<PK>>` `<<FK>>`, crow's foot | Primary key, foreign key, "many" on a relation (Figure 6). |
 
 ### A.4 Acronyms
 

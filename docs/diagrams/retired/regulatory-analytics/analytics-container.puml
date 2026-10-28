@@ -1,6 +1,6 @@
 @startuml analytics-container
-!include ../vendor/C4_Container.puml
-!include ../vendor/style.puml
+!include ../../vendor/C4_Container.puml
+!include ../../vendor/style.puml
 
 title Container view — Regulatory Analytics (regulator control domain)
 

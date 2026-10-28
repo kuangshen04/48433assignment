@@ -17,7 +17,7 @@ Container_Boundary(core, "Traceability Core") {
   Component(query, "QueryPort", "Single read entrance", "Enforces scope, non-collapsing and watermark; returns edge groups with provenance")
 }
 
-Component_Ext(modules, "Semantic Modules (same process)", "Handover, Recall, Compliance, Consumer, AnalyticsInput, Insights")
+Component_Ext(modules, "Semantic Modules (same process)", "Handover, Recall, Compliance, Consumer, Insights")
 Component_Ext(idgov, "Identity & Governance registries", "Organisation, key, delegation, governance history")
 Component_Ext(profiles, "Product Profile Registry", "Governance-published, immutable versions")
 
@@ -32,8 +32,6 @@ Rel_Down(query, store, "Scoped read")
 Rel(modules, query, "edges(), traverse()")
 Rel(sig, idgov, "Authority, key state")
 Rel(canon, profiles, "Profile, floor, conformance")
-
-
 
 SHOW_LEGEND()
 @enduml

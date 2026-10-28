@@ -25,13 +25,7 @@ Deployment_Node(trustee, "Australian regions — trustee account", "Separate acc
   Container(recovery, "Recovery identity", "Separate IAM", "Restores without platform")
 }
 
-Deployment_Node(regacct, "Regulator account — analytics", "Separate account", "Regulator-operated") {
-  Container(workspace, "Analytics Workspace", "Containers", "Rules, screening, advisories")
-  ContainerDb(rules, "Rule registry", "Regulator store", "Rule bodies, versions")
-  ContainerDb(findings, "Finding store", "Regulator store", "Findings, advisories")
-}
-
-Deployment_Node(regarch, "Regulator account — evidence", "Separate account", "Holds a ciphertext mirror") {
+Deployment_Node(regarch, "Regulator account — evidence", "Separate account", "Optional second archive holder") {
   ContainerDb(regmirror, "Archive mirror", "WORM storage", "Ciphertext; signs ArchiveAck")
   Container(attestor, "Archive attestor", "Signer service", "Verifies stored bytes, signs ArchiveAck")
 }
@@ -47,7 +41,6 @@ Rel_Left(workers, archive, "Envelope, Ack", "HTTPS")
 Rel(workers, cdn, "Publish", "Object API")
 Rel_Down(relayer, db, "Leaves, intents", "SQL/TLS")
 Rel(relayer, chainNet, "Merkle root", "tx")
-Rel_Right(app, workspace, "DatasetSnapshot", "Signed")
 Rel_Up(pwa, cdn, "Trace page", "HTTPS")
 Rel(cdn, app, "Origin pull", "HTTPS")
 Rel_Down(workers, regmirror, "Ciphertext mirror", "HTTPS")

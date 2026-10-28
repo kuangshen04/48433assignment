@@ -4,6 +4,12 @@
 
 **图内文字用英文**，因为这些图要直接进报告；页面说明用中文。
 
+## 当前报告的活动图（2026-10-28）
+
+独立监管筛查子系统已从 5k 报告移除。活动图源为 `src/` 下的 10 个 PUML 文件；三张旧版监管分析图源保存在 `retired/regulatory-analytics/`，不参与默认渲染。监管查询、普通 insights 和可选监管证据镜像仍保留。
+
+`render.ps1` 同时生成 `../public/diagrams/*.svg` 与报告引用的 `preview/*.png`。已有旧版 analytics 渲染文件保留，供历史设计页面使用；它们不属于当前报告。下方 Analytics 页面链接亦为历史设计资料。
+
 ## 重新生成
 
 ```powershell

@@ -22,7 +22,6 @@ participant "Regulator officer" as officer
 participant "Traceability App" as app
 participant "Workers" as workers
 participant "Relayer" as relayer
-participant "Analytics Workspace" as analytics #999999
 participant "Evidence owner" as owner #999999
 participant "External Archive" as archive #999999
 participant "Public Blockchain" as chain #999999
@@ -33,9 +32,7 @@ app -> app: Traverse transformation, aggregation and handover edges;\nkeep compe
 app --> officer: confirmedImpact + provisionalImpact, with provenance
 note right of app: provisionalImpact covers receipted but\nunconfirmed claims; it is labelled and never merged
 
-== Phase 2 · Risk review and evidence ==
-officer -> analytics: Review the affected set
-analytics --> officer: Private finding (rule version, input watermark)
+== Phase 2 · Human review and evidence ==
 officer -> app: Evidence request for resource R
 app -> owner: Evidence request recorded as an audit record
 owner -> app: Content encrypted to the regulator key

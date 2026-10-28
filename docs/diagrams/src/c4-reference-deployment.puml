@@ -33,11 +33,6 @@ Deployment_Node(regarch, "AWS — regulator evidence account", "Separate AWS acc
   Container(regattestor, "Archive attestor", "KMS asymmetric signing", "Signs ArchiveAck")
 }
 
-Deployment_Node(regacct, "Regulator analytics account", "Any provider", "Regulator-operated") {
-  Container(workspace, "Analytics Workspace", "Containers", "Rules, screening, advisories")
-  ContainerDb(rules, "Rule and finding store", "Managed PostgreSQL", "Rules, findings, advisories")
-}
-
 Deployment_Node(chainNet, "Ethereum mainnet", "Public network", "Immutable anchoring contract")
 
 Rel(pwa, app, "API", "HTTPS")
@@ -54,7 +49,6 @@ Rel(cdn, s3, "Origin pull", "HTTPS")
 Rel(pwa, cdn, "Trace page", "HTTPS")
 Rel(relayer, db, "Leaves, intents", "SQL/TLS")
 Rel(relayer, chainNet, "Merkle root", "tx")
-Rel(app, workspace, "DatasetSnapshot", "Signed")
 Rel(recovery, archive, "Trustee-granted restore role")
 
 @enduml
