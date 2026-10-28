@@ -44,7 +44,7 @@
   - **C2**：采用 NSW 监管范围。
   - **C3**：与企业现有系统互操作。
   - **C4**：农村网络可能间歇中断。
-  - **C5–C7**：200 家组织、每天 10,000 个事件、小运营团队、无生产环境访问；原文合并列示这些条件。
+  - **C5–C7**：200 家组织、所有参与地区合计每天 10,000 个事件、小运营团队、无生产环境访问；原文合并列示这些条件。
 
 ### 1.2 Risks, exclusions and architectural relevance（rubric 1.2–1.3）
 
@@ -77,6 +77,7 @@
 - **SQ-10 可运营性**：小团队、一个应用部署单元、托管数据库；避免微服务集群。
 - **SQ-11 设备证据／QS-12**：冷藏运输温度超限 40 分钟；签名摘要，原始样本留在源端。
 - **SQ-13 洞察／QS-13**：按昨天的 watermark 重现产品线指标；有权限范围的物化投影。
+- **SQ-14 地区扩展／QS-14**：多个地区同时出现季节性提交突发，已接收事件保留、确认积压可见；队列及扩容承载突发，数据库和批处理容量需验证。
 - 当前排除的做法：仅靠备份证明历史完整性、不可变员工身份、同步外部读取、权威图数据库、ML admission。
 
 ### 2.2 Data management, scenarios and storage（rubric 2.3–2.4）
@@ -205,12 +206,13 @@
   - 公共视图／insight marts → 带版本和 watermark 的投影。
 - 模型与约束：submission/event 由 capture ID 关联；每事件唯一 leaf；canonical event append-only；非查询 payload 分离；组织 scope 统一执行。
 - 更正与冲突：追加更正事件；边派生有版本；同一输入可对应多个竞争声明；固定 watermark 重现召回范围。
-- 数据分析选择：不建 warehouse/lake；workers 是 ELT，生成版本化 marts；新产品用 profile 扩展，新地区另作部署／治理决策。
+- 数据分析选择：不建 warehouse/lake；workers 是 ELT，生成版本化 marts；新产品用 profile 扩展，不同业务地区共享事件模型和 lineage；新的法律辖区另作合规评估。
 
 ### 4.3 Cloud-native execution and deployment（rubric 4.11–4.15）
 
 - **Figure 7：Logical Deployment；Figure 8：Reference Deployment**。
-- Cloud-native 原则：托管执行、声明式基础设施、工作负载隔离、无状态副本、异步 workers 按 backlog 扩缩容。
+- 地区增长增加总录入、存储和查询负载；无状态副本、按 outbox lag 扩展的 workers、索引查询、CDN 及批量锚定共同承载增长。
+- Cloud-native 原则：托管执行、声明式基础设施、工作负载隔离；数据库写入能力与批处理耗时仍须验证，按观测负载扩展。
 - 应用与 workers 使用同一 image、不同执行角色；CDN 独立扩展；数据库托管；不部署自管 Kubernetes。
 - 部署责任：平台管理应用、数据库、KMS 和备份；公链独立运营；参与者保存自己的签名提交和下载的证明。
 - Reference deployment：Sydney Fargate、Aurora writer/reader、PITR、Melbourne 加密备份副本、隔离 relayer／KMS、S3／CDN。
@@ -264,7 +266,8 @@
 - O5：owner-held PRIVATE＋scoped consortium 读取；仍有元数据和运行时明文。
 - O6：单部署、托管服务、批量锚定可行；备份恢复及证明导出仍需验证。
 - O7：IoT 摘要与 commitment 有条件成立；源端设备和保留能力不一致。
-- 多产品线／地区／insights：部分支持；地区扩展和前端可视化仍需实现。
+- 多产品线／insights：profiles 和物化视图在设计上支持；前端可视化仍需实现。
+- 地区增长：共享模型、副本、workers、CDN 和批量锚定在设计上支持；季节性突发、数据库容量和确认积压需负载测试。
 
 ### 5.2 ATAM: sensitivities, risks and trade-offs（rubric 5.3）
 
@@ -278,7 +281,7 @@
 - 风险：chain／proof 故障、单 relayer 凭证、admission 治理不足、恢复时间未验证。
 - 接受的取舍：finality 前临时可见、元数据泄露、小团队单部署。
 - 评价限制：无 benchmark／恢复演练；是可建设提案，不是运行实测结果。
-- 验证优先级：历史签名验证、撤销密钥拒绝、备份恢复、不经平台查询核验导出证明、链故障注入、冲突召回负载、低端离线设备。
+- 验证优先级：历史签名验证、撤销密钥拒绝、备份恢复、不经平台查询核验导出证明、链故障注入、冲突召回负载、多地区同时提交突发（录入延迟、outbox lag、确认时间）、低端离线设备。
 
 ### 5.3 Alternative architectures（rubric 5.4）
 
@@ -314,3 +317,5 @@
 - 2026-10-28：身份治理收敛为治理方批准成员、外部 IdP 及组织／角色映射、组织签名与密钥轮换／撤销、变更审计；移除外部企业核验集成、delegation／custody 分类、可信签署时间和专用 break-glass 机制。
 
 - 2026-10-28：独立重建收敛为参与者保留签名提交／可导出确认材料，以及托管备份恢复；撤去 ArchiveAck、qualified holder、trustee KMS、监管镜像及独立恢复身份。接收与锚定路径、数据权威、模型和评价已同步。此前编辑记录所述镜像保留决定由本轮替代。
+
+- 2026-10-29：补清多地区增长的总负载、季节性突发、扩展机制和测试指标；业务地区共享模型，不要求每地区单独部署；同步需求、架构理由及评价，未增加子系统。

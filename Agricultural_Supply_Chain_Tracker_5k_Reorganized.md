@@ -23,7 +23,7 @@ Agricultural products pass between firms with incompatible identifiers, records 
 
 A processing event may consume multiple lots and create one or more outputs; its quantity assertions belong to the publisher. If two processors each claim the same input lot, the record must show both edges and their provenance, not select the more plausible one. A retailer's recall traversal therefore returns a conservative potentially affected set, including disputed or provisional links as labelled evidence. This domain rule drives the graph and read interface as much as the blockchain choice does.
 
-Governance (S8), platform operations (S9), cloud and backup providers (S10), auditors and courts (S11) and device vendors (S12) also matter: they define governance, operations, verification and integration boundaries rather than extra user interfaces. The brief requires a blockchain (C1), food-safety compliance, IoT integration, multiple product lines and regions, data visualisation and rural accessibility. The design adopts NSW regulatory scope (C2), interoperability with participants' existing systems (C3) and intermittent rural connectivity (C4) as constraints; a pilot of 200 organisations, 10 000 events per day, a small operating team and no production access (C5–C7) sets the planning envelope.
+Governance (S8), platform operations (S9), cloud and backup providers (S10), auditors and courts (S11) and device vendors (S12) also matter: they define governance, operations, verification and integration boundaries rather than extra user interfaces. The brief requires a blockchain (C1), food-safety compliance, IoT integration, multiple product lines and regions, data visualisation and rural accessibility. The design adopts NSW regulatory scope (C2), interoperability with participants' existing systems (C3) and intermittent rural connectivity (C4) as constraints; a pilot of 200 organisations and 10 000 events per day across all participating regions, a small operating team and no production access (C5–C7) sets the planning envelope.
 
 ### 1.2 Risks, exclusions and architectural relevance — rubric 1.2–1.3
 
@@ -57,6 +57,7 @@ The following qualities connect stakeholder needs to measurable architecture tes
 | SQ-10 Operability / S9 | Small team operates one deployable application and managed database. | Avoid an orchestrated microservice estate without a scaling driver. |
 | SQ-11 Device evidence / S3 | QS-12 a reefer exceeds limits for 40 minutes. | Profile-required, signed summaries with raw samples left at source. |
 | SQ-13 Insights / S2–S6 | QS-13 reproduce a product-line figure at yesterday's watermark. | Materialised, scoped projections; no independent untraceable analytics truth. |
+| SQ-14 Regional scalability / S1–S4,S9 | QS-14 several regions submit seasonal bursts; accepted events are retained and confirmation lag is visible. | Queued work and scaling absorb bursts; database and batch capacity require validation. |
 
 Rejected: backups alone as evidence of integrity (no independent commitment, SQ-1), per-employee immutable identities (SQ-7), synchronous external reads (SQ-3/4), authoritative graph storage (derived edges cease to be independently reconstructable, SQ-9), and ML-based admission (unauthorised adjudication). Section 4 traces these risks to tactics.
 
@@ -203,7 +204,7 @@ Figure 6 identifies nine physical tables. Five decisive constraints bind the log
 
 For a transformation, canonical event types carry the claimed input and output identifiers. `Evidence Graph Builder` derives versioned edges but does not impose uniqueness on consumed lots: the same input may appear in multiple competing assertions. A recall query uses a fixed watermark and includes provenance on every traversed edge, so an officer can reproduce the scope rather than silently relying on a later, changed dataset. The event record, edge derivation version and public projection remain separately identifiable during replay.
 
-No warehouse or data lake is warranted at 10,000 events/day: materialised insights meet the initial use cases without duplicating private content or adding another consistency boundary. The projection workers are the only ELT step — canonical events in, versioned marts out — so nothing downstream becomes a second source of truth. A new region requires a separate deployment and governance decision; a new product profile should not require rewriting the canonical event model. These choices address DM-1–5 without implying the platform can verify the physical truth of an event.
+No warehouse or data lake is warranted at 10,000 events/day: materialised insights meet the initial use cases without duplicating private content or adding another consistency boundary. The projection workers are the only ELT step — canonical events in, versioned marts out — so nothing downstream becomes a second source of truth. Additional geographic regions share the event model and lineage store; another legal jurisdiction requires compliance assessment. New product profiles extend validation without rewriting the event model. These choices address DM-1–5 without implying the platform can verify the physical truth of an event.
 
 ### 4.3 Cloud-native execution and deployment — rubric 4.11–4.15
 
@@ -215,7 +216,7 @@ No warehouse or data lake is warranted at 10,000 events/day: materialised insigh
 
 *Figure 8 — A reference configuration that can be procured and built.*
 
-Managed execution, declarative infrastructure, workload isolation, stateless application replicas and asynchronous worker scaling are the applied cloud-native principles. One container image runs as request-serving application or background worker; workers scale by outbox lag, portal/API by request demand, public delivery independently at the CDN. Stateful PostgreSQL remains managed rather than being placed in an application pod. This avoids administering Kubernetes or a self-managed IaaS cluster, consistent with C6; scale-out is based on observed load, not a promise of unlimited throughput.
+Regional growth increases aggregate ingestion, storage and query demand. Cloud-native tactics are stateless application replicas, workers scaled by outbox lag, indexed lineage queries and independent CDN delivery. Merkle batching avoids one chain transaction per event. Application and worker roles share one image; declarative infrastructure and workload isolation support managed execution. PostgreSQL remains managed, avoiding a self-managed cluster under C6. Database write capacity and batch-processing time remain limits to measure; scale-out follows observed demand.
 
 The platform operates the application, database, managed KMS and backups; the chain remains independently operated, and participants retain their own signed records and exported proofs. There is no required trustee, archive attestor or regulator-operated mirror.
 
@@ -278,7 +279,8 @@ The Brief column names which of the brief's seven key requirements each row answ
 | O5 Evidence/privacy | implied | Supported: owner-held PRIVATE data; scoped consortium read | Metadata and runtime plaintext remain. |
 | O6 Pilot operability | implied | Plausible: one deployable, managed services, batch anchoring | Backup restoration and proof export still require validation. |
 | O7 IoT evidence | 3 | Conditional: summaries plus source commitments | Instrumentation and source retention differ by firm. |
-| Product lines, regions, insights | 4, 6 | Partly supported: profiles and materialised views | Region expansion and front-end visual design remain work. |
+| Product lines and insights | 4, 6 | Supported in design: profiles and materialised views | Front-end visual design remains work. |
+| Regional growth | 4 | Supported in design: shared model, replicas, workers, CDN and batch anchoring | Seasonal bursts, database capacity and confirmation lag need load tests. |
 
 ### 5.2 ATAM: sensitivities, risks and trade-offs — rubric 5.3
 
@@ -286,7 +288,7 @@ ATAM is chosen over HAZOP because this platform records evidence rather than con
 
 Sensitivity points are the anchoring window (cost against confirmation delay), backup frequency (recovery-point loss against cost), the query traversal bound (recall completeness against latency) and visibility scope (regulatory authority against commercial confidentiality). Risks are an unavailable chain or missing proof material, a single relayer spending credential, inadequate admission governance, and an untested restore time.
 
-Accepted trade-offs are provisional visibility before finality, metadata leakage instead of hosting private content, and small-team operability over independent scaling of every module. No benchmark or recovery drill has yet proved the targets; the reference deployment is a buildable proposal, not an operational result. Test priority follows from that: historical signature verification and revoked-key rejection, backup restore, exported-proof verification without platform queries, chain outage injection, non-collapsing recall under load, and low-end offline capture. A failed test reopens the requirement; it does not license a quietly weaker guarantee.
+Accepted trade-offs are provisional visibility before finality, metadata leakage instead of hosting private content, and small-team operability over independent scaling of every module. No benchmark or recovery drill has yet proved the targets; the reference deployment is a buildable proposal, not an operational result. Test priority follows from that: historical signature verification and revoked-key rejection, backup restore, exported-proof verification without platform queries, chain outage injection, non-collapsing recall under load, simultaneous regional submission bursts (ingestion latency, outbox lag and confirmation time), and low-end offline capture. A failed test reopens the requirement; it does not license a quietly weaker guarantee.
 
 The key assessment is not whether the architecture eliminates all failures. Confirmation deliberately trades immediacy for durable acceptance and independently checkable finality; rural accessibility trades synchronous verification for durable local capture.
 
