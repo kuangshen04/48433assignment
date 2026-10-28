@@ -33,7 +33,7 @@
   - **S3 分销商／冷链运营商**：双边交接、可归责传感摘要，不上传原始遥测。
   - **S4 零售商**：保守召回遍历；消费者扫描高峰由公共快照承载。
   - **S5 消费者**：QR 查询，区分 `CONFIRMED`、`PENDING`、`NO RECORD`，不能提交声明。
-  - **S6 监管者**：固定 watermark 的调查、关联案件的证据请求、签名通知；没有无限私有数据访问权。
+  - **S6 监管者**：固定 watermark 的授权追踪查询及证据导出；没有无限私有数据访问权。
 - 其他相关方：治理 **S8**、平台运维 **S9**、归档／密钥 trustees **S10**、审计者／法院 **S11**、设备供应商 **S12**。
 - 领域规则：
   - 加工可有多输入、多输出；数量是发布者的声明。
@@ -55,7 +55,7 @@
   - **R4 农村排斥** → PWA／离线录入；不能离线签名的设备稍后签名。
   - **R10 虚假／冲突／串通声明** → 保留来源与竞争声明，交由调查裁定。
 - 排除范围及理由：
-  - ERP/WMS 替代、库存结算、支付、完整召回执行：超出记录与追踪职责。
+  - ERP/WMS 替代、库存结算、支付、正式通知发布、私有文档交换、实物召回执行：超出记录与追踪职责。
   - 海关和认证流程：涉及额外法律／签发机构；证书可作为私有证据引用。
   - 平台原始遥测、消费者提交声明、通用营销／BI：不属于当前 pilot。
   - 国家级攻击者、破产、被攻陷的 onboarding：承认风险，未直接证明控制能力。
@@ -71,7 +71,7 @@
 - **SQ-4 性能／QS-4**：5,000 scans/s；同步遍历最多 10,000 条边；CDN 快照和索引查询副本。
 - **SQ-5 恢复／QS-5**：平台账户丢失后，已发回执事件 RPO 0；数据库 RPO ≤5 分钟、RTO ≤4 小时、区域重建 ≤24 小时。
 - **SQ-6 可访问性／QS-6**：36 小时离线完成四次录入；2G、WCAG 2.2 AA、200% 文本；持久队列和签名 fallback。
-- **SQ-7 隐私／QS-7**：监管者请求实验室报告，只向授权案件参与者披露；私有明文和自然人字段不进入共享 canonical records。
+- **SQ-7 隐私／QS-7**：调查者导出召回证据，排除无权限组织记录和私有文档内容；查询／导出实施 scope 和字段 allowlist。
 - **SQ-8 互操作／QS-10**：原版本 profile／canonicalisation 可解释、可替换链；采用 EPCIS/CBV 与链无关摘要。
 - **SQ-9 可审计性／QS-9**：竞争加工声明在 replay 后仍保留来源；non-collapsing graph、版本化派生、watermark。
 - **SQ-10 可运营性**：小团队、一个应用部署单元、托管数据库；避免微服务集群。
@@ -101,7 +101,7 @@
 - 数据场景：
   - **DS-1**：七年后召回 → 版本化、可索引 lineage。
   - **DS-2**：冲突 transformation → 保留多条来源边。
-  - **DS-3**：实验室报告保密 → commitment 引用。
+  - **DS-3**：实验室报告只保留 commitment 引用；申请和交付在平台外完成。
   - **DS-4**：5,000 scans/s → CDN 投影。
   - **DS-5**：保留期到期但 legal hold → 可审计保留转换。
   - **DS-6**：离线事件在密钥轮换后到达 → review 状态，不只相信事件时间。
@@ -131,7 +131,7 @@
   - **SP-5**：高影响治理双人批准。
   - **SP-6**：读取与 break-glass 审计。
   - **SP-8**：记录残余威胁。
-- CIA 场景：保密对应 QS-7 的授权证据披露；完整性对应 QS-1/2；可用性对应 QS-3/5。
+- CIA 场景：保密对应 QS-7 的受限证据导出；完整性对应 QS-1/2；可用性对应 QS-3/5。
 - 法规范围：Privacy Act／APPs、NSW 隐私义务、NSW Food Act、Food Standards Code；附录 B 映射。
 - IoT：源端采集与报警；profile 要求带单位、来源及 commitment 的窗口摘要；设备授权归属组织；无平台原始流／报警路径。
 - 监管调查采用追踪查询、证据导出和人工判断；自动监管筛查及 ML 不在本方案范围。
@@ -147,7 +147,7 @@
   - 监管者通过平台授权查询／导出；归档／密钥／链不只由平台控制。
 - **Figure 2：Core Container**。
 - 当前容器职责：
-  - Portal：录入、交接、调查、QR 与洞察。
+  - Portal：录入、交接、受限召回查询／导出、QR 与洞察。
   - Traceability Application：admission、confirmation gate、事件存储、证据图、统一读取。
   - Ingestion/Projection Workers：归档、重试、重建、导出、保留。
   - Batch Builder/Relayer：leaf、manifest、Merkle batch、链提交、finality、proof。
@@ -228,15 +228,17 @@
   5. relayer 提交链式 root，观察 finality，提供 inclusion proof。
   6. 标为 `CONFIRMED`，更新公共快照；故障只等待／重试，不自动提升状态。
 - **Figure 10：Recall Investigation 动态图**。
-  - 固定 watermark 遍历，区分 confirmed／provisional scope。
-  - 监管者人工审查受影响范围，向 evidence owner 请求证据。
-  - 证据向监管密钥加密；平台只处理引用／commitment。
-  - 提交签名通知，经归档与锚定确认；实际召回由企业执行。
-- 信任边界／数据流：参与者→admission；平台→KMS/holder；relayer→chain；worker→CDN；监管者按权限读取／导出。
+  - 调查者（零售商或监管者）提交批次与组织／角色；应用授权并固定 watermark。
+  - 查询本地 QueryStore、lineage 和证明记录；有界遍历上下游，检查可用签名、摘要及 inclusion proof。
+  - 返回潜在受影响批次及来源，区分 confirmed／provisional，标明验证状态和覆盖限制。
+  - 导出时重新检查权限与字段 allowlist，记录访问者、范围、watermark 和导出引用。
+  - 导出记录与验证材料，供调查者独立对照公链承诺；不包含 owner-held 文档正文。
+  - 正式通知、私有文档交付及实物召回使用既有外部流程；查询不依赖同步 archive／chain 调用。
+- 信任边界／数据流：参与者→admission；平台→KMS/holder；relayer→chain；worker→CDN；调查者按权限读取／导出。
 - STRIDE：
   - Spoofing → 企业身份、delegation、历史授权。
   - Tampering → 签名、append-only、链式 root、证明。
-  - Repudiation → 签名 envelope、历史密钥、holder/issuer receipt。
+  - Repudiation → 签名 envelope、历史密钥、holder receipt。
   - Information disclosure → owner-held 加密、QueryPort scope。
   - DoS → 配额、有界队列、背压、重试、holder 集合。
   - Elevation of privilege → 无常驻 staff 权限、双批准 break-glass、隔离 relayer。
@@ -256,7 +258,7 @@
 - O1：离线参与有条件成立；部分设备联网后才能签名。
 - O2：签名＋独立 ack＋Merkle finality 提供强设计；仍有虚假／串通和治理风险。
 - O3：保守、带 watermark 的 lineage 支撑召回；完整性依赖企业记录覆盖率。
-- O4：CDN 状态与签名通知支撑消费者查询；缓存有传播延迟。
+- O4：CDN 状态与来源信息支撑消费者查询；新确认事件有缓存传播延迟。
 - O5：owner-held PRIVATE＋scoped consortium 读取；仍有元数据和运行时明文。
 - O6：单部署、托管服务、批量锚定可行；外部 archive holder 仍需运营者。
 - O7：IoT 摘要与 commitment 有条件成立；源端设备和保留能力不一致。
@@ -265,7 +267,7 @@
 ### 5.2 ATAM: sensitivities, risks and trade-offs（rubric 5.3）
 
 - 采用 ATAM 的理由：评估证据记录系统，而非物理过程控制。
-- 优先驱动：运营方丢失后的完整性、跨轮换签名、归档故障召回、扫描性能、离线录入、私有证据披露。
+- 优先驱动：运营方丢失后的完整性、跨轮换签名、归档故障召回、扫描性能、离线录入、受限证据导出。
 - 敏感点：
   - 锚定窗口：成本 ↔ 确认延迟。
   - holder liveness：回执吞吐 ↔ 独立性。
@@ -293,7 +295,7 @@
 
 ## Appendix B — Regulation
 
-- NSW Food Act／Food Standards Code → 保守召回证据、签名通知，不自动裁定事实。
+- NSW Food Act／Food Standards Code → 保守召回证据、受控导出，不自动裁定事实。
 - Privacy Act／APPs／NSW privacy law → 最小化不可变身份、scoped reads、owner-held 证据、可更正路径。
 - Records retention／legal hold → 分类规则、状态转换日志、多方删除、锚定审计证据。
 
@@ -302,5 +304,7 @@
 ## 编辑记录
 
 - 2026-10-28：撤去独立监管筛查子系统及其目标、需求、数据契约、接口与评价项；移除三张专属分析图，保留图重排为 Figure 1–10。
-- 保留监管角色、查询／导出、证据请求、签名通知、普通 insights，以及可选监管证据镜像；未调整区块链和 archive 的核心信任条件。
+- 保留监管角色、查询／导出、普通 insights，以及可选监管证据镜像；未调整区块链和 archive 的核心信任条件。
 - 本轮变更已同步正文及活动 PUML；旧监管分析图源移入 `docs/diagrams/retired/regulatory-analytics/`。后续继续按大纲讨论其他假设。
+
+- 2026-10-28：简化 recall 为授权查询、记录验证、影响范围计算与受限导出；移除通知发布／锚定以及私有文档请求／加密交付流程，同步正文与 Figure 10 及概览图。

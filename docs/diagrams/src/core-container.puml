@@ -14,7 +14,7 @@ System_Ext(erp, "Participant business systems", "ERP / WMS / TMS / IoT gateway")
 System_Boundary(system, "Agricultural Supply Chain Tracker") {
 
   Container_Boundary(platform, "Platform control domain") {
-    Container(portal, "Participant & Regulator Portal", "PWA in browser", "Capture forms, lineage and recall views, evidence requests, exports")
+    Container(portal, "Participant & Regulator Portal", "PWA in browser", "Capture forms, lineage and recall views, scoped evidence exports")
     Container(app, "Traceability Application", "Modular monolith (Core + 5 modules)", "Admission validation, confirmation gate, evidence graph, single QueryPort, scoped insights")
     Container(workers, "Ingestion & Projection Workers", "Outbox-driven workers", "Idempotent retry, projection rebuild, export, retention")
     Container(relayer, "Batch Builder & Relayer", "Isolated worker with chain wallet", "Merkle batching, root submission, inclusion proofs")

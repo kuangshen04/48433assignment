@@ -19,7 +19,7 @@ Agricultural products pass between firms with incompatible identifiers, records 
 | S3 Distributors and cold-chain operators | Two-sided handovers and attributable sensor summaries, not uploaded raw telemetry. |
 | S4 Retailers | Conservative recall traversal and public snapshots that survive scan bursts. |
 | S5 Consumers | QR views distinguish CONFIRMED, PENDING and NO RECORD; consumers do not submit claims. |
-| S6 Regulators | Watermarked scope, case-linked evidence requests and signed notices without unrestricted private-data access. |
+| S6 Regulators | Scoped, watermarked trace queries and evidence exports without unrestricted private-data access. |
 
 A processing event may consume multiple lots and create one or more outputs; its quantity assertions belong to the publisher. If two processors each claim the same input lot, the record must show both edges and their provenance, not select the more plausible one. A retailer's recall traversal therefore returns a conservative potentially affected set, including disputed or provisional links as labelled evidence. This domain rule drives the graph and read interface as much as the blockchain choice does.
 
@@ -35,7 +35,7 @@ Governance (S8), platform operations (S9), archive and key trustees (S10), audit
 | Rural exclusion (R4) | PWA/offline submission; devices without viable signing capability must draft and sign later. |
 | False, conflicting or collusive statements (R10) | Preserve provenance and competing claims; investigation, not automatic adjudication, determines business truth. |
 
-ERP/WMS, inventory settlement, payment and full recall execution are excluded because they replace participants' business systems or introduce unrelated authority. Customs and certification processes introduce other legal/issuer regimes; certificates can instead appear as private evidence. Platform-side raw telemetry, consumer-originated claims and generic marketing/BI are likewise outside the pilot. State-level attackers, bankruptcy and compromised onboarding are acknowledged beyond this architecture's directly demonstrated controls. The governing distinction is **verifiable claims, not certified facts**.
+ERP/WMS, inventory settlement, payment and formal notice publication, private-document exchange and physical recall execution are excluded because they replace participants' business systems or introduce unrelated authority. Customs and certification processes introduce other legal/issuer regimes; certificates can instead appear as private evidence. Platform-side raw telemetry, consumer-originated claims and generic marketing/BI are likewise outside the pilot. State-level attackers, bankruptcy and compromised onboarding are acknowledged beyond this architecture's directly demonstrated controls. The governing distinction is **verifiable claims, not certified facts**.
 
 ## 2. Requirements analysis
 
@@ -51,7 +51,7 @@ The following qualities connect stakeholder needs to measurable architecture tes
 | SQ-4 Performance / S4,S5 | QS-4 public demand reaches 5,000 scans/s; bound synchronous traversal to 10,000 edges. | Use edge snapshots and an indexed query copy rather than origin joins at scan time. |
 | SQ-5 Recovery / S6,S9 | QS-5 platform account lost after receipt: receipted-event RPO 0; DB RPO ≤5 min, RTO ≤4 h, regional rebuild ≤24 h. | Archive, manifests and proofs must outlive platform tables; targets require drills. |
 | SQ-6 Accessibility / S1 | QS-6 four captures during 36 h offline; usable at 2G, WCAG 2.2 AA and 200% text. | Durable client queue, local identifiers and appropriate signing fallback. |
-| SQ-7 Privacy / S1,S6 | QS-7 regulator requests a laboratory report; access is limited to authorised case participants. | Owner-controlled evidence access; no private plaintext or natural-person fields in shared canonical records. |
+| SQ-7 Privacy / S1,S6 | QS-7 an investigator exports recall evidence; unrelated organisations’ records and private document contents must be excluded. | Scoped queries and export allowlists; no private plaintext or natural-person fields in shared canonical records. |
 | SQ-8 Interoperability / S1–S4 | Interpret an event from retained profile/canonicalisation versions; QS-10 chain replacement. | EPCIS/CBV profiles and chain-independent digests. |
 | SQ-9 Auditability / S6,S11 | QS-9 two processors assert the same input lot; replay preserves both claims and provenance. | Non-collapsing evidence graph, versioned derivation and watermarks. |
 | SQ-10 Operability / S9 | Small team operates one deployable application and managed database. | Avoid an orchestrated microservice estate without a scaling driver. |
@@ -81,7 +81,7 @@ The table covers the fields where architecture is decided; EPCIS 2.0/CBV supplie
 
 `captureRecordId` is a transport idempotency identity, distinct from the EPCIS business event identifier. A correction does not overwrite the signed statement, and structural validity permits conflicting claims, whereas signing authority, required fields and idempotency collisions are admission checks. A query consumer sees the recorded assertion and its lifecycle status, not a platform-issued certification.
 
-Six scenarios fix what would otherwise be design preferences. **DS-1** a seven-year recall requires indexed, versioned lineage. **DS-2** competing transformations require multiple provenance edges and never arbitrary deduplication. **DS-3** a laboratory report stays private behind a commitment. **DS-4** 5 000 scans per second requires CDN projections. **DS-5** an expiring batch under legal hold requires an auditable retention transition. **DS-6** delayed offline events after a key rotation require a review state rather than assuming a timestamp proves authority.
+Six scenarios fix what would otherwise be design preferences. **DS-1** a seven-year recall requires indexed, versioned lineage. **DS-2** competing transformations require multiple provenance edges and never arbitrary deduplication. **DS-3** a laboratory report is referenced by a commitment; its request and delivery remain outside the platform. **DS-4** 5 000 scans per second requires CDN projections. **DS-5** an expiring batch under legal hold requires an auditable retention transition. **DS-6** delayed offline events after a key rotation require a review state rather than assuming a timestamp proves authority.
 
 One managed relational database provides typed EPCIS columns, exact decimals, referential checks, one transaction for event/idempotency/outbox, recursive bounded traversal, row-level scope predicates and point-in-time recovery. A document store weakens cross-event relational enforcement, a graph database should not become the canonical truth, and full-application event sourcing would needlessly event-source profiles and worker state. Private evidence is not stored as platform-readable blobs.
 
@@ -102,7 +102,7 @@ Australian deployment locations, standards-based PostgreSQL and portable canonic
 
 ### 2.4 Security, privacy, regulation and device requirements — rubric 2.7–2.8 and 2.B
 
-SP-1 binds every write to an acting organisation, role and delegation; SP-2 keeps signatures and historical authorisation verifiable; SP-3 prevents the platform from decrypting owner-held evidence; SP-4 excludes natural-person fields from immutable history; SP-5 requires dual approval for high-impact governance; SP-6 audits reads and break-glass; SP-8 records residual threats. **Confidentiality:** QS-7 tests authorised evidence disclosure without exposing owner-held plaintext to the platform. **Integrity:** QS-1/2 test public commitments and key history. **Availability:** QS-3/5 test explicitly degraded reads and separately recoverable receipts. Australian Privacy Principles/Privacy Act, NSW privacy obligations, NSW Food Act and Food Standards Code inform minimisation, retention, recall evidence and signed notices; Appendix B maps each obligation to its answer.
+SP-1 binds every write to an acting organisation, role and delegation; SP-2 keeps signatures and historical authorisation verifiable; SP-3 prevents the platform from decrypting owner-held evidence; SP-4 excludes natural-person fields from immutable history; SP-5 requires dual approval for high-impact governance; SP-6 audits reads and break-glass; SP-8 records residual threats. **Confidentiality:** QS-7 tests scoped evidence exports that exclude unrelated records and owner-held document contents. **Integrity:** QS-1/2 test public commitments and key history. **Availability:** QS-3/5 test explicitly degraded reads and separately recoverable receipts. Australian Privacy Principles/Privacy Act, NSW privacy obligations, NSW Food Act and Food Standards Code inform minimisation, retention, recall evidence and controlled exports; Appendix B maps each obligation to its answer.
 
 **IoT (2.B).** In a cold-chain excursion, a participant's device/system collects readings and alarms locally; a profile-required windowed summary, unit, provenance and commitment accompany an EPCIS event. Devices are organisation delegations, not independent platform identities. Raw streams and platform-side alarm paths stay out, which preserves a verifiable evidence reference while limiting retention.
 
@@ -126,7 +126,7 @@ Traceability Core holds shared canonical claims and supplies scoped investigatio
 
 | Container | Responsibility and key interaction |
 |---|---|
-| Portal | PWA capture, handover, regulator investigation, QR/insight views; uses the application or public CDN. |
+| Portal | PWA capture, handover, scoped recall investigation and export, QR/insight views; uses the application or public CDN. |
 | Traceability Application | Admission, confirmation gate, canonical event store, evidence graph and single read interface. |
 | Ingestion/Projection Workers | Archive persistence, retries, lineage/projection rebuild, exports and retention. |
 | Batch Builder/Relayer | Deterministic leaves, manifests, Merkle batches, chain submission, finality and proofs. |
@@ -228,7 +228,7 @@ A qualified holder must be separately administered, retain and enumerate archive
 
 ![Figure 10 — Dynamic view: recall investigation](docs/diagrams/preview/c4-dynamic-recall.png)
 
-*Figure 10 — Scope at a watermark, evidence request, signed notice.*
+*Figure 10 — Authorised trace query, verification and scoped evidence export.*
 
 In Figure 9, (1) a participant submits the canonical event, organisation signature and client idempotency key; (2) admission validates profile and historical authority and commits state plus archive intent; (3) a worker obtains a wrapped per-event key from the externally governed KMS, stores an encrypted envelope with a qualified holder and records its signed `ArchiveAck`; (4) the platform issues a receipt and batches its deterministic leaf; (5) a segregated relayer publishes the chained Merkle root, observes finality and exposes inclusion proof; (6) only then does the event become CONFIRMED and contribute to public snapshots. Failed dependencies leave it pending; timeouts never silently promote it.
 
@@ -239,15 +239,15 @@ In Figure 9, (1) a participant submits the canonical event, organisation signatu
 | Relayer → public chain | Batch root, sequence and transaction reference | Public commitment; no business payload. |
 | Worker → public CDN | Versioned PUBLIC projection | Controlled disclosure/snapshot version. |
 
-Figure 10 fixes recall traversal at a data watermark, preserves provisional claims separately and records a regulator evidence request as an auditable reference rather than an arbitrary data pull. An official notice becomes CONFIRMED only after its canonical signing/anchoring requirements; the system establishes scope but businesses execute the recall. This prevents a transient dependency failure from being misreported as proof that no affected lot exists.
+Figure 10 authorises the investigator, fixes a watermark and traverses scoped lineage using local query and proof records. Available signatures and inclusion proofs are checked; competing claims, provisional links, missing proof and coverage limits remain explicit. The investigator can export allowed records and verification material, with the export audited and private document contents excluded. Exported proofs support independent checking against public-chain commitments. Formal notices, private-document exchange and physical recall execution remain in existing external processes; degraded results never imply that no affected lot exists.
 
-**STRIDE coverage** follows the actual entry points: participant API/onboarding, portal reads, staff and evidence requests, exports to archive/KMS/chain and authorised regulators, and internal worker/wallet control.
+**STRIDE coverage** follows the actual entry points: participant API/onboarding, portal reads, staff access and scoped evidence exports, exports to archive/KMS/chain and authorised regulators, and internal worker/wallet control.
 
 | Category / threat | Mitigation and boundary | Residual risk |
 |---|---|---|
 | Spoofing: forged organisation/device | Verified legal organisation, delegated signer, authority-at-signing-time | Stolen participant credentials. |
 | Tampering: altered/omitted batch | Signed digest, append-only events, chained roots, consistency/inclusion proof | Asynchronous finality and unavailable proofs. |
-| Repudiation: denial of claim/notice | Envelope signature, historical key registry, signed holder/issuer receipts | External key custody and disputed real-world facts. |
+| Repudiation: denial of a submitted claim | Envelope signature, historical key registry, signed holder receipts | External key custody and disputed real-world facts. |
 | Information disclosure: private evidence/out-of-scope query | Owner-held encryption and QueryPort enforcement | Metadata, access patterns and authorised runtime plaintext. |
 | Denial of service: flood or missing holder | Quotas, bounded queues, backpressure, retry; qualified holder set | Sustained saturation or absent acknowledgements. |
 | Elevation of privilege: operator or wallet compromise | No standing staff access, dual-approved anchored break-glass; isolated outbound relayer | Colluding approvers or compromised KMS/wallet. |
@@ -271,7 +271,7 @@ The Brief column names which of the brief's seven key requirements each row answ
 | O1 Rural participation | 2, 7 | Conditional: PWA/offline queue and local identifiers | Some devices cannot sign until connected. |
 | O2 Attributable history | 1 | Strong design: signed events, independent ack, Merkle finality | False/collusive assertions and governance remain. |
 | O3 Recall scope | 5 | Supported: non-collapsing, watermarked indexed lineage | Completeness follows participants' event coverage. |
-| O4 Consumer view | 2 | Supported: versioned CDN states and signed notices | Cache propagation may lag a new notice. |
+| O4 Consumer view | 2 | Supported: versioned CDN states and provenance | Cache propagation may lag a newly confirmed event. |
 | O5 Evidence/privacy | implied | Supported: owner-held PRIVATE data; scoped consortium read | Metadata and runtime plaintext remain. |
 | O6 Pilot operability | implied | Plausible: one deployable, managed services, batch anchoring | External archive holders still need operators. |
 | O7 IoT evidence | 3 | Conditional: summaries plus source commitments | Instrumentation and source retention differ by firm. |
@@ -279,7 +279,7 @@ The Brief column names which of the brief's seven key requirements each row answ
 
 ### 5.2 ATAM: sensitivities, risks and trade-offs — rubric 5.3
 
-ATAM is chosen over HAZOP because this platform records evidence rather than controlling physical processes. High-importance drivers are integrity after operator loss, non-repudiation across key rotations, recall under archive outage, 5 000 public scans per second, offline capture and PRIVATE evidence disclosure.
+ATAM is chosen over HAZOP because this platform records evidence rather than controlling physical processes. High-importance drivers are integrity after operator loss, non-repudiation across key rotations, recall under archive outage, 5 000 public scans per second, offline capture and scoped evidence export.
 
 Sensitivity points are the anchoring window (cost against confirmation delay), qualified-holder liveness (receipt throughput against independence), the query traversal bound (recall completeness against latency) and visibility scope (regulatory authority against commercial confidentiality). Risks are an unavailable holder or chain, a single relayer spending credential, inadequate admission governance, and an untested regional recovery time.
 
@@ -357,7 +357,7 @@ The selected design is not universally optimal: it favours independently verifia
 
 | Obligation | How the design answers it |
 |---|---|
-| NSW Food Act / Food Standards Code | Supports conservative recall evidence and signed notices; does not authorise automated findings of fact. |
+| NSW Food Act / Food Standards Code | Supports conservative recall evidence and controlled exports; does not authorise automated findings of fact. |
 | Privacy Act 1988 and the APPs; NSW privacy law | Minimises immutable identity, scopes reads, keeps evidence owner-held and retains a mutable correction path. |
 | Records retention and legal hold | Class-based rules, logged transitions, multi-party deletion and anchored audit evidence. |
 
