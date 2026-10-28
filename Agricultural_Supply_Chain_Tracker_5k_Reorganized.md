@@ -4,7 +4,7 @@
 
 This system is a cross-organisation record of **attributable supply-chain claims**, not an ERP or an arbiter of physical truth. Participants publish versioned GS1 EPCIS events; other participants and regulators can inspect their provenance, competing claims and derived lineage. A claim is **CONFIRMED** after durable platform storage and finality of its public-chain batch commitment. Participants retain signed submissions and can export confirmation proofs for verification independent of platform query results. Thus a single operator cannot silently rewrite confirmed history, although signatures cannot prove that a claim describes reality. A modular application handles admission and scoped queries; workers handle projections and exports; an isolated relayer anchors Merkle roots; public scans use CDN snapshots. Authorised regulators use the platform’s scoped investigation and export functions. This architecture separates independently verifiable history from service availability: managed backups support recovery, while anchoring introduces cost and confirmation delay.
 
-For example, a retailer investigating a contaminated lot must traverse aggregation and transformation claims towards upstream producers. If two processors dispute an input lot, the trace preserves both provenance paths; it reports *possibly affected* material rather than selecting a winner. This makes traceability an evidence service for human decisions, not an automated food-safety verdict.
+For example, a retailer investigating a contaminated lot must traverse aggregation and transformation claims towards upstream producers. If two processors dispute an input lot, the trace preserves both provenance paths; it reports *possibly affected* material rather than selecting a winner.
 
 ## 1. Project context
 
@@ -137,7 +137,7 @@ The table covers the fields where architecture is decided; EPCIS 2.0/CBV supplie
 
 The IoT profile defines these monitoring extensions and summary statistics; they remain in the existing canonical payload, not separate telemetry tables. Abnormal evidence reuses `ProtectedResourceRef` and `plaintextCommitment`.
 
-`captureRecordId` is a transport idempotency identity, distinct from the EPCIS business event identifier. A correction does not overwrite the signed statement, and structural validity permits conflicting claims, whereas current organisation membership, signing-key status, required fields and idempotency collisions are admission checks. A query consumer sees the recorded assertion and its lifecycle status, not a platform-issued certification. Admission checks membership and key status at platform receipt time; it does not establish the true signing time. Acceptance records retain that status and the original key for later verification. Key compromise may still require external investigation.
+`captureRecordId` is a transport idempotency identity, distinct from the EPCIS business event identifier. A correction does not overwrite the signed statement, and structural validity permits conflicting claims, whereas current organisation membership, signing-key status, required fields and idempotency collisions are admission checks. Admission checks membership and key status at platform receipt time; it does not establish the true signing time. Acceptance records retain that status and the original key for later verification. Key compromise may still require external investigation.
 
 | ID | Data scenario and consequence |
 |---|---|
@@ -186,8 +186,6 @@ Australian deployment locations, standards-based PostgreSQL and portable canonic
 Australian Privacy Principles/Privacy Act, NSW privacy obligations, NSW Food Act and Food Standards Code inform minimisation, retention, recall evidence and controlled exports; Appendix B maps each obligation to its answer.
 
 **IoT (2.B).** Participant-managed gateways collect readings in real time during transport and automatically provide current observations to authorised logistics users while connected. Routine telemetry uses best-effort delivery and short-lived buffering; missing observations indicate monitoring gaps, not normal conditions. At journey completion, an organisation-signed EPCIS event records the summary, monitoring coverage and excursions. Routine raw readings may be deleted after platform acceptance of the final event; abnormal readings and their surrounding evidence window remain owner-held under the applicable retention policy. Reliable delivery and long-term retention of every reading were rejected as disproportionate to bandwidth, storage and rural-connectivity needs. Device provisioning and staff authorisation remain participant responsibilities.
-
-Regulatory investigation uses trace queries, evidence exports and human review. Automated regulatory screening and ML are outside the proposed scope; the platform does not determine wrongdoing.
 
 ## 3. Architecture views
 
@@ -248,7 +246,7 @@ The component view sets responsibility boundaries for the conceptual entities; t
 
 `SignatureEnvelope` binds an organisation and key, with no employee identity; mutable organisation, role, key and identity-audit records sit outside canonical business events; `AcceptanceReceipt` records durable platform acceptance, not chain confirmation; `ConfirmationProofBundle` exports signed content, admission evidence and inclusion material; `ProtectedResourceRef` contains a salted commitment and a storage mode rather than private content. `EvidenceEdge`, `EdgeQuery` and `EdgeGroup` carry provenance, scope and watermark.
 
-Conceptually, submissions become canonical events linked to profile versions, evidence references, receipt, leaf and batch. Logically, derived edges and projections belong to query components, not to the signed canonical record. Across views each class has one owning component and container, external dependencies enter through ports, and enumerations are published contracts (Figures 3 and 5). Figure 6 resolves the same event, submission, leaf and batch identities into physical keys and relations — the deliberate bridge between the conceptual, logical and physical models. The SQL tables are not a second source of business truth.
+Conceptually, submissions become canonical events linked to profile versions, evidence references, receipt, leaf and batch. Logically, derived edges and projections belong to query components, not to the signed canonical record. Across views each class has one owning component and container, external dependencies enter through ports, and enumerations are published contracts (Figures 3 and 5). Figure 6 resolves the same event, submission, leaf and batch identities into physical keys and relations — the deliberate bridge between the conceptual, logical and physical models.
 
 ## 4. Architectural rationale and decisions
 
@@ -289,7 +287,7 @@ Figure 6 identifies nine physical tables. Five decisive constraints bind the log
 
 For a transformation, canonical event types carry the claimed input and output identifiers. `Evidence Graph Builder` derives versioned edges but does not impose uniqueness on consumed lots: the same input may appear in multiple competing assertions. A recall query uses a fixed watermark and includes provenance on every traversed edge, so an officer can reproduce the scope rather than silently relying on a later, changed dataset. The event record, edge derivation version and public projection remain separately identifiable during replay.
 
-No warehouse or data lake is warranted at 10,000 events/day: materialised insights meet the initial use cases without duplicating private content or adding another consistency boundary. The projection workers are the only ELT step — canonical events in, versioned marts out — so nothing downstream becomes a second source of truth. Additional geographic regions share the event model and lineage store; another legal jurisdiction requires compliance assessment. New product profiles extend validation without rewriting the event model. These choices address DM-1–5 without implying the platform can verify the physical truth of an event.
+No warehouse or data lake is warranted at 10,000 events/day: materialised insights meet the initial use cases without duplicating private content or adding another consistency boundary. The projection workers are the only ELT step — canonical events in, versioned marts out — so nothing downstream becomes a second source of truth. Additional geographic regions share the event model and lineage store; another legal jurisdiction requires compliance assessment. New product profiles extend validation without rewriting the event model.
 
 ### 4.3 Cloud-native execution and deployment — rubric 4.11–4.15
 
@@ -358,7 +356,7 @@ These controls address SP-1–6 and SP-8 within stated trust boundaries. Anchori
 
 The participant-side IoT adapter supplies a temporary operational view of current readings and automatically submits journey summaries and excursion events through the Capture API. Routine readings need neither anchoring nor strict delivery guarantees. Excursions receive priority submission with bounded retries and explicit acceptance status; unresolved delivery remains visible to participant staff. Observation and platform-receipt times distinguish delayed evidence from current readings. Final EPCIS events use existing admission, idempotency and anchoring; acceptance permits routine raw-data cleanup, while CONFIRMED still requires finality. Summaries include window, unit, min/max/mean, excursion duration and monitoring gaps. Commitments reference retained abnormal-evidence windows, not deleted routine samples. Local alarms and device control remain participant responsibilities.
 
-Insight views are derived from the same materialised lineage, labelled by acting organisation, projection version and watermark. Product-line aggregation therefore cannot silently override disputed claims or reinterpret a provisional edge as established provenance. The portal provides role-specific capture, handover, investigation and insight entry points; detailed screen design is deferred, while offline capture, accessible field labels and state distinctions remain architectural acceptance criteria.
+Insight views use scoped, versioned lineage projections with visible watermarks. The portal provides role-specific capture, handover, investigation and visualisation entry points, with offline capture, readable labels and explicit lifecycle states.
 
 ## 5. Evaluation and feasible alternatives
 
@@ -386,8 +384,6 @@ Sensitivity points are the anchoring window (cost against confirmation delay), b
 
 Accepted trade-offs are provisional visibility before finality, metadata leakage instead of hosting private content, and small-team operability over independent scaling of every module. No benchmark or recovery drill has yet proved the targets; the reference deployment is a buildable proposal, not an operational result. Test priority follows from that: historical signature verification and revoked-key rejection, backup restore, exported-proof verification without platform queries, chain outage injection, non-collapsing recall under load, simultaneous regional submission bursts (ingestion latency, outbox lag and confirmation time), and low-end offline capture. A failed test reopens the requirement; it does not license a quietly weaker guarantee.
 
-The key assessment is not whether the architecture eliminates all failures. Confirmation deliberately trades immediacy for durable acceptance and independently checkable finality; rural accessibility trades synchronous verification for durable local capture.
-
 ### 5.3 Alternative architectures — rubric 5.4
 
 | Alternative | Feasibility and reason not selected | When it becomes preferable |
@@ -396,8 +392,6 @@ The key assessment is not whether the architecture eliminates all failures. Conf
 | A2 Layer-2 anchoring | Retains chain-based verification with lower indicative transaction cost; adds sequencer, settlement/finality and longevity dependencies. | Mainnet cost or delay breaches a measured threshold. |
 | A3 Microservices/event bus | Independent releases/scaling but adds broker, distributed state/sagas and a platform team at 10,000 events/day. | Workloads/teams acquire independent release or scaling requirements. |
 | Conditional non-blockchain fallback: TSA + transparency log | Potentially cheaper with auditor co-signing, but violates the brief's mandatory blockchain constraint. | Only if C1 is formally relaxed. |
-
-The selected design is not universally optimal: it favours independently verifiable evidence without relying on an unformed validator consortium.
 
 ---
 
