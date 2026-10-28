@@ -11,7 +11,7 @@ Person(regulatorOfficer, "Regulator officer", "Food authority")
 Person(governance, "Consortium governance", "Approves members; oversees key changes")
 
 System_Boundary(scope, "Agricultural Supply Chain Tracker") {
-  System(tracker, "Traceability Core", "Shared attributable claims, verifiable history, scoped queries and insights")
+  System(tracker, "Traceability Core", "Shared traceability records, verifiable history, scoped investigations and built-in supply-chain analytics")
 }
 
 System_Ext(devices, "IoT devices and gateways", "Sensors, scales, scanners")
@@ -22,7 +22,7 @@ System_Ext(regSystems, "Regulator systems", "Existing case management")
 
 Rel_Down(participantSystems, tracker, "Automatic signed EPCIS summaries and excursion events; local copies")
 Rel_Right(devices, participantSystems, "Real-time readings; local monitoring")
-Rel_Down(participantUser, tracker, "Captures, queries, exports confirmation proofs")
+Rel_Down(participantUser, tracker, "Captures events, traces lots, views product-line and cold-chain insights, exports proofs")
 Rel_Down(consumer, tracker, "Reads trace page")
 Rel_Down(regulatorOfficer, tracker, "Investigates, exports")
 Rel_Down(governance, tracker, "Approved members and key changes")
