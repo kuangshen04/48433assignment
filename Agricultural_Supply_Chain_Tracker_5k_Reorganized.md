@@ -75,22 +75,22 @@ Compromised onboarding, key theft, public-chain outages and advanced attackers r
 
 ### 2.1 System qualities, scenarios and rejected approaches — rubric 2.1–2.2
 
-The following qualities connect stakeholder needs to measurable architecture tests.
+The following qualities connect stakeholder needs to architecture tests. Numerical load and recovery targets are planning assumptions to validate, not brief-mandated thresholds.
 
 | ID / stakeholder | Requirement and critical scenario | Risk and architectural consequence |
 |---|---|---|
 | SQ-1 Integrity / S6,S11 | Verify any CONFIRMED event against published proofs; QS-1 operator deletes a batch. | A broken batch sequence must be detectable; use chained Merkle commitments. |
 | SQ-2 Attribution / S1–S3,S6 | QS-2 verify an accepted event after its organisation rotates or revokes a key. | Retain the original public key, signature and admission-time membership/key status; later revocation does not rewrite history. |
 | SQ-3 Availability / S4,S6 | QS-3 recall during chain/proof-service outage never yields a false NO RECORD. | Read local projections and report missing verification material; chain outages leave new events pending. |
-| SQ-4 Performance / S4,S5 | QS-4 public demand reaches 5,000 scans/s; bound synchronous traversal to 10,000 edges. | Use edge snapshots and an indexed query copy rather than origin joins at scan time. |
+| SQ-4 Performance / S4,S5 | QS-4 public scans reach the planning load of 5,000/s; synchronous trace queries have a protective limit of 10,000 edges. | Use edge snapshots and indexed queries; label truncated traversals rather than imply complete recall coverage. |
 | SQ-5 Recovery / S6,S9 | QS-5 restore operational data from managed backups: planned DB RPO ≤5 min and RTO ≤4 h. | Retain signed submissions and exportable proofs for independent verification; complete service reconstruction after operator-account loss is outside scope. |
-| SQ-6 Accessibility / S1 | QS-6 four captures during 36 h offline; usable at 2G, WCAG 2.2 AA and 200% text. | Durable client queue, local identifiers and appropriate signing fallback. |
+| SQ-6 Accessibility / S1 | QS-6 a rural user captures events on a low-end device during intermittent connectivity and submits queued records after reconnection. | Lightweight forms, readable labels, explicit offline/pending states and a durable local queue with signing fallback. |
 | SQ-7 Privacy / S1,S6 | QS-7 an investigator exports recall evidence; unrelated organisations’ records and private document contents must be excluded. | Scoped queries and export allowlists; no private plaintext or natural-person fields in shared canonical records. |
-| SQ-8 Interoperability / S1–S4 | Interpret an event from retained profile/canonicalisation versions; QS-10 chain replacement. | EPCIS/CBV profiles and chain-independent digests. |
+| SQ-8 Interoperability / S1–S4 | QS-10 participants exchange interpretable events across product lines using retained profile/canonicalisation versions. | EPCIS/CBV profiles preserve shared semantics while allowing approved product-specific extensions. |
 | SQ-9 Auditability / S6,S11 | QS-9 two processors assert the same input lot; replay preserves both claims and provenance. | Non-collapsing evidence graph, versioned derivation and watermarks. |
 | SQ-10 Operability / S9 | Small team operates one deployable application and managed database. | Avoid an orchestrated microservice estate without a scaling driver. |
 | SQ-11 Real-time IoT integration / S3 | QS-12 a reefer exceeds limits during transport: connected users see current readings, excursions are prioritised and monitoring gaps remain visible. | Best-effort routine telemetry; signed journey summaries and retained abnormal-evidence windows enter the shared record. |
-| SQ-13 Insights / S2–S6 | QS-13 reproduce a product-line figure at yesterday's watermark. | Materialised, scoped projections; no independent untraceable analytics truth. |
+| SQ-13 Insights / S2–S6 | QS-13 an authorised user views product-line and cold-chain summaries, including excursions and monitoring gaps. | Scoped materialised projections support visualisation; watermarks identify the data version shown. |
 | SQ-14 Regional scalability / S1–S4,S9 | QS-14 several regions submit seasonal bursts; accepted events are retained and confirmation lag is visible. | Queued work and scaling absorb bursts; database and batch capacity require validation. |
 
 | Rejected approach | Reason for rejection / quality link |
@@ -448,7 +448,7 @@ The selected design is not universally optimal: it favours independently verifia
 | PITR / PWA | Point-in-time recovery / progressive web application |
 | RPO / RTO | Recovery point objective / recovery time objective |
 | SOLID / STRIDE | Five design principles / the six threat categories |
-| TSA / WCAG | Timestamping authority / Web Content Accessibility Guidelines |
+| TSA | Timestamping authority |
 
 ## Appendix B — Regulation
 
