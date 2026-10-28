@@ -2,7 +2,7 @@
 
 ## 0. Architecture at a glance
 
-This system is a cross-organisation record of **attributable supply-chain claims**, not an ERP or an arbiter of physical truth. Participants publish versioned GS1 EPCIS events; other participants and regulators can inspect their provenance, competing claims and derived lineage. A claim is **CONFIRMED** after durable platform storage and finality of its public-chain batch commitment. Participants retain signed submissions and can export confirmation proofs for verification independent of platform query results. Thus a single operator cannot silently rewrite confirmed history, although signatures cannot prove that a claim describes reality. A modular application handles admission and scoped queries; workers handle projections and exports; an isolated relayer anchors Merkle roots; public scans use CDN snapshots. Authorised regulators use the platform’s scoped investigation and export functions. This architecture separates independently verifiable history from service availability: managed backups support recovery, while anchoring introduces cost and confirmation delay.
+This system is a cross-organisation record of **attributable supply-chain claims**, not an ERP or an arbiter of physical truth. Participants publish versioned GS1 EPCIS events; other participants and regulators can inspect their provenance, competing claims and derived lineage. A claim is **CONFIRMED** after durable platform storage and finality of its public-chain batch commitment. Participants retain signed submissions and can export confirmation proofs for verification independent of platform query results. Thus a single operator cannot silently rewrite confirmed history, although signatures cannot prove that a claim describes reality. A modular application handles admission and scoped queries; workers handle projections and exports; an isolated relayer anchors Merkle roots; public scans use CDN snapshots. Authorised regulators use the platform’s scoped investigation and export functions. Anchoring introduces cost and confirmation delay.
 
 For example, a retailer investigating a contaminated lot must traverse aggregation and transformation claims towards upstream producers. If two processors dispute an input lot, the trace preserves both provenance paths; it reports *possibly affected* material rather than selecting a winner.
 
@@ -67,7 +67,7 @@ ERP/WMS replacement, inventory settlement, payments, formal notices, private-doc
 |---|---|
 | Customs authorities and certification issuers as direct users | Clearance and certificate issuance are outside initial NSW use cases; certificates may be referenced as owner-held evidence. |
 | Mandatory participant-hosted servers or consortium validators | Rejected as deployment constraints because they conflict with rural access and small-team operation; browser/gateway access and public anchoring are selected. |
-| Recovery after participant insolvency or permanent loss of owner-held evidence | Outside the platform recovery guarantee because participant archives are not operator-controlled; unavailable evidence remains labelled. |
+| Recovery beyond managed backups | Reconstruction after permanent loss of the operator account or participant-held evidence is outside scope; commitments support verification, not payload recovery. |
 
 Compromised onboarding, key theft, public-chain outages and advanced attackers remain residual risks, not scope exclusions; admission controls, audit, isolation and degraded operation limit their impact without guaranteeing prevention.
 
@@ -83,7 +83,7 @@ The following qualities connect stakeholder needs to architecture tests. Numeric
 | SQ-2 Attribution / S1–S3,S6 | QS-2 verify an accepted event after its organisation rotates or revokes a key. | Retain the original public key, signature and admission-time membership/key status; later revocation does not rewrite history. |
 | SQ-3 Availability / S4,S6 | QS-3 recall during chain/proof-service outage never yields a false NO RECORD. | Read local projections and report missing verification material; chain outages leave new events pending. |
 | SQ-4 Performance / S4,S5 | QS-4 public scans reach the planning load of 5,000/s; synchronous trace queries have a protective limit of 10,000 edges. | Use edge snapshots and indexed queries; label truncated traversals rather than imply complete recall coverage. |
-| SQ-5 Recovery / S6,S9 | QS-5 restore operational data from managed backups: planned DB RPO ≤5 min and RTO ≤4 h. | Retain signed submissions and exportable proofs for independent verification; complete service reconstruction after operator-account loss is outside scope. |
+| SQ-5 Recovery / S6,S9 | QS-5 restore operational data from managed backups: planned DB RPO ≤5 min and RTO ≤4 h. | Validate through restore drills covering operational records, key history and proof material. |
 | SQ-6 Accessibility / S1 | QS-6 a rural user captures events on a low-end device during intermittent connectivity and submits queued records after reconnection. | Lightweight forms, readable labels, explicit offline/pending states and a durable local queue with signing fallback. |
 | SQ-7 Privacy / S1,S6 | QS-7 an investigator exports recall evidence; unrelated organisations’ records and private document contents must be excluded. | Scoped queries and export allowlists; no private plaintext or natural-person fields in shared canonical records. |
 | SQ-8 Interoperability / S1–S4 | QS-10 participants exchange interpretable events across product lines using retained profile/canonicalisation versions. | EPCIS/CBV profiles preserve shared semantics while allowing approved product-specific extensions. |
@@ -159,7 +159,7 @@ Participants need browser access rather than owned infrastructure; C6 rules out 
 | Application and workers | Managed container PaaS; application/worker roles from one image | Self-managed IaaS cluster and operational platform team. |
 | PostgreSQL | Managed relational PaaS, primary and reader, PITR | Self-managed database administration. |
 | Public delivery | CDN plus versioned object snapshots | Per-scan origin/API reads. |
-| Recovery and encryption | Managed PITR, encrypted backup copies and managed KMS | A dedicated independent custodian and zero-loss account-rebuild protocol. |
+| Recovery and encryption | Managed PITR, encrypted backup copies and managed KMS | Self-managed backup and key-management infrastructure. |
 | Chain | Paid public network, batched root submission | Consortium validators with no operators. |
 | Identity | External IdP; platform organisation/role mapping and organisation key registry | In-house passwords and automated legal-identity verification. |
 
@@ -268,7 +268,7 @@ The design also checks the five smells rather than merely naming them: one graph
 
 ### 4.2 Data authority, models and analytics — rubric 4.6–4.10
 
-**Signed canonical events in PostgreSQL are the platform record; QueryStore and lineage are derived.** Admission durably commits an event, its acceptance evidence and an outbox intent before returning a receipt. A receipt means accepted for anchoring, not CONFIRMED. Participants retain their signed submissions; scoped exports provide the event, signature, original public key, admission record, profile/canonicalisation versions, batch manifest, inclusion proof and chain reference. The leaf binds the event, signature and receipt digests. These materials support independent verification, not reconstruction of every account or service. PRIVATE documents remain owner-held; PUBLIC is a minimal projection.
+**Signed canonical events in PostgreSQL are the platform record; QueryStore and lineage are derived.** Admission durably commits an event, its acceptance evidence and an outbox intent before returning a receipt. A receipt means accepted for anchoring, not CONFIRMED. Participants retain their signed submissions; scoped exports provide the event, signature, original public key, admission record, profile/canonicalisation versions, batch manifest, inclusion proof and chain reference. The leaf binds the event, signature and receipt digests. Verification requires available signed content and proof material; public roots cannot recover missing payloads. PRIVATE documents remain owner-held; PUBLIC is a minimal projection.
 
 | Data role | Placement and lifecycle |
 |---|---|
@@ -295,11 +295,11 @@ No warehouse or data lake is warranted at 10,000 events/day: materialised insigh
 
 Regional growth increases aggregate ingestion, storage and query demand. Cloud-native tactics are stateless application replicas, workers scaled by outbox lag, indexed lineage queries and independent CDN delivery. Merkle batching avoids one chain transaction per event. Application and worker roles share one image; declarative infrastructure and workload isolation support managed execution. PostgreSQL remains managed, avoiding a self-managed cluster under C6. Database write capacity and batch-processing time remain limits to measure; scale-out follows observed demand.
 
-The platform operates the application, database, managed KMS and backups; the chain remains independently operated, and participants retain their own signed records and exported proofs. There is no required trustee, archive attestor or regulator-operated mirror.
+The platform operates the application, database, managed KMS and backups; the public chain remains independently operated.
 
 The reference placement uses Sydney ECS Fargate tasks, a managed PostgreSQL writer and reader, PITR, encrypted backup copies in Melbourne, an isolated relayer with its wallet in KMS, S3 snapshot origin and CDN delivery. Ethereum mainnet hosts a non-upgradeable anchoring contract enforcing batch sequencing and prior-root linkage; the relayer waits for consensus finality before confirmation. Active-active writes, self-run validators and a warehouse are not justified at pilot scale.
 
-Planned recovery targets require restore drills, including recovery of signing-key history and batch/proof records. Independent verification is separate from availability: roots cannot recover missing payloads, and participant copies do not guarantee complete service recovery. Separately administered backup copies could reduce account-loss exposure, but their extra operations and cost are deferred; they are not an acceptance or confirmation gate.
+Managed backup recovery remains subject to restore testing (SQ-5).
 
 ### 4.4 Dynamic evidence flows and trust boundaries — rubric 4.16–4.20
 
@@ -331,7 +331,7 @@ Chain failure leaves the event PENDING_ANCHOR; backup completion is not a write 
 | Relayer → public chain | Batch root, sequence and transaction reference | Public commitment; no business payload. |
 | Worker → public CDN | Versioned PUBLIC projection | Controlled disclosure/snapshot version. |
 
-Figure 10 authorises the investigator, fixes a watermark and traverses scoped lineage using local query and proof records. Available signatures and inclusion proofs are checked; competing claims, provisional links, missing proof and coverage limits remain explicit. The investigator can export allowed records and verification material, with the export audited and private document contents excluded. Exported proofs support independent checking against public-chain commitments. Formal notices, private-document exchange and physical recall execution remain in existing external processes; degraded results never imply that no affected lot exists.
+Figure 10 authorises the investigator, fixes a watermark and traverses scoped lineage using local query and proof records. Available signatures and inclusion proofs are checked; competing claims, provisional links, missing proof and coverage limits remain explicit. The investigator can export allowed records and verification material, with the export audited and private document contents excluded. Formal notices, private-document exchange and physical recall execution remain in existing external processes; degraded results never imply that no affected lot exists.
 
 **STRIDE coverage** follows the actual entry points: participant API/onboarding, portal reads, staff access and scoped evidence exports, backup/KMS/chain access and authorised exports, and internal worker/wallet control.
 
@@ -344,7 +344,7 @@ Figure 10 authorises the investigator, fixes a watermark and traverses scoped li
 | Denial of service: flood or chain outage | Quotas, bounded queues, backpressure, retry; local query projections | Sustained saturation or delayed confirmation. |
 | Elevation of privilege: operator or wallet compromise | Least-privilege roles, audited member/key changes and privileged operations; isolated outbound relayer | Compromised administrator or KMS/wallet. |
 
-These controls address SP-1–6 and SP-8 within stated trust boundaries. Anchoring proves a commitment, not physical truth. The platform runtime still reads CONSORTIUM plaintext; collusion, access metadata and partner insolvency remain risks. Participant-held signed events and exported proofs can expose changes to committed content, but cannot guarantee data availability or that all real-world events were submitted.
+These controls address SP-1–6 and SP-8 within stated trust boundaries. Anchoring proves a commitment, not physical truth. The platform runtime still reads CONSORTIUM plaintext; collusion and access metadata remain risks. Unsubmitted real-world events cannot be detected from the ledger alone.
 
 ### 4.5 IoT integration and insight views — rubric 4.B, bonus
 

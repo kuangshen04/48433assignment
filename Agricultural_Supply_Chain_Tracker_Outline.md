@@ -325,3 +325,5 @@
 - IoT 边界澄清：adapter 属于 Tracker 交付方案，由参与方运行；设备和 gateway 硬件由参与方提供。同步 context、container、component 和部署图；未增加平台原始遥测存储或逐条上链。
 
 - Figure 3 已嵌入概念／逻辑数据模型：Submission、CanonicalEvent、ProfileVersion、AcceptanceReceipt、EvidenceEdge、MerkleLeaf、AnchorBatch，标注属性、基数及负责组件；Leaf Allocator／Batch Builder 归独立 Relayer，正文重复实体属性表已替换为简短说明。
+
+- 独立验证／特殊恢复讨论去重：§4.2 集中说明证明材料和可取得性限制；§1.2 统一排除超出托管备份的永久丢失重建；SQ-5 聚焦 RPO/RTO 与恢复演练；开篇、部署论证和安全分析删去重复恢复声明，保留原有历史公钥、receipt、manifest 与 inclusion proof 设计。
