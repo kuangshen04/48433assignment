@@ -193,15 +193,11 @@ Four views narrow in sequence: context fixes the boundary, containers show runti
 
 ### 3.1 Context and containers — rubric 3.1–3.4
 
-![Figure 1 — System context](docs/diagrams/preview/c4-context.png)
-
-*Figure 1 — One traceability system, four groups of users and five external systems.*
+![*Figure 1 — One traceability system, four groups of users and five external systems.*](docs/diagrams/preview/c4-context.png)
 
 Traceability Core holds shared canonical claims and supplies scoped investigation, export and insight views to authorised users, including regulators. Supply-chain analytics is built into the Tracker rather than provided by an external system; the Insights module uses worker-maintained projections for scoped product-line and cold-chain visualisations. The delivered IoT adapter runs on participant gateways, provides temporary live views and automatically submits EPCIS summaries and excursion events. Humans authenticate through an external IdP and map to an organisation and role. A designated governance body approves organisations before registration; automated legal-identity verification is outside scope. The public chain provides an independently checkable commitment. Managed storage encryption and backup services are deployment infrastructure; they do not attest business records.
 
-![Figure 2 — Core containers](docs/diagrams/preview/core-container.png)
-
-*Figure 2 — Containers of the platform control domain and the external systems they depend on.*
+![*Figure 2 — Containers of the platform control domain and the external systems they depend on.*](docs/diagrams/preview/core-container.png)
 
 | Container | Responsibility and key interaction |
 |---|---|
@@ -218,25 +214,17 @@ Admission commits the signed event, acceptance record and anchor intent atomical
 
 ### 3.2 Components and code — rubric 3.5–3.10
 
-![Figure 3 — Traceability Core components](docs/diagrams/preview/core-component.png)
+![*Figure 3 — Core components with conceptual relationships, logical attributes and responsible components; anchoring entities belong to the separate relayer.*](docs/diagrams/preview/core-component.png)
 
-*Figure 3 — Core components with conceptual relationships, logical attributes and responsible components; anchoring entities belong to the separate relayer.*
-
-![Figure 4 — Relayer components](docs/diagrams/preview/relayer-component.png)
-
-*Figure 4 — Components of the relayer, the only container that touches a chain.*
+![*Figure 4 — Components of the relayer, the only container that touches a chain.*](docs/diagrams/preview/relayer-component.png)
 
 The Core separates Capture API; Idempotency/Outbox Coordinator; Canonicalisation/Profile Validator; Signature/Membership Validator; Submission State Machine; Anchor Confirmation Coordinator; Evidence Graph Builder; Event Store; and QueryPort. The coordinator owns the gate, workers execute intents, and QueryPort exposes `edges()` and bounded `traverse()` but no business-truth verdict. The relayer isolates the single spending credential; deterministic leaves and persisted batch manifests support proof regeneration and export. The Insights module consumes QueryPort and presents scoped product-line and cold-chain summaries from worker-maintained projections.
 
 Figure 3 embeds the conceptual/logical model: acceptance materialises an event and receipt; profiles constrain events; edges are derived; pending events may have no leaf. Bracketed entity labels identify responsible components, while container groups distinguish Core from Relayer. Figure 5 specifies code contracts.
 
-![Figure 5 — Core code view](docs/diagrams/preview/core-code.png)
+![*Figure 5 — Core evidence contracts, organisation identity records and the scoped query interface.*](docs/diagrams/preview/core-code.png)
 
-*Figure 5 — Core evidence contracts, organisation identity records and the scoped query interface.*
-
-![Figure 6 — Physical data model](docs/diagrams/preview/core-physical-model.png)
-
-*Figure 6 — Nine tables; the constraints that matter are named in §4.2.*
+![*Figure 6 — Nine tables; the constraints that matter are named in §4.2.*](docs/diagrams/preview/core-physical-model.png)
 
 `SignatureEnvelope` binds an organisation and key, with no employee identity; mutable organisation, role, key and identity-audit records sit outside canonical business events; `AcceptanceReceipt` records durable platform acceptance, not chain confirmation; `ConfirmationProofBundle` exports signed content, admission evidence and inclusion material; `ProtectedResourceRef` contains a salted commitment and a storage mode rather than private content. `EvidenceEdge`, `EdgeQuery` and `EdgeGroup` carry provenance, scope and watermark.
 
@@ -285,13 +273,9 @@ No warehouse or data lake is warranted at 10,000 events/day: materialised insigh
 
 ### 4.3 Cloud-native execution and deployment — rubric 4.11–4.15
 
-![Figure 7 — Logical deployment](docs/diagrams/preview/c4-deployment.png)
+![*Figure 7 — Logical placement: which control domain owns which node.*](docs/diagrams/preview/c4-deployment.png)
 
-*Figure 7 — Logical placement: which control domain owns which node.*
-
-![Figure 8 — Reference deployment](docs/diagrams/preview/c4-reference-deployment.png)
-
-*Figure 8 — A reference configuration that can be procured and built.*
+![*Figure 8 — A reference configuration that can be procured and built.*](docs/diagrams/preview/c4-reference-deployment.png)
 
 Regional growth increases aggregate ingestion, storage and query demand. Cloud-native tactics are stateless application replicas, workers scaled by outbox lag, indexed lineage queries and independent CDN delivery. Merkle batching avoids one chain transaction per event. Application and worker roles share one image; declarative infrastructure and workload isolation support managed execution. PostgreSQL remains managed, avoiding a self-managed cluster under C6. Database write capacity and batch-processing time remain limits to measure; scale-out follows observed demand.
 
@@ -303,13 +287,9 @@ Managed backup recovery remains subject to restore testing (SQ-5).
 
 ### 4.4 Dynamic evidence flows and trust boundaries — rubric 4.16–4.20
 
-![Figure 9 — Dynamic view: event acceptance](docs/diagrams/preview/c4-dynamic.png)
+![*Figure 9 — One event from submission to confirmed visibility.*](docs/diagrams/preview/c4-dynamic.png)
 
-*Figure 9 — One event from submission to confirmed visibility.*
-
-![Figure 10 — Dynamic view: recall investigation](docs/diagrams/preview/c4-dynamic-recall.png)
-
-*Figure 10 — Authorised trace query, verification and scoped evidence export.*
+![*Figure 10 — Authorised trace query, verification and scoped evidence export.*](docs/diagrams/preview/c4-dynamic-recall.png)
 
 Figure 9:
 
