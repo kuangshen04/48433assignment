@@ -93,7 +93,15 @@ The following qualities connect stakeholder needs to measurable architecture tes
 | SQ-13 Insights / S2–S6 | QS-13 reproduce a product-line figure at yesterday's watermark. | Materialised, scoped projections; no independent untraceable analytics truth. |
 | SQ-14 Regional scalability / S1–S4,S9 | QS-14 several regions submit seasonal bursts; accepted events are retained and confirmation lag is visible. | Queued work and scaling absorb bursts; database and batch capacity require validation. |
 
-Rejected: backups alone as evidence of integrity (no independent commitment, SQ-1), per-employee immutable identities (SQ-7), synchronous external reads (SQ-3/4), authoritative graph storage (derived edges cease to be independently reconstructable, SQ-9), and ML-based admission (unauthorised adjudication). Section 4 traces these risks to tactics.
+| Rejected approach | Reason for rejection / quality link |
+|---|---|
+| Backups alone as evidence of integrity | No independent commitment (SQ-1). |
+| Per-employee immutable identities | Conflicts with personal-data minimisation (SQ-7). |
+| Synchronous external reads | External outages and latency affect local queries (SQ-3/4). |
+| Authoritative graph storage | Derived edges cease to be independently reconstructable (SQ-9). |
+| ML-based admission | Introduces unauthorised adjudication. |
+
+Section 4 traces these risks to tactics.
 
 ### 2.2 Data management, scenarios and storage — rubric 2.3–2.4
 
