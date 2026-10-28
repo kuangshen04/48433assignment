@@ -1,6 +1,7 @@
 @startuml c4-dynamic
 !include ../vendor/style.puml
-title Dynamic view — one event from submission to CONFIRMED
+
+title Dynamic view — durable acceptance, chain confirmation and proof export
 
 autonumber
 skinparam sequenceMessageAlign left
@@ -16,46 +17,37 @@ skinparam sequence {
   GroupBorderColor #999999
   GroupHeaderFontColor #444444
 }
-
 participant "Portal / ERP" as client
 participant "Traceability App" as app
-participant "Operational DB" as db
-participant "Workers" as workers
-participant "KMS" as kms #999999
-participant "External Archive" as archive #999999
-participant "Relayer" as relayer
-participant "Blockchain" as chain #999999
+participant "Operational PostgreSQL" as db
+participant "Batch Builder / Relayer" as relayer
+participant "Public Blockchain" as chain #999999
+participant "Projection Workers" as workers
 participant "Public CDN" as cdn
 
-== Phase 1 · Receive and validate (SUBMITTED → VALIDATED) ==
-client -> app: Submit EPCIS event, SignatureEnvelope,\ncaptureRecordId, profile reference
-app -> db: Check active membership and signing key;\npersist VALIDATED;\nenqueue archive intent in one transaction
-note right of db: Idempotent on captureRecordId + digest;\nno receipt is issued yet; revoked keys are rejected
+== Phase 1 · Validate and durably accept ==
+client -> client: Retain signed submission locally
+client -> app: Signed EPCIS event, captureRecordId and profile reference
+app -> app: Validate profile, active membership and current key
+app -> db: Atomic commit: signed event, acceptance receipt,\nadmission evidence and anchor intent
+app --> client: Acceptance receipt: PENDING_ANCHOR
+note over app, db: Return a receipt only after transaction commit.\nA receipt is not chain confirmation or a zero-loss recovery promise.\nRevoked keys are rejected; duplicate submissions are idempotent.
 
-== Phase 2 · Encrypt and archive (→ PENDING_ARCHIVE) ==
-workers -> db: Poll and claim the outbox intent
-workers -> kms: Wrap the event DEK under the KEK epoch
-kms --> workers: Wrapped DEK
-workers -> archive: Put EncryptedArchiveEnvelope
-archive --> workers: Signed ArchiveAck\nfor the bytes actually stored
-note over kms, archive: Dedicated DEK per event.\nThe archive holder cannot decrypt;\nit only signs what it stored.
+== Phase 2 · Batch and anchor ==
+relayer -> db: Claim anchor intents; persist deterministic leaves\nand ordered batch manifest
+relayer -> chain: Submit sequenced root linked to previous root
+chain --> relayer: Observe consensus finality; transaction reference
+relayer -> db: Persist finality and inclusion proofs
+note over relayer, chain: Chain outages leave accepted events pending and retry.\nNo timeout promotes an event to CONFIRMED.
 
-== Phase 3 · Acceptance receipt (receipt issued) ==
-workers -> db: Record Ack; issue acceptance receipt
-app --> client: Acceptance receipt\n(binds ArchiveAckDigest + payload digest)
-note right of client: The platform has now committed\nto an anchor window. It cannot\nsilently drop the event.
+== Phase 3 · Confirm and project ==
+workers -> db: Check durable event and finalised leaf; mark CONFIRMED
+workers -> cdn: Publish versioned public projection
 
-== Phase 4 · Anchor and finality (PENDING_ANCHOR → FINALISED) ==
-relayer -> db: Claim anchor intent; allocate\ndeterministic Merkle leaf
-relayer -> chain: Submit batch Merkle root
-chain --> relayer: Finality; transaction reference
-relayer -> db: Record inclusion proof and leaf
-
-== Phase 5 · Confirm and project (CONFIRMED) ==
-workers -> db: Mark CONFIRMED
-workers -> cdn: Publish versioned consumer projection
-app --> client: Trace query now returns the confirmed event
-
-note over workers, chain: Failure suspends the event in the state it reached and retries\nidempotently; a timeout never promotes it to CONFIRMED.
-
+== Phase 4 · Export verification material ==
+client -> app: Request scoped confirmation proof bundle
+app -> db: Read event, signature, receipt, key/version evidence,\nbatch manifest, inclusion proof and chain reference
+app --> client: Confirmation proof bundle
+client -> client: Retain bundle; independently check public-chain commitment
+note over client, db: Database PITR and encrypted backups support ordinary service recovery.\nBackup completion is not on the acceptance path; roots cannot restore missing payloads.
 @enduml

@@ -37,7 +37,6 @@ package "Admission and confirmation" {
   class AcceptanceReceipt {
     captureRecordId
     payloadDigest
-    archiveAckDigest
     anchorWindow
     admittedAt
     admittedKeyId
@@ -46,26 +45,12 @@ package "Admission and confirmation" {
   }
 }
 
-package "Archive and anchoring" {
-  class ArchiveEnvelope {
-    envelopeVersion
-    networkId
-    ciphertextDigest
-    wrappedDEK
-    keyId / keyEpoch
-  }
-  class ArchiveAck {
-    archiveObjectId
-    envelopeDigest
-    ciphertextDigest
-    retentionPolicyId
-    holderSignature
-  }
+package "Anchoring and verification" {
   class MerkleLeaf {
     leafIndex
     payloadDigest
     signatureDigest
-    ackDigest
+    receiptDigest
   }
   class AnchorBatch {
     batchId
@@ -77,6 +62,14 @@ package "Archive and anchoring" {
 }
 
 package "Evidence and query" {
+  class ConfirmationProofBundle {
+    event / signature / receipt
+    originalPublicKey
+    profile / canonicalisationVersion
+    batchManifest / inclusionPath
+    chainId / contractAddress / txRef
+    verifyAgainst(publicCommitment) : boolean
+  }
   class EvidenceEdge {
     fromObjectId / toObjectId
     edgeType
@@ -138,7 +131,6 @@ package "Enumerations" {
   enum ConfirmationStatus {
     SUBMITTED
     VALIDATED
-    PENDING_ARCHIVE
     PENDING_ANCHOR
     FINALISED
     CONFIRMED
@@ -156,16 +148,13 @@ CaptureSubmission --> SignatureEnvelope : carries
 CaptureSubmission --> ProtectedResourceRef : references
 CaptureSubmission --> CanonicalEvent : materialises
 CanonicalEvent ..> ProfileVersion : validated against
-CanonicalEvent --> ArchiveEnvelope : encrypted as
-ArchiveEnvelope --> ArchiveAck : acknowledged by
 CanonicalEvent --> MerkleLeaf : committed as
 MerkleLeaf --> AnchorBatch : batched into
 CanonicalEvent --> EvidenceEdge : derives
 EvidenceEdge --> EdgeGroup : grouped into
 QueryPort ..> EdgeQuery : accepts
 QueryPort ..> EdgeGroup : returns
-AcceptanceReceipt ..> ArchiveAck : binds digest
-AcceptanceReceipt ..> CanonicalEvent : promises
+AcceptanceReceipt ..> CanonicalEvent : acknowledges persistence
 CanonicalEvent --> ConfirmationStatus
 EvidenceEdge --> EdgeType
 
@@ -174,5 +163,9 @@ Organisation "1" <-- "0..*" OrganisationSigningKey : authorised for
 Organisation "1" <-- "0..*" IdentityAuditRecord : records changes
 SignatureEnvelope ..> OrganisationSigningKey : identifies key
 AcceptanceReceipt ..> OrganisationSigningKey : retains key and admission status
+
+ConfirmationProofBundle ..> AcceptanceReceipt : includes
+ConfirmationProofBundle ..> AnchorBatch : references
+ConfirmationProofBundle ..> MerkleLeaf : proves inclusion
 
 @enduml

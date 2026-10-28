@@ -2,50 +2,40 @@
 !include ../vendor/C4_Deployment.puml
 !include ../vendor/style.puml
 
-title Deployment view — logical placement and ownership
+title Deployment view — platform recovery and independent verification
 
-Deployment_Node(device, "Participant device", "Browser, app or gateway", "Intermittent connectivity") {
-  Container(pwa, "Portal (PWA)", "Browser", "Capture, query, offline queue")
+Deployment_Node(device, "Participant device / business system", "Browser or gateway", "Intermittent connectivity") {
+  Container(pwa, "Portal (PWA)", "Browser", "Capture, query and proof export")
+  ContainerDb(local, "Participant records", "Local storage / existing system", "Retains signed submissions and exported proofs")
 }
-
 Deployment_Node(edge, "CDN edge", "Global PoPs", "Static snapshots") {
-  Container(cdn, "Snapshot cache", "CDN", "Versioned objects")
+  Container(cdn, "Snapshot cache", "CDN", "Versioned public objects")
 }
-
-Deployment_Node(region, "Australian region — platform account", "One cloud region", "Managed services only") {
+Deployment_Node(region, "Australian region — platform account", "Managed services", "Platform-operated") {
   Container(app, "Traceability Application", "Containers", "Core and modules")
-  Container(workers, "Ingestion & Projection Workers", "Containers", "Outbox-driven")
-  Container(relayer, "Batch Builder & Relayer", "Isolated worker", "Only chain wallet")
-  ContainerDb(db, "Operational PostgreSQL", "Managed, multi-AZ", "State, outbox, QueryStore")
+  Container(workers, "Projection Workers", "Containers", "Outbox-driven projections and exports")
+  Container(relayer, "Batch Builder & Relayer", "Isolated container", "Only chain wallet")
+  ContainerDb(db, "Operational PostgreSQL", "Managed multi-AZ / PITR", "Signed events, receipts, registries, proof and query records")
+  ContainerDb(snapshots, "Snapshot origin", "Object storage", "Public projections")
+  Container(kms, "Managed KMS", "Cloud-managed", "Storage encryption and wallet protection")
 }
-
-Deployment_Node(trustee, "Australian regions — trustee account", "Separate account", "Consortium-controlled") {
-  ContainerDb(archive, "External archive", "WORM storage", "Payload; signs ArchiveAck")
-  Container(kms, "Consortium KMS", "Managed KMS, HSM", "Wraps event DEKs")
-  Container(recovery, "Recovery identity", "Separate IAM", "Restores without platform")
+Deployment_Node(dr, "Australian recovery region", "Managed backup storage", "Conventional restore; no independent rebuild guarantee") {
+  ContainerDb(backup, "Encrypted backup copies", "Database snapshots / backup retention", "Operational data and verification material")
 }
-
-Deployment_Node(regarch, "Regulator account — evidence", "Separate account", "Optional second archive holder") {
-  ContainerDb(regmirror, "Archive mirror", "WORM storage", "Ciphertext; signs ArchiveAck")
-  Container(attestor, "Archive attestor", "Signer service", "Verifies stored bytes, signs ArchiveAck")
-}
-
-Deployment_Node(chainNet, "Public blockchain", "External utility", "No validator operation")
-
-Rel_Down(pwa, app, "API", "HTTPS")
-Rel_Down(app, db, "Read/write", "SQL/TLS")
-Rel_Down(app, workers, "Same image, worker role")
-Rel_Down(workers, db, "Polls outbox", "SQL/TLS")
-Rel_Left(app, kms, "Wrap/unwrap DEK", "mTLS")
-Rel_Left(workers, archive, "Envelope, Ack", "HTTPS")
-Rel(workers, cdn, "Publish", "Object API")
-Rel_Down(relayer, db, "Leaves, intents", "SQL/TLS")
-Rel(relayer, chainNet, "Merkle root", "tx")
-Rel_Up(pwa, cdn, "Trace page", "HTTPS")
-Rel(cdn, app, "Origin pull", "HTTPS")
-Rel_Down(workers, regmirror, "Ciphertext mirror", "HTTPS")
-Rel_Down(attestor, regmirror, "Verifies stored bytes")
-Rel_Right(recovery, archive, "Trustee-granted restore role")
-
+Deployment_Node(chainNet, "Public blockchain", "Independent network", "Finalised commitments; no business payload")
+Rel(pwa, local, "Retain submissions and proofs")
+Rel(pwa, app, "Capture, query, export", "HTTPS")
+Rel(app, db, "Atomic event, receipt and anchor intent", "SQL/TLS")
+Rel(workers, db, "Projection / export work", "SQL/TLS")
+Rel(workers, snapshots, "Publish", "Object API")
+Rel(cdn, snapshots, "Origin pull", "HTTPS")
+Rel(pwa, cdn, "Trace page", "HTTPS")
+Rel(relayer, db, "Leaves, manifests and proofs", "SQL/TLS")
+Rel(relayer, chainNet, "Root submission and finality", "RPC")
+Rel(relayer, kms, "Wallet signing", "Managed API")
+Rel(db, kms, "Storage encryption", "Managed API")
+Rel(db, backup, "Managed encrypted backup copy")
+Rel(backup, db, "Restore after failure")
+Rel(local, chainNet, "Independently verify exported commitments", "Read-only")
 SHOW_LEGEND()
 @enduml

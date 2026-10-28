@@ -8,4 +8,4 @@ These three diagrams describe the former independently operated Regulatory Analy
 
 They are retained as historical design material, not as part of the current architecture. The active render script reads only `../../src/*.puml`. Legacy documentation pages and their existing analytics images may still describe the former proposal; the current report no longer references those images.
 
-Regulator access to scoped queries, evidence requests, recall investigations and exports remains in the current platform. Ordinary insight projections also remain. The optional regulator-operated evidence mirror is an archive holder and is independent of the retired screening subsystem.
+Regulator access to scoped queries, evidence requests, recall investigations and exports remains in the current platform. Ordinary insight projections also remain. The separate evidence mirror was subsequently removed when recovery was simplified to managed backups and participant-held proof exports. Historical diagrams on legacy pages are not the current report architecture.

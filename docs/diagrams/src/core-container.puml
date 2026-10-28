@@ -18,14 +18,13 @@ System_Boundary(system, "Agricultural Supply Chain Tracker") {
     Container(app, "Traceability Application", "Modular monolith (Core + 5 modules)", "Admission validation, confirmation gate, evidence graph, single QueryPort, scoped insights")
     Container(workers, "Ingestion & Projection Workers", "Outbox-driven workers", "Idempotent retry, projection rebuild, export, retention")
     Container(relayer, "Batch Builder & Relayer", "Isolated worker with chain wallet", "Merkle batching, root submission, inclusion proofs")
-    ContainerDb(db, "Operational PostgreSQL", "Managed PostgreSQL", "Submission state, current registries, outbox, QueryStore, lineage and insight projections")
+    ContainerDb(db, "Operational PostgreSQL", "Managed PostgreSQL", "Signed events, receipts, registries, outbox, manifests/proofs and query projections")
     Container(cdn, "Public Snapshot Delivery", "Object storage + CDN", "Versioned PUBLIC consumer snapshots")
+    ContainerDb(backup, "Managed Backup Storage", "Encrypted backups / PITR", "Operational records and verification material; not a confirmation gate")
   }
 
 }
 
-Container_Ext(archive, "External Archive", "WORM, outside platform control domain", "Encrypted canonical payload; signs ArchiveAck")
-Container_Ext(kms, "Consortium KMS", "Trustee-controlled account", "Consortium KEK; wrap/unwrap only")
 System_Ext(chain, "Public Blockchain", "Merkle root only")
 
 Rel_Down(participant, portal, "Captures, queries")
@@ -34,11 +33,9 @@ Rel_Down(consumer, cdn, "Reads trace page")
 Rel_Down(erp, app, "EPCIS event")
 Rel_Right(portal, idp, "OIDC")
 Rel_Down(portal, app, "API")
-Rel_Down(app, db, "State, outbox, QueryStore")
+Rel_Down(app, db, "Atomic event, receipt and outbox; scoped reads")
+Rel(db, backup, "Managed backup", "Encrypted")
 Rel_Down(workers, cdn, "Publishes snapshots")
-Rel_Left(workers, kms, "DEK wrap")
-Rel_Left(workers, archive, "Envelope, Ack")
-Rel_Down(relayer, archive, "Batch manifest")
 Rel_Down(relayer, db, "Leaves, intents")
 Rel_Right(relayer, chain, "Merkle root")
 Rel_Up(workers, db, "Outbox poll")

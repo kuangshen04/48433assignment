@@ -40,6 +40,6 @@ app -> app: Recheck export permission; apply field allowlist
 app -> db: Audit actor, scope, watermark and export reference
 app --> officer: Scoped records and verification material;\nexclude owner-held private document contents
 
-note over officer, db: Investigators can independently check exported proofs against public-chain commitments.\nRecall queries use local materialisations; archive/chain calls are not on the synchronous read path.\nFormal notices, private-document exchange and physical recall execution use existing external processes.
+note over officer, db: Investigators can independently check exported proofs against public-chain commitments.\nRecall queries use local materialisations; backup/chain calls are not on the synchronous read path.\nFormal notices, private-document exchange and physical recall execution use existing external processes.
 
 @enduml

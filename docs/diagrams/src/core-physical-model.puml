@@ -27,6 +27,8 @@ entity "canonical_event" as ce {
   disposition : text
   biz_location : text
   payload : jsonb
+  payload_digest : char(64)
+  signature_envelope : jsonb
   profile_id : text
   profile_version : text
   canonicalisation_version : text
@@ -44,24 +46,26 @@ entity "evidence_edge" as edge {
   effective_to : timestamptz
 }
 
-entity "archive_ack" as ack {
-  * ack_id : uuid <<PK>>
+entity "acceptance_receipt" as receipt {
+  * capture_record_id : uuid <<PK, FK>>
   --
-  capture_record_id : uuid <<FK>>
-  holder_organisation_id : uuid <<FK>>
-  archive_object_id : text
-  envelope_digest : char(64)
-  ciphertext_digest : char(64)
-  holder_signature : text
-  received_at : timestamptz
+  payload_digest : char(64)
+  receipt_digest : char(64)
+  admitted_at : timestamptz
+  admitted_key_id : uuid
+  membership_status_at_admission : text
+  key_status_at_admission : text
+  anchor_window : timestamptz
 }
 
 entity "merkle_leaf" as leaf {
+  * batch_id : uuid <<PK, FK>>
   * leaf_index : bigint <<PK>>
   --
-  capture_record_id : uuid <<FK>>
-  batch_id : uuid <<FK>>
+  capture_record_id : uuid <<FK, UNIQUE>>
   leaf_hash : char(64)
+  receipt_digest : char(64)
+  inclusion_path : jsonb
 }
 
 entity "anchor_batch" as batch {
@@ -75,6 +79,7 @@ entity "anchor_batch" as batch {
   contract_address : text
   transaction_ref : text
   finalised_at : timestamptz
+  manifest : jsonb
 }
 
 entity "protected_resource" as res {
@@ -108,14 +113,14 @@ entity "query_event" as qe {
   watermark : bigint
 }
 
-submission ||--|| ce : materialises
+submission ||--o| ce : materialises
 ce ||--o{ edge : derives
-ce ||--o{ ack : acknowledged by
-ce ||--|| leaf : committed as
+ce ||--|| receipt : accepted with
+ce ||--o| leaf : committed as
 batch ||--o{ leaf : contains
 ce ||--o{ res : references
 profile ||--o{ ce : validates
-ce ||--|| qe : materialised into
+ce ||--o| qe : materialised into
 
 note bottom of ce
   Unpartitioned at pilot scale; partition by
@@ -127,7 +132,7 @@ end note
 
 note bottom of qe
   Rebuildable plaintext copy (QueryStore).
-  Not part of the recovery package.
+  Rebuild after restoring signed events.
   Read-audited per organisation.
 end note
 

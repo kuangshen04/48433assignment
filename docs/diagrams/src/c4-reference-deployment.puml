@@ -2,53 +2,41 @@
 !include ../vendor/C4_Deployment.puml
 !include ../vendor/style.puml
 
-title Reference deployment — an implementable configuration
+title Reference deployment — managed backups and exportable confirmation proofs
 
-Deployment_Node(device, "Participant device", "Browser or gateway", "Intermittent connectivity") {
-  Container(pwa, "Portal (PWA)", "Browser", "Capture, query, offline queue")
+Deployment_Node(device, "Participant device / business system", "Browser or gateway", "Retains its own signed records") {
+  Container(pwa, "Portal (PWA)", "Browser", "Capture, scoped queries and proof export")
+  ContainerDb(local, "Participant records", "Local queue / existing system", "Signed submissions and downloaded proof bundles")
 }
-
-Deployment_Node(edge, "Amazon CloudFront", "Global edge", "Static snapshots") {
+Deployment_Node(edge, "Amazon CloudFront", "Global edge", "Public delivery") {
   Container(cdn, "Snapshot cache", "CloudFront", "Versioned objects")
 }
-
-Deployment_Node(region, "AWS ap-southeast-2 — platform account", "Sydney region", "No self-managed cluster") {
-  Container(app, "Traceability Application", "ECS Fargate tasks", "Core and modules")
-  Container(workers, "Ingestion & Projection Workers", "ECS Fargate tasks", "Outbox-driven")
-  Container(relayer, "Batch Builder & Relayer", "Isolated ECS task", "Chain wallet in KMS")
-  ContainerDb(db, "Aurora PostgreSQL", "Writer + 1 reader, Multi-AZ", "State, outbox, QueryStore")
-  ContainerDb(s3, "Snapshot origin", "S3", "Versioned objects")
+Deployment_Node(region, "AWS ap-southeast-2 — platform account", "Sydney", "Managed execution") {
+  Container(app, "Traceability Application", "ECS Fargate", "Admission, query and export")
+  Container(workers, "Projection Workers", "ECS Fargate", "Outbox-driven")
+  Container(relayer, "Batch Builder & Relayer", "Isolated ECS task", "Wallet protected by KMS")
+  ContainerDb(db, "Aurora PostgreSQL", "Writer + reader, Multi-AZ / PITR", "Events, receipts, registries, manifests/proofs and projections")
   Container(proxy, "RDS Proxy", "Managed", "Connection pooling")
+  ContainerDb(s3, "Snapshot origin", "S3", "Versioned public objects")
+  Container(kms, "Managed KMS", "Encryption / signing keys", "Protects storage and chain wallet")
 }
-
-Deployment_Node(trustee, "AWS — trustee account", "Separate AWS account", "Consortium-controlled") {
-  ContainerDb(archive, "External archive", "S3 Object Lock (compliance), 7 years", "Ciphertext; replicated to ap-southeast-4")
-  Container(kms, "Consortium KMS", "Multi-Region CMK, HSM-backed", "Wraps event DEKs")
-  Container(attestor, "Archive attestor", "KMS asymmetric signing", "Signs ArchiveAck over stored bytes")
-  Container(recovery, "Recovery identity", "IAM role, trustee IdP only", "Restores without the platform")
+Deployment_Node(dr, "AWS ap-southeast-4 — recovery copies", "Melbourne", "Same operator; separately administered backups are a future option") {
+  ContainerDb(backup, "Encrypted backup copies", "Managed snapshot copies", "Retained operational data and proof records")
 }
-
-Deployment_Node(regarch, "AWS — regulator evidence account", "Separate AWS account", "Optional second holder") {
-  ContainerDb(regmirror, "Archive mirror", "S3 Object Lock", "Ciphertext; signs ArchiveAck")
-  Container(regattestor, "Archive attestor", "KMS asymmetric signing", "Signs ArchiveAck")
-}
-
-Deployment_Node(chainNet, "Ethereum mainnet", "Public network", "Immutable anchoring contract")
-
+Deployment_Node(chainNet, "Ethereum mainnet", "Independent public network", "Immutable anchoring contract")
+Rel(pwa, local, "Retains signed events / exported proofs")
 Rel(pwa, app, "API", "HTTPS")
-Rel(app, proxy, "SQL", "TLS")
-Rel(proxy, db, "Pooled", "TLS")
-Rel(workers, db, "Polls outbox", "SQL/TLS")
-Rel(app, kms, "Wrap/unwrap DEK", "mTLS")
-Rel(workers, archive, "Envelope, Ack", "HTTPS")
-Rel(workers, regmirror, "Envelope, Ack", "HTTPS")
-Rel(attestor, archive, "Reads object")
-Rel(regattestor, regmirror, "Reads object")
-Rel(workers, s3, "Publish", "Object API")
+Rel(app, proxy, "Transactions and scoped reads", "SQL/TLS")
+Rel(proxy, db, "Pooled connections", "TLS")
+Rel(workers, db, "Projection / export intents", "SQL/TLS")
+Rel(workers, s3, "Publish snapshots", "Object API")
 Rel(cdn, s3, "Origin pull", "HTTPS")
 Rel(pwa, cdn, "Trace page", "HTTPS")
-Rel(relayer, db, "Leaves, intents", "SQL/TLS")
-Rel(relayer, chainNet, "Merkle root", "tx")
-Rel(recovery, archive, "Trustee-granted restore role")
-
+Rel(relayer, db, "Leaves, manifests and proof records", "SQL/TLS")
+Rel(relayer, chainNet, "Root submission / finality", "RPC")
+Rel(relayer, kms, "Wallet signing", "Managed API")
+Rel(db, kms, "Storage encryption", "Managed API")
+Rel(db, backup, "Managed encrypted snapshot copy")
+Rel(backup, db, "Restore with audited operator role")
+Rel(local, chainNet, "Independently verify exported proofs", "Read-only")
 @enduml
