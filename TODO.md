@@ -12,7 +12,8 @@
 - [x] 同步 IoT Component 图、逻辑与参考部署图、Data dictionary：标明外部 adapter 的摘要/异常输入、参与方缓冲与异常证据保留；定义观测窗口、覆盖率、监测缺口，区分 `admittedAt` 与观测时间/链上确认。扩展复用 canonical payload，不新增云端服务或遥测表。
 - [x] 为 S8–S12 补充 stakeholder interest 与 relevance justification（§1.1；rubric 1.2），用“利益 → 架构影响”说明各方相关性。
 - [x] 调整 exclusions 以对应 rubric 1.3（§1.2）：明确首期排除的直接用户、被拒绝的部署约束和参与方证据丢失的恢复保证边界；将 compromised onboarding、密钥失窃、链故障及高级攻击者保留为残余风险。
-- [ ] 补齐 Glossary 的缩写定义（Appendix A）。核对正文和图中的 EPC、ERP/WMS/TMS、OIDC、ELT、IaaS/PaaS、API、UUID、UOM 等，并展开 SOLID、STRIDE 对应字母。最终排版时核对附录不超过三页。
+- [x] 补齐 Glossary（Appendix A）：补充正文及图中的缩写，展开 SOLID/STRIDE，定义状态、数据分级、IoT 监测术语及编号；区分产品批次和锚定批次，修正不同图类型的箭头说明。Appendix B 改为监管考虑与架构支持，删除重复边界声明。
+- [ ] 最终导出排版时核对附录不超过三页；当前 Markdown 未验证分页。
 - [x] 澄清 Context 图中的 analytics/insights 职责及使用者关系（rubric 4.6）：系统描述明确内置 supply-chain analytics，参与方关系标明产品线/冷链 insights；§3.1 对应已有 Insights module 和 worker projections，不新增外部 BI 系统或数据仓库。
 
 ## 已确认的处理边界

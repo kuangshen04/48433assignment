@@ -399,57 +399,72 @@ Accepted trade-offs are provisional visibility before finality, metadata leakage
 
 ### A.1 Standards and domain terms
 
-| Term | In one sentence |
+| Term | Meaning |
 |---|---|
 | GS1 | The standards body behind EPC product identifiers and the EPCIS event format. |
-| [EPCIS 2.0](https://www.gs1.org/standards/epcis) | GS1's standard for supply-chain event data: what happened to which objects, where and when. |
-| [CBV](https://www.gs1.org/standards/epcis) | The Core Business Vocabulary fixing allowed business steps and dispositions, so participants share terms. |
-| Lot / batch | A quantity produced or handled together; "lot" is the commercial term, "batch" the production one. |
-| Aggregation / transformation | EPCIS event types for packing items into containers, and for turning inputs into outputs. |
-| Cold chain | Temperature-controlled movement whose devices produce continuous readings; only summaries are accepted here. |
-| Provenance / lineage | The derived graph of which lot became which; the evidence a recall traversal follows. |
+| EPC / [EPCIS 2.0](https://www.gs1.org/standards/epcis) / CBV | Electronic Product Code / Electronic Product Code Information Services / Core Business Vocabulary: identifiers, event exchange and shared business terms. |
+| Product lot/batch / anchoring batch | A quantity of agricultural product / a group of event commitments sharing one Merkle root (`AnchorBatch`). |
+| Aggregation / transformation / handover | Packing objects together / converting inputs into outputs / transferring custody. |
+| Cold chain / excursion | Temperature-controlled logistics / a detected departure from a profile-defined acceptable range. |
+| Provenance / lineage | Attribution and source history / derived relationships connecting products and events. |
+| Observation window / coverage / gap | Monitored time interval / percentage actually monitored / an interval without observations. |
+| UN/CEFACT / UOM | United Nations Centre for Trade Facilitation and Electronic Business / unit of measure; the unit-code vocabulary used for quantities. |
 
 ### A.2 System terms
 
-| Term | In one sentence |
+| Term | Meaning |
 |---|---|
-| Attributable claim | An EPCIS event signed by a verified organisation; the unit of the shared record. |
-| Confirmation gate | Durable event storage plus finality of the public-chain root containing its committed leaf. |
-| Confirmation proof bundle | Exported event, signature, key/admission evidence, version references and Merkle/chain verification material. |
-| Merkle root / inclusion proof | A hash committing to a batch, plus the short proof that a leaf belongs to it. |
-| Watermark | The fixed input version at which a query or insight was computed. |
-| Non-collapsing | Returning contradictory claims side by side instead of choosing the more plausible one. |
-| QueryPort / QueryStore | The single scoped read interface, and the rebuildable plaintext copy behind it. |
+| Attributable claim / canonicalisation / profile | Organisation-signed event / deterministic event representation for hashing / versioned validation and disclosure rules. |
+| Acceptance receipt / confirmation gate | Evidence of durable admission / durable storage plus finality of the leaf's public-chain commitment. |
+| Merkle leaf / root / inclusion proof | One event commitment / the batch commitment / evidence that a leaf belongs to that batch. |
+| Finality / relayer / manifest | Chain consensus acceptance / root-submission worker / ordered batch contents used to regenerate proofs. |
+| Confirmation proof bundle | Event, signature, key/admission evidence, versions, manifest and Merkle/chain verification material. |
+| PUBLIC / CONSORTIUM / PRIVATE | Minimal public projection / scoped inter-organisation records / owner-held private evidence. |
+| SUBMITTED / VALIDATED / PENDING_ANCHOR | Submission received / admission checks passed / durably accepted, awaiting anchoring or finality. |
+| FINALISED / CONFIRMED / REJECTED | Chain finality observed / confirmation gate satisfied / admission refused. |
+| PENDING / NO RECORD | Public pending-confirmation label / no record available within the query scope; neither denotes a service outage. |
+| Watermark / non-collapsing | Fixed query-input version / preserving conflicting claims with their provenance. |
+| QueryPort / QueryStore / projection | Scoped read interface / rebuildable query copy / derived representation of canonical events. |
+| Commitment / ProtectedResourceRef | Content-binding digest / owner and availability reference to private evidence, without its plaintext. |
+| Modular monolith / ports and adapters | One application deployable with internal modules / interfaces isolating external implementations. |
+| Idempotency / transactional outbox / replay | Safe duplicate processing / atomic data-and-work-intent commit / rebuilding derived state from retained events. |
+| Legal hold / PITR | Suspension of scheduled deletion / point-in-time recovery to a retained database state. |
 
 ### A.3 Notation and symbols
 
-| Symbol | Meaning |
+| Notation | Meaning |
 |---|---|
-| Person / system / external system | C4 shapes: who uses it, what is in scope, what sits outside (Figures 1, 7). |
-| Container / data store / component | Deployable unit, persistent store, unit of responsibility (Figures 2–4, 7–8). |
-| Solid / dashed arrow, numbered label | Synchronous call / asynchronous event; numbers give step order (Figures 9–10). |
-| `<<PK>>` `<<FK>>`, crow's foot | Primary key, foreign key, "many" on a relation (Figure 6). |
+| C4; person / system / external system | Context, Containers, Components, Code; user / system under design / external dependency. |
+| Boundary / container / component / cylinder / deployment node | Scope or ownership / runtime application or store / internal responsibility / data store / execution infrastructure. Colours follow each diagram's legend. |
+| C4 arrows | Directed relationships; labels state the interaction, data and protocol where relevant. |
+| Dynamic diagrams: solid / dashed arrows; phases | Request or action / response or observation; phases and top-to-bottom order show sequence, not synchronous/asynchronous delivery guarantees. |
+| Code diagram: solid / dashed arrows; multiplicity | Association / dependency; `1`, `0..*` mean one, zero or more. Packages group responsibilities; enums list allowed values. |
+| Physical model: `PK`, `FK`, `UNIQUE`; crow's foot | Primary key, foreign key, uniqueness; bars mean one, circle means optional, crow's foot means many; `*` marks required attributes. |
+| O / S / C / R; SQ / QS; DM / DS / SP; A | Objective / stakeholder / constraint / risk; system quality / quality scenario; data requirement / data scenario / security-privacy requirement; alternative. Numeric suffixes are identifiers. |
+| `L`, `W`, `tx`; `≤`, `%`, `[]` | Investigated lot, fixed watermark, transaction; upper bound, percentage, array. |
+| `uuid`, `text`, `jsonb`, `timestamptz`, `char(n)` | Database UUID, text, binary JSON, timestamp with time zone, fixed-length text. |
+| `Decimal(p,s)`, `smallint`, `bigint`, `uint64`; hex / base64 / semver / KiB | Decimal precision/scale, small/large integer, unsigned 64-bit integer; base-16/base-64 encodings, semantic version, 1,024 bytes. |
 
 ### A.4 Acronyms
 
-| Acronym | Expansion |
+| Group | Expansions |
 |---|---|
-| APPs / ATAM | Australian Privacy Principles / Architecture Tradeoff Analysis Method |
-| BFT / CBV | Byzantine fault tolerance / Core Business Vocabulary |
-| CDN / CQRS | Content delivery network / command-query responsibility segregation |
-| HSM / IAM | Hardware security module / identity and access management |
-| KMS / NFR | Key-management service / non-functional requirement |
-| PITR / PWA | Point-in-time recovery / progressive web application |
-| RPO / RTO | Recovery point objective / recovery time objective |
-| SOLID / STRIDE | Five design principles / the six threat categories |
-| TSA | Timestamping authority |
+| Business systems | ERP: enterprise resource planning; WMS: warehouse management system; TMS: transport management system; BI: business intelligence; IoT: Internet of Things. |
+| Interfaces | API: application programming interface; REST: representational state transfer; RPC: remote procedure call; SDK: software development kit; IdP: identity provider; OIDC: OpenID Connect. |
+| Formats and protocols | JSON: JavaScript Object Notation; URI: Uniform Resource Identifier; UUID: universally unique identifier; UTC: Coordinated Universal Time; ISO: International Organization for Standardization; HTTPS: Hypertext Transfer Protocol Secure; TLS: Transport Layer Security; SQL: Structured Query Language. |
+| Cloud and delivery | IaaS/PaaS/XaaS: infrastructure/platform/anything as a service; AWS: Amazon Web Services; ECS: Elastic Container Service; S3: Simple Storage Service; RDS: Relational Database Service; AZ: availability zone; PoP: point of presence; CDN: content delivery network; PWA: progressive web application; QR: Quick Response. |
+| Data architecture | CQRS: command-query responsibility segregation; ELT: extract, load, transform; ETL: extract, transform, load; DB: database; ID: identifier. |
+| Security and recovery | CIA: confidentiality, integrity, availability; KMS: key management service; IAM: identity and access management; HSM: hardware security module; SHA-256: Secure Hash Algorithm, 256-bit; BFT: Byzantine fault tolerance; TSA: timestamping authority; RPO/RTO: recovery point/time objective. |
+| Assessment and jurisdiction | ATAM: Architecture Tradeoff Analysis Method; HAZOP: hazard and operability study; NFR: non-functional requirement; ML: machine learning; NSW: New South Wales; APPs: Australian Privacy Principles. |
+| SOLID | SRP: single responsibility; OCP: open–closed; LSP: Liskov substitution; ISP: interface segregation; DIP: dependency inversion (principles). |
+| STRIDE | Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege. |
 
-## Appendix B — Regulation
+## Appendix B — Regulatory considerations and architectural support
 
-| Obligation | How the design answers it |
+| Consideration | Architectural support |
 |---|---|
-| NSW Food Act / Food Standards Code | Supports conservative recall evidence and controlled exports; does not authorise automated findings of fact. |
+| NSW Food Act / Food Standards Code | Conservative recall tracing, attributable event history and controlled evidence exports. |
 | Privacy Act 1988 and the APPs; NSW privacy law | Minimises immutable identity, scopes reads, keeps evidence owner-held and retains a mutable correction path. |
 | Records retention and legal hold | Class-based rules, logged transitions, controlled deletion and auditable retention evidence. |
 
-Terminology that the body uses without expansion is defined in Appendix A.
+This mapping identifies architectural support; it is not a comprehensive compliance assessment.
