@@ -8,10 +8,15 @@ Person(participant, "Participant staff", "Farmer, packer, distributor, retailer,
 Person(regulator, "Regulator officer", "NSW food authority investigator")
 Person(consumer, "Consumer", "Scans a product QR code")
 
+System_Ext(devices, "IoT devices", "Participant-managed sensors")
 System_Ext(idp, "External Identity Provider", "Human authentication")
-System_Ext(erp, "Participant business systems", "ERP / WMS / TMS / IoT gateway")
+System_Ext(erp, "Participant business systems", "ERP / WMS / TMS")
 
 System_Boundary(system, "Agricultural Supply Chain Tracker") {
+
+  Container_Boundary(participantDomain, "Participant-operated gateway") {
+    Container(iot, "IoT Adapter", "Delivered gateway software", "Real-time collection, authorised local views, temporary buffer, signed summaries and excursions")
+  }
 
   Container_Boundary(platform, "Platform control domain") {
     Container(portal, "Participant & Regulator Portal", "PWA in browser", "Capture forms, lineage and recall views, scoped evidence exports")
@@ -31,6 +36,9 @@ Rel_Down(participant, portal, "Captures, queries")
 Rel_Down(regulator, portal, "Investigates, exports")
 Rel_Down(consumer, cdn, "Reads trace page")
 Rel_Down(erp, app, "EPCIS event")
+Rel(devices, iot, "Real-time readings")
+Rel(participant, iot, "Views current observations (authorised logistics staff)")
+Rel(iot, app, "Signed summaries and excursions", "HTTPS")
 Rel_Right(portal, idp, "OIDC")
 Rel_Down(portal, app, "API")
 Rel_Down(app, db, "Atomic event, receipt and outbox; scoped reads")

@@ -4,7 +4,8 @@
 
 title Reference deployment — managed backups and exportable confirmation proofs
 
-Deployment_Node(device, "Participant device / business system", "Browser or gateway", "IoT adapter: live views, temporary telemetry buffer, bounded excursion retries") {
+Deployment_Node(device, "Participant device / business system", "Browser or gateway", "Participant-operated; intermittent connectivity") {
+  Container(iot, "IoT Adapter", "Delivered gateway software", "Real-time collection, authorised local views, temporary buffer and bounded excursion retries")
   Container(pwa, "Portal (PWA)", "Browser", "Capture, scoped queries and proof export")
   ContainerDb(local, "Participant records", "Local queue / existing system", "Signed events, proofs and retained abnormal windows; routine readings expire after final-event acceptance")
 }
@@ -26,7 +27,8 @@ Deployment_Node(dr, "AWS ap-southeast-4 — recovery copies", "Melbourne", "Same
 Deployment_Node(chainNet, "Ethereum mainnet", "Independent public network", "Immutable anchoring contract")
 Rel(pwa, local, "Retains signed events / exported proofs")
 Rel(pwa, app, "API", "HTTPS")
-Rel(device, app, "IoT adapter: signed summaries / excursions", "HTTPS")
+Rel(iot, app, "Signed summaries / excursions", "HTTPS")
+Rel(iot, local, "Retain abnormal evidence and queued submissions")
 Rel(app, proxy, "Transactions and scoped reads", "SQL/TLS")
 Rel(proxy, db, "Pooled connections", "TLS")
 Rel(workers, db, "Projection / export intents", "SQL/TLS")

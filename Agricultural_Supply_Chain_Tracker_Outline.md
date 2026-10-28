@@ -135,7 +135,7 @@
   - **SP-8**：记录残余威胁。
 - CIA 场景：保密对应 QS-7 的受限证据导出；完整性对应 QS-1/2；可用性对应 QS-3/5。
 - 法规范围：Privacy Act／APPs、NSW 隐私义务、NSW Food Act、Food Standards Code；附录 B 映射。
-- IoT：源端采集与报警；profile 要求带单位、来源及 commitment 的窗口摘要；设备和员工授权由企业管理；摘要由组织签名；无平台原始流／报警路径。
+- IoT：交付的 adapter 部署在参与方 gateway，实时采集并向获授权物流人员提供本地临时视图；profile 要求带单位、来源及 commitment 的窗口摘要；设备和员工授权由企业管理；摘要由组织签名；无平台原始流／报警路径。
 - 监管调查采用追踪查询、证据导出和人工判断；自动监管筛查及 ML 不在本方案范围。
 
 ## 3. Architecture views — 架构视图
@@ -250,7 +250,7 @@
 
 ### 4.5 IoT integration and insight views（rubric 4.B）
 
-- IoT：源端设备／系统采集和报警；adapter 提交窗口、单位、min/max/mean、超限时长、组织签名和原始样本 commitment。
+- IoT：Tracker 交付的 adapter 在参与方 gateway 实时采集并提供获授权本地视图；adapter 提交窗口、单位、min/max/mean、超限时长、组织签名和原始样本 commitment。
 - 不上传原始流、不要求平台报警；减少存储并适应间歇连接。
 - Insight 复用同一物化 lineage，标明组织、版本、watermark，不抹去争议与 provisional 状态。
 - 门户提供录入、交接、调查、洞察入口；详细屏幕设计延后，但保留离线、无障碍和状态区别要求。
@@ -265,7 +265,7 @@
 - O4：CDN 状态与来源信息支撑消费者查询；新确认事件有缓存传播延迟。
 - O5：owner-held PRIVATE＋scoped consortium 读取；仍有元数据和运行时明文。
 - O6：单部署、托管服务、批量锚定可行；备份恢复及证明导出仍需验证。
-- O7：IoT 摘要与 commitment 有条件成立；源端设备和保留能力不一致。
+- O7：交付 adapter 提供实时采集／本地视图、签名摘要和异常证据；连接和源端保留能力仍有限制。
 - 多产品线／insights：profiles 和物化视图在设计上支持；前端可视化仍需实现。
 - 地区增长：共享模型、副本、workers、CDN 和批量锚定在设计上支持；季节性突发、数据库容量和确认积压需负载测试。
 
@@ -321,3 +321,7 @@
 - 2026-10-29：补清多地区增长的总负载、季节性突发、扩展机制和测试指标；业务地区共享模型，不要求每地区单独部署；同步需求、架构理由及评价，未增加子系统。
 
 - 2026-10-29：正文中目标、辅助利益相关者、约束、DM／DS／SP、CIA、SOLID 和接收步骤改为表格，保留原编号与含义；本大纲继续使用列表，图源未变。
+
+- IoT 边界澄清：adapter 属于 Tracker 交付方案，由参与方运行；设备和 gateway 硬件由参与方提供。同步 context、container、component 和部署图；未增加平台原始遥测存储或逐条上链。
+
+- Figure 3 已嵌入概念／逻辑数据模型：Submission、CanonicalEvent、ProfileVersion、AcceptanceReceipt、EvidenceEdge、MerkleLeaf、AnchorBatch，标注属性、基数及负责组件；Leaf Allocator／Batch Builder 归独立 Relayer，正文重复实体属性表已替换为简短说明。

@@ -185,7 +185,7 @@ Australian deployment locations, standards-based PostgreSQL and portable canonic
 
 Australian Privacy Principles/Privacy Act, NSW privacy obligations, NSW Food Act and Food Standards Code inform minimisation, retention, recall evidence and controlled exports; Appendix B maps each obligation to its answer.
 
-**IoT (2.B).** Participant-managed gateways collect readings in real time during transport and automatically provide current observations to authorised logistics users while connected. Routine telemetry uses best-effort delivery and short-lived buffering; missing observations indicate monitoring gaps, not normal conditions. At journey completion, an organisation-signed EPCIS event records the summary, monitoring coverage and excursions. Routine raw readings may be deleted after platform acceptance of the final event; abnormal readings and their surrounding evidence window remain owner-held under the applicable retention policy. Reliable delivery and long-term retention of every reading were rejected as disproportionate to bandwidth, storage and rural-connectivity needs. Device provisioning and staff authorisation remain participant responsibilities.
+**IoT (2.B).** The delivered IoT adapter runs on participant-managed gateways, collecting readings in real time and showing current observations to authorised logistics users through a local interface while connected. Routine telemetry uses best-effort delivery and short-lived buffering; missing observations indicate monitoring gaps, not normal conditions. At journey completion, an organisation-signed EPCIS event records the summary, monitoring coverage and excursions. Routine raw readings may be deleted after platform acceptance of the final event; abnormal readings and their surrounding evidence window remain owner-held under the applicable retention policy. Reliable delivery and long-term retention of every reading were rejected as disproportionate to bandwidth, storage and rural-connectivity needs. Device provisioning and staff authorisation remain participant responsibilities.
 
 ## 3. Architecture views
 
@@ -197,7 +197,7 @@ Four views narrow in sequence: context fixes the boundary, containers show runti
 
 *Figure 1 — One traceability system, four groups of users and five external systems.*
 
-Traceability Core holds shared canonical claims and supplies scoped investigation, export and insight views to authorised users, including regulators. Supply-chain analytics is built into the Tracker rather than provided by an external system; the Insights module uses worker-maintained projections for scoped product-line and cold-chain visualisations. Participant systems provide temporary real-time telemetry views and automatically submit profile-conformant EPCIS summaries and excursion events. Humans authenticate through an external IdP and map to an organisation and role. A designated governance body approves organisations before registration; automated legal-identity verification is outside scope. The public chain provides an independently checkable commitment. Managed storage encryption and backup services are deployment infrastructure; they do not attest business records.
+Traceability Core holds shared canonical claims and supplies scoped investigation, export and insight views to authorised users, including regulators. Supply-chain analytics is built into the Tracker rather than provided by an external system; the Insights module uses worker-maintained projections for scoped product-line and cold-chain visualisations. The delivered IoT adapter runs on participant gateways, provides temporary live views and automatically submits EPCIS summaries and excursion events. Humans authenticate through an external IdP and map to an organisation and role. A designated governance body approves organisations before registration; automated legal-identity verification is outside scope. The public chain provides an independently checkable commitment. Managed storage encryption and backup services are deployment infrastructure; they do not attest business records.
 
 ![Figure 2 — Core containers](docs/diagrams/preview/core-container.png)
 
@@ -206,6 +206,7 @@ Traceability Core holds shared canonical claims and supplies scoped investigatio
 | Container | Responsibility and key interaction |
 |---|---|
 | Portal | PWA capture, handover, scoped recall investigation and export, QR/insight views; uses the application or public CDN. |
+| IoT Adapter (participant gateway) | Real-time collection, temporary local views/buffering, signed summaries and excursion submission. |
 | Traceability Application | Admission, confirmation gate, canonical event store, evidence graph and single read interface. |
 | Ingestion/Projection Workers | Retries, lineage/projection rebuild, proof exports and retention. |
 | Batch Builder/Relayer | Deterministic leaves, manifests, Merkle batches, chain submission, finality and proofs. |
@@ -219,7 +220,7 @@ Admission commits the signed event, acceptance record and anchor intent atomical
 
 ![Figure 3 — Traceability Core components](docs/diagrams/preview/core-component.png)
 
-*Figure 3 — Components of Traceability Core and the modules that consume its read interface.*
+*Figure 3 — Core components with conceptual relationships, logical attributes and responsible components; anchoring entities belong to the separate relayer.*
 
 ![Figure 4 — Relayer components](docs/diagrams/preview/relayer-component.png)
 
@@ -227,14 +228,7 @@ Admission commits the signed event, acceptance record and anchor intent atomical
 
 The Core separates Capture API; Idempotency/Outbox Coordinator; Canonicalisation/Profile Validator; Signature/Membership Validator; Submission State Machine; Anchor Confirmation Coordinator; Evidence Graph Builder; Event Store; and QueryPort. The coordinator owns the gate, workers execute intents, and QueryPort exposes `edges()` and bounded `traverse()` but no business-truth verdict. The relayer isolates the single spending credential; deterministic leaves and persisted batch manifests support proof regeneration and export. The Insights module consumes QueryPort and presents scoped product-line and cold-chain summaries from worker-maintained projections.
 
-The component view sets responsibility boundaries for the conceptual entities; the code view specifies their types and relationships.
-
-| Responsibility area | Primary entity | Key logical attributes |
-|---|---|---|
-| Capture API, validators, state machine | Submission | `captureRecordId`, `profileVersion`, `signerOrganisationId`, lifecycle state |
-| Event Store | Canonical event | `payload`, `eventTime`, `canonicalPayloadDigest` |
-| Anchor Confirmation Coordinator | Receipt, leaf, batch | receipt digest, `merkleLeafIndex`, `batchId`, batch root |
-| Evidence Graph Builder | Derived edge | source and target identifiers, `edgeDerivationVersion`, watermark |
+Figure 3 embeds the conceptual/logical model: acceptance materialises an event and receipt; profiles constrain events; edges are derived; pending events may have no leaf. Bracketed entity labels identify responsible components, while container groups distinguish Core from Relayer. Figure 5 specifies code contracts.
 
 ![Figure 5 — Core code view](docs/diagrams/preview/core-code.png)
 
@@ -354,7 +348,7 @@ These controls address SP-1–6 and SP-8 within stated trust boundaries. Anchori
 
 ### 4.5 IoT integration and insight views — rubric 4.B, bonus
 
-The participant-side IoT adapter supplies a temporary operational view of current readings and automatically submits journey summaries and excursion events through the Capture API. Routine readings need neither anchoring nor strict delivery guarantees. Excursions receive priority submission with bounded retries and explicit acceptance status; unresolved delivery remains visible to participant staff. Observation and platform-receipt times distinguish delayed evidence from current readings. Final EPCIS events use existing admission, idempotency and anchoring; acceptance permits routine raw-data cleanup, while CONFIRMED still requires finality. Summaries include window, unit, min/max/mean, excursion duration and monitoring gaps. Commitments reference retained abnormal-evidence windows, not deleted routine samples. Local alarms and device control remain participant responsibilities.
+The Tracker-supplied IoT adapter collects real-time readings, exposes a temporary local view to authorised logistics staff and submits signed summaries and excursions through Capture API. Routine readings need neither anchoring nor strict delivery guarantees. Excursions receive priority submission with bounded retries and explicit acceptance status; unresolved delivery remains visible to participant staff. Observation and platform-receipt times distinguish delayed evidence from current readings. Final EPCIS events use existing admission, idempotency and anchoring; acceptance permits routine raw-data cleanup, while CONFIRMED still requires finality. Summaries include window, unit, min/max/mean, excursion duration and monitoring gaps. Commitments reference retained abnormal-evidence windows, not deleted routine samples. Local alarms and device control remain participant responsibilities.
 
 Insight views use scoped, versioned lineage projections with visible watermarks. The portal provides role-specific capture, handover, investigation and visualisation entry points, with offline capture, readable labels and explicit lifecycle states.
 
@@ -372,7 +366,7 @@ The Brief column names which of the brief's seven key requirements each row answ
 | O4 Consumer view | 2 | Supported: versioned CDN states and provenance | Cache propagation may lag a newly confirmed event. |
 | O5 Evidence/privacy | implied | Supported: owner-held PRIVATE data; scoped consortium read | Metadata and runtime plaintext remain. |
 | O6 Pilot operability | implied | Plausible: one deployable, managed services, batch anchoring | Backup restoration and proof export still require validation. |
-| O7 Real-time monitoring and IoT evidence | 3 | Conditional: participant-side live views, signed journey summaries and retained abnormal evidence | Connectivity limits live visibility; routine raw samples are not retained for later verification. |
+| O7 Real-time monitoring and IoT evidence | 3 | Conditional: delivered gateway adapter provides live views, signed summaries and abnormal evidence | Connectivity limits live visibility; routine raw samples are not retained for later verification. |
 | Product lines and insights | 4, 6 | Supported in design: profiles and materialised views | Front-end visual design remains work. |
 | Regional growth | 4 | Supported in design: shared model, replicas, workers, CDN and batch anchoring | Seasonal bursts, database capacity and confirmation lag need load tests. |
 

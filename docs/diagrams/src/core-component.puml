@@ -2,7 +2,11 @@
 !include ../vendor/C4_Component.puml
 !include ../vendor/style.puml
 
-title Component view — Traceability Core (inside the modular monolith)
+allowmixing
+hide empty methods
+skinparam classAttributeIconSize 0
+
+title Component view — Traceability Core and conceptual / logical data model
 
 Container_Boundary(core, "Traceability Core") {
 
@@ -20,9 +24,9 @@ Container_Boundary(core, "Traceability Core") {
 Component_Ext(modules, "Semantic Modules (same process)", "Handover, Recall, Compliance, Consumer, Insights")
 Component_Ext(idgov, "Organisation & Key Registry", "Approved members, user role mappings, key history and identity change audit")
 Component_Ext(profiles, "Product Profile Registry", "Governance-published, immutable versions")
-System_Ext(participantSystems, "Participant business systems / IoT adapter", "Live telemetry and short-lived buffering; retained abnormal evidence")
+Container(iot, "IoT Adapter (same Tracker system)", "Delivered software on participant gateway", "Real-time collection, authorised local views and short-lived buffering")
 
-Rel(participantSystems, capture, "Signed journey summaries and excursion events", "HTTPS")
+Rel(iot, capture, "Signed journey summaries and excursion events", "HTTPS")
 Rel(capture, idem, "Check and register")
 Rel(capture, canon, "Raw event")
 Rel(canon, sig, "Canonical payload + digest")
@@ -34,6 +38,58 @@ Rel_Down(query, store, "Scoped read")
 Rel(modules, query, "edges(), traverse()")
 Rel(sig, idgov, "Membership, key state")
 Rel(canon, profiles, "Profile, floor, conformance")
+
+package "Conceptual / logical data model — grouped by responsible container" as dataModel {
+  package "Traceability Application" as appData {
+    entity "Submission\n[Submission State Machine]" as dSubmission {
+      captureRecordId : UUID
+      state : ConfirmationStatus
+    }
+    entity "CanonicalEvent\n[Event Store]" as dEvent {
+      captureRecordId : UUID
+      canonicalPayloadDigest : SHA-256
+      payload : EPCIS JSON
+    }
+    entity "ProfileVersion\n[Product Profile Registry]" as dProfile {
+      profileId : String
+      version : String
+    }
+    entity "AcceptanceReceipt\n[Anchor Confirmation Coordinator]" as dReceipt {
+      captureRecordId : UUID
+      receiptDigest : SHA-256
+    }
+    entity "EvidenceEdge\n[Evidence Graph Builder]" as dEdge {
+      fromObjectId / toObjectId : URI
+      edgeDerivationVersion : String
+      captureRecordId : UUID
+    }
+  }
+  package "Batch Builder & Relayer (separate container)" as relayerData {
+    entity "MerkleLeaf\n[Leaf Allocator]" as dLeaf {
+      captureRecordId : UUID
+      leafIndex : Integer
+    }
+    entity "AnchorBatch\n[Batch Builder]" as dBatch {
+      batchId : UUID
+      root : SHA-256
+    }
+  }
+  dSubmission "1" -- "0..1" dEvent : materialises on acceptance
+  dProfile "1" -- "0..*" dEvent : validates
+  dEvent "1" -- "1" dReceipt : accepted with
+  dEvent "1" -- "0..*" dEdge : derives (rebuildable)
+  dEvent "1" -- "0..1" dLeaf : committed as
+  dBatch "1" -- "0..*" dLeaf : contains
+  note bottom of dLeaf
+    Pending events may have no leaf.
+    Each allocated leaf belongs to one batch.
+    Bracketed labels name responsible components;
+    PostgreSQL stores these records (Figure 6).
+  end note
+}
+
+
+store -[hidden]down-> dataModel
 
 SHOW_LEGEND()
 @enduml
