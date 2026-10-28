@@ -31,15 +31,13 @@ Agricultural products pass between firms with incompatible identifiers, records 
 | S5 Consumers | QR views distinguish CONFIRMED, PENDING and NO RECORD; consumers do not submit claims. |
 | S6 Regulators | Scoped, watermarked trace queries and evidence exports without unrestricted private-data access. |
 
-| ID | Supporting stakeholder |
+| ID / supporting stakeholder | Interest and architectural relevance |
 |---|---|
-| S8 | Governance |
-| S9 | Platform operations |
-| S10 | Cloud and backup providers |
-| S11 | Auditors and courts |
-| S12 | Device vendors |
-
-S8–S12 define governance, operations, verification and integration boundaries rather than extra user interfaces.
+| S8 Governance | Controls membership and shared semantics; requires organisation approval, auditable key changes and versioned profiles. |
+| S9 Platform operations | Needs manageable cost and recovery; favours one application deployable, managed services and observable background work. |
+| S10 Cloud and backup providers | Supply managed execution and recovery; service limits and failure domains shape deployment and backup placement. |
+| S11 Auditors and courts | Need attributable, reproducible evidence; motivates historical key records, fixed query watermarks and exportable proofs. |
+| S12 Device vendors | Need a stable integration contract; profile-based gateway submissions isolate device protocols from the Core. |
 
 A processing event may consume multiple lots and create one or more outputs; its quantity assertions belong to the publisher. If two processors each claim the same input lot, the record must show both edges and their provenance, not select the more plausible one. A retailer's recall traversal therefore returns a conservative potentially affected set, including disputed or provisional links as labelled evidence. This domain rule drives the graph and read interface as much as the blockchain choice does.
 
@@ -63,7 +61,15 @@ The brief also requires food-safety compliance, IoT integration, multiple produc
 | Rural exclusion (R4) | PWA/offline submission; devices without viable signing capability must draft and sign later. |
 | False, conflicting or collusive statements (R10) | Preserve provenance and competing claims; investigation, not automatic adjudication, determines business truth. |
 
-ERP/WMS, inventory settlement, payment and formal notice publication, private-document exchange and physical recall execution are excluded because they replace participants' business systems or introduce unrelated authority. Customs and certification processes introduce other legal/issuer regimes; certificates can instead appear as private evidence. Platform-side raw telemetry, consumer-originated claims and generic marketing/BI are likewise outside the pilot. State-level attackers, bankruptcy and compromised onboarding are acknowledged beyond this architecture's directly demonstrated controls. The governing distinction is **verifiable claims, not certified facts**.
+ERP/WMS replacement, inventory settlement, payments, formal notices, private-document exchange and physical recall execution remain external because the tracker records evidence rather than operating participants' businesses. Platform-side raw telemetry, consumer-originated claims and generic marketing/BI are also excluded.
+
+| Considered exclusion | Reason and architectural consequence |
+|---|---|
+| Customs authorities and certification issuers as direct users | Clearance and certificate issuance are outside initial NSW use cases; certificates may be referenced as owner-held evidence. |
+| Mandatory participant-hosted servers or consortium validators | Rejected as deployment constraints because they conflict with rural access and small-team operation; browser/gateway access and public anchoring are selected. |
+| Recovery after participant insolvency or permanent loss of owner-held evidence | Outside the platform recovery guarantee because participant archives are not operator-controlled; unavailable evidence remains labelled. |
+
+Compromised onboarding, key theft, public-chain outages and advanced attackers remain residual risks, not scope exclusions; admission controls, audit, isolation and degraded operation limit their impact without guaranteeing prevention.
 
 ## 2. Requirements analysis
 
