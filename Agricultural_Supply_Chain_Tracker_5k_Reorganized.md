@@ -20,7 +20,7 @@ Agricultural products pass between firms with incompatible identifiers, records 
 | O4 | A truthful consumer-facing state. |
 | O5 | Scoped commercial visibility and owner-controlled private evidence. |
 | O6 | Operability by a small team. |
-| O7 | Device evidence without becoming an IoT platform. |
+| O7 | Real-time transport monitoring with retained journey and exception evidence. |
 
 | Stakeholder | Architectural interest and consequence |
 |---|---|
@@ -83,7 +83,7 @@ The following qualities connect stakeholder needs to measurable architecture tes
 | SQ-8 Interoperability / S1–S4 | Interpret an event from retained profile/canonicalisation versions; QS-10 chain replacement. | EPCIS/CBV profiles and chain-independent digests. |
 | SQ-9 Auditability / S6,S11 | QS-9 two processors assert the same input lot; replay preserves both claims and provenance. | Non-collapsing evidence graph, versioned derivation and watermarks. |
 | SQ-10 Operability / S9 | Small team operates one deployable application and managed database. | Avoid an orchestrated microservice estate without a scaling driver. |
-| SQ-11 Device evidence / S3 | QS-12 a reefer exceeds limits for 40 minutes. | Profile-required, signed summaries with raw samples left at source. |
+| SQ-11 Real-time IoT integration / S3 | QS-12 a reefer exceeds limits during transport: connected users see current readings, excursions are prioritised and monitoring gaps remain visible. | Best-effort routine telemetry; signed journey summaries and retained abnormal-evidence windows enter the shared record. |
 | SQ-13 Insights / S2–S6 | QS-13 reproduce a product-line figure at yesterday's watermark. | Materialised, scoped projections; no independent untraceable analytics truth. |
 | SQ-14 Regional scalability / S1–S4,S9 | QS-14 several regions submit seasonal bursts; accepted events are retained and confirmation lag is visible. | Queued work and scaling absorb bursts; database and batch capacity require validation. |
 
@@ -166,7 +166,7 @@ Australian deployment locations, standards-based PostgreSQL and portable canonic
 
 Australian Privacy Principles/Privacy Act, NSW privacy obligations, NSW Food Act and Food Standards Code inform minimisation, retention, recall evidence and controlled exports; Appendix B maps each obligation to its answer.
 
-**IoT (2.B).** In a cold-chain excursion, a participant's device/system collects readings and alarms locally; a profile-required windowed summary, unit, provenance and commitment accompany an EPCIS event. The organisation signs submitted device summaries; device provisioning and staff authorisation remain its responsibility. Raw streams and platform-side alarm paths stay out, which preserves a verifiable evidence reference while limiting retention.
+**IoT (2.B).** Participant-managed gateways collect readings in real time during transport and automatically provide current observations to authorised logistics users while connected. Routine telemetry uses best-effort delivery and short-lived buffering; missing observations indicate monitoring gaps, not normal conditions. At journey completion, an organisation-signed EPCIS event records the summary, monitoring coverage and excursions. Routine raw readings may be deleted after platform acceptance of the final event; abnormal readings and their surrounding evidence window remain owner-held under the applicable retention policy. Reliable delivery and long-term retention of every reading were rejected as disproportionate to bandwidth, storage and rural-connectivity needs. Device provisioning and staff authorisation remain participant responsibilities.
 
 Regulatory investigation uses trace queries, evidence exports and human review. Automated regulatory screening and ML are outside the proposed scope; the platform does not determine wrongdoing.
 
@@ -180,7 +180,7 @@ Four views narrow in sequence: context fixes the boundary, containers show runti
 
 *Figure 1 — One traceability system, four groups of users and five external systems.*
 
-Traceability Core holds shared canonical claims and supplies scoped investigation, export and insight views to authorised users, including regulators. Devices feed participant systems, which submit profile-conformant EPCIS summaries. Humans authenticate through an external IdP and map to an organisation and role. A designated governance body approves organisations before registration; automated legal-identity verification is outside scope. The public chain provides an independently checkable commitment. Managed storage encryption and backup services are deployment infrastructure; they do not attest business records.
+Traceability Core holds shared canonical claims and supplies scoped investigation, export and insight views to authorised users, including regulators. Participant systems provide temporary real-time telemetry views and automatically submit profile-conformant EPCIS summaries and excursion events. Humans authenticate through an external IdP and map to an organisation and role. A designated governance body approves organisations before registration; automated legal-identity verification is outside scope. The public chain provides an independently checkable commitment. Managed storage encryption and backup services are deployment infrastructure; they do not attest business records.
 
 ![Figure 2 — Core containers](docs/diagrams/preview/core-container.png)
 
@@ -337,7 +337,7 @@ These controls address SP-1–6 and SP-8 within stated trust boundaries. Anchori
 
 ### 4.5 IoT integration and insight views — rubric 4.B, bonus
 
-IoT ingestion begins at the participant's sensors and local control system, which performs collection and real-time alarms. The integration adapter publishes a profile-conformant summary (window, unit, min/max/mean, excursion duration/alarm), an organisation signature and commitment to owner-retained samples. Neither raw streams nor mandatory platform-side alerting enter the shared record. This preserves a verifiable evidence reference while limiting retention and protecting rural intermittent links.
+The participant-side IoT adapter supplies a temporary operational view of current readings and automatically submits journey summaries and excursion events through the Capture API. Routine readings need neither anchoring nor strict delivery guarantees. Excursions receive priority submission with bounded retries and explicit acceptance status; unresolved delivery remains visible to participant staff. Observation and platform-receipt times distinguish delayed evidence from current readings. Final EPCIS events use existing admission, idempotency and anchoring; acceptance permits routine raw-data cleanup, while CONFIRMED still requires finality. Summaries include window, unit, min/max/mean, excursion duration and monitoring gaps. Commitments reference retained abnormal-evidence windows, not deleted routine samples. Local alarms and device control remain participant responsibilities.
 
 Insight views are derived from the same materialised lineage, labelled by acting organisation, projection version and watermark. Product-line aggregation therefore cannot silently override disputed claims or reinterpret a provisional edge as established provenance. The portal provides role-specific capture, handover, investigation and insight entry points; detailed screen design is deferred, while offline capture, accessible field labels and state distinctions remain architectural acceptance criteria.
 
@@ -355,7 +355,7 @@ The Brief column names which of the brief's seven key requirements each row answ
 | O4 Consumer view | 2 | Supported: versioned CDN states and provenance | Cache propagation may lag a newly confirmed event. |
 | O5 Evidence/privacy | implied | Supported: owner-held PRIVATE data; scoped consortium read | Metadata and runtime plaintext remain. |
 | O6 Pilot operability | implied | Plausible: one deployable, managed services, batch anchoring | Backup restoration and proof export still require validation. |
-| O7 IoT evidence | 3 | Conditional: summaries plus source commitments | Instrumentation and source retention differ by firm. |
+| O7 Real-time monitoring and IoT evidence | 3 | Conditional: participant-side live views, signed journey summaries and retained abnormal evidence | Connectivity limits live visibility; routine raw samples are not retained for later verification. |
 | Product lines and insights | 4, 6 | Supported in design: profiles and materialised views | Front-end visual design remains work. |
 | Regional growth | 4 | Supported in design: shared model, replicas, workers, CDN and batch anchoring | Seasonal bursts, database capacity and confirmation lag need load tests. |
 

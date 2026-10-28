@@ -15,13 +15,13 @@ System_Boundary(scope, "Agricultural Supply Chain Tracker") {
 }
 
 System_Ext(devices, "IoT devices and gateways", "Sensors, scales, scanners")
-System_Ext(participantSystems, "Participant business systems", "ERP / WMS / TMS / IoT")
+System_Ext(participantSystems, "Participant business systems", "ERP / WMS / TMS / IoT; temporary live telemetry views")
 System_Ext(chain, "Public blockchain", "Merkle roots")
 System_Ext(idp, "Identity provider", "Authentication")
 System_Ext(regSystems, "Regulator systems", "Existing case management")
 
-Rel_Down(participantSystems, tracker, "Signed EPCIS events; retain local copies")
-Rel_Right(devices, participantSystems, "Readings")
+Rel_Down(participantSystems, tracker, "Automatic signed EPCIS summaries and excursion events; local copies")
+Rel_Right(devices, participantSystems, "Real-time readings; local monitoring")
 Rel_Down(participantUser, tracker, "Captures, queries, exports confirmation proofs")
 Rel_Down(consumer, tracker, "Reads trace page")
 Rel_Down(regulatorOfficer, tracker, "Investigates, exports")
