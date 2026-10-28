@@ -29,8 +29,8 @@ participant "Public CDN" as cdn
 
 == Phase 1 · Receive and validate (SUBMITTED → VALIDATED) ==
 client -> app: Submit EPCIS event, SignatureEnvelope,\ncaptureRecordId, profile reference
-app -> db: Validate; persist VALIDATED;\nenqueue archive intent in one transaction
-note right of db: Idempotent on captureRecordId + digest;\nno receipt is issued yet
+app -> db: Check active membership and signing key;\npersist VALIDATED;\nenqueue archive intent in one transaction
+note right of db: Idempotent on captureRecordId + digest;\nno receipt is issued yet; revoked keys are rejected
 
 == Phase 2 · Encrypt and archive (→ PENDING_ARCHIVE) ==
 workers -> db: Poll and claim the outbox intent

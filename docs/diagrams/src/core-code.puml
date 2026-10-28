@@ -26,7 +26,6 @@ package "Admission and confirmation" {
     algorithm
     payloadDigest
     signature
-    custodyMode / assuranceLevel
   }
   class ProfileVersion {
     profileId
@@ -40,6 +39,10 @@ package "Admission and confirmation" {
     payloadDigest
     archiveAckDigest
     anchorWindow
+    admittedAt
+    admittedKeyId
+    membershipStatusAtAdmission
+    keyStatusAtAdmission
   }
 }
 
@@ -106,6 +109,31 @@ package "Evidence and query" {
   }
 }
 
+package "Organisation identity (mutable registries, outside canonical events)" {
+  class Organisation {
+    organisationId : UUID
+    membershipStatus
+  }
+  class UserMembership {
+    externalSubjectId
+    organisationId
+    role
+  }
+  class OrganisationSigningKey {
+    keyId : UUID
+    organisationId
+    publicKey
+    algorithm
+    registeredAt / revokedAt
+    status
+  }
+  class IdentityAuditRecord {
+    changeId : UUID
+    actorRef / organisationId
+    changeType / changedAt
+  }
+}
+
 package "Enumerations" {
   enum ConfirmationStatus {
     SUBMITTED
@@ -114,14 +142,7 @@ package "Enumerations" {
     PENDING_ANCHOR
     FINALISED
     CONFIRMED
-    REVIEW_REQUIRED
     REJECTED
-  }
-  enum CustodyMode {
-    ENTERPRISE_SELF
-    DEVICE_BOUND
-    ASSISTED_EXTERNAL
-    DELEGATED_PLATFORM
   }
   enum EdgeType {
     TRANSFORMATION
@@ -147,6 +168,11 @@ AcceptanceReceipt ..> ArchiveAck : binds digest
 AcceptanceReceipt ..> CanonicalEvent : promises
 CanonicalEvent --> ConfirmationStatus
 EvidenceEdge --> EdgeType
-SignatureEnvelope --> CustodyMode
+
+Organisation "1" <-- "0..*" UserMembership : belongs to
+Organisation "1" <-- "0..*" OrganisationSigningKey : authorised for
+Organisation "1" <-- "0..*" IdentityAuditRecord : records changes
+SignatureEnvelope ..> OrganisationSigningKey : identifies key
+AcceptanceReceipt ..> OrganisationSigningKey : retains key and admission status
 
 @enduml

@@ -28,7 +28,7 @@
   - **O6**：小团队可运营。
   - **O7**：整合设备证据，不建设完整 IoT 平台。
 - 主要利益相关者及当前设计回应：
-  - **S1 生产者／种植者／包装商**：浏览器录入、离线队列、组织绑定的设备签名。
+  - **S1 生产者／种植者／包装商**：浏览器录入、离线队列、组织授权签名；不要求员工证书。
   - **S2 加工商**：多输入、多输出的 transformation lineage；平台不裁定物料平衡。
   - **S3 分销商／冷链运营商**：双边交接、可归责传感摘要，不上传原始遥测。
   - **S4 零售商**：保守召回遍历；消费者扫描高峰由公共快照承载。
@@ -66,7 +66,7 @@
 ### 2.1 System qualities, scenarios and rejected approaches（rubric 2.1–2.2）
 
 - **SQ-1 完整性／QS-1**：运营者删除批次后仍可检测；链式 Merkle commitments。
-- **SQ-2 可归责性／QS-2**：三年后、两次密钥轮换及停权后验证旧签名；保留历史授权与密钥。
+- **SQ-2 可归责性／QS-2**：密钥轮换／撤销后仍能验证已接受事件；保留原公钥、签名及接收时成员／密钥状态，后续撤销不改写历史。
 - **SQ-3 可用性／QS-3**：归档故障期间召回不能误报 `NO RECORD`；明确降级读取，写入失败关闭并重试。
 - **SQ-4 性能／QS-4**：5,000 scans/s；同步遍历最多 10,000 条边；CDN 快照和索引查询副本。
 - **SQ-5 恢复／QS-5**：平台账户丢失后，已发回执事件 RPO 0；数据库 RPO ≤5 分钟、RTO ≤4 小时、区域重建 ≤24 小时。
@@ -89,7 +89,7 @@
   - **DM-5**：canonical records 排除自然人标识。
 - 数据字典字段组：
   - 提交／业务信息：`captureRecordId`、`eventTime`、`epcList`、`quantityList`、`quantity`、`uom`。
-  - 版本／身份：`profileId`、`profileVersion`、`signerOrganisationId`。
+  - 版本／身份：`profileId`、`profileVersion`、`signerOrganisationId`、`keyId`、`publicKey`、`admittedAt`。
   - 证明／私有引用：`canonicalPayloadDigest`、`plaintextCommitment`、`ArchiveAckDigest`。
   - 查询复现：`dataWatermark`，记录投影／查询所用的固定输入版本。
   - 原表逐组给出格式、长度、说明、来源及关联需求；其余业务字段引用 EPCIS 2.0/CBV。
@@ -97,14 +97,15 @@
   - 版本化 profile 约束字段类型、长度和扩展；新产品线不能移除核心追踪字段。
   - 提交幂等 ID 与 EPCIS business event ID 分离。
   - 更正追加，不覆盖签名历史；结构有效不代表声明不冲突。
-  - admission 检查授权、必填字段和幂等碰撞，不认证业务事实。
+  - admission 按接收时的有效成员和签名密钥状态检查准入，并检查必填字段及幂等碰撞；不证明真实签署时间或业务事实。
+  - 保留接收时状态和原公钥；已撤销密钥的延迟提交须用新 submission ID 和当前有效密钥重新提交。
 - 数据场景：
   - **DS-1**：七年后召回 → 版本化、可索引 lineage。
   - **DS-2**：冲突 transformation → 保留多条来源边。
   - **DS-3**：实验室报告只保留 commitment 引用；申请和交付在平台外完成。
   - **DS-4**：5,000 scans/s → CDN 投影。
   - **DS-5**：保留期到期但 legal hold → 可审计保留转换。
-  - **DS-6**：离线事件在密钥轮换后到达 → review 状态，不只相信事件时间。
+  - **DS-6**：离线事件到达时密钥已撤销 → 拒绝，以新提交 ID 和当前有效密钥重新提交；不把事件时间当作签署时间证据。
 - 当前存储决策：托管关系数据库，支持精确数量、关系约束、event/idempotency/outbox 单事务、有限递归查询、权限过滤和 PITR。
 - 当前拒绝：文档数据库、将图数据库作为权威事实、全应用 event sourcing、平台可读私有 blob。
 
@@ -118,22 +119,22 @@
   - 归档／密钥：独立 trustee 对象存储＋KMS；替代运营者控制备份／KEK。
   - 区块链：付费公链、批量提交；替代无人运营的联盟验证节点。
   - 监管分析：监管账户内 PaaS；替代平台管理的共享租户。
-  - 身份：外部 IdP＋企业 registry；替代自建密码／平台签发法律身份。
+  - 身份：外部 IdP＋组织／角色映射和组织密钥 registry；成员由指定治理方预先审核，不建设自动法律身份核验流程。
 - 驻留与退出：澳大利亚部署、标准 PostgreSQL、可移植 canonical 格式。
 
 ### 2.4 Security, privacy, regulation and device requirements（rubric 2.7–2.8、2.B）
 
 - 当前安全要求：
-  - **SP-1**：写入绑定组织、角色及 delegation。
-  - **SP-2**：签名与历史授权可验证。
+  - **SP-1**：写入绑定已批准组织和授权角色。
+  - **SP-2**：验证组织签名，保留接收时密钥状态和原始验证材料。
   - **SP-3**：平台不能解密 owner-held 证据。
   - **SP-4**：不可变历史无自然人字段。
-  - **SP-5**：高影响治理双人批准。
-  - **SP-6**：读取与 break-glass 审计。
+  - **SP-5**：审计成员、角色和密钥变更。
+  - **SP-6**：读取、导出及特权操作审计。
   - **SP-8**：记录残余威胁。
 - CIA 场景：保密对应 QS-7 的受限证据导出；完整性对应 QS-1/2；可用性对应 QS-3/5。
 - 法规范围：Privacy Act／APPs、NSW 隐私义务、NSW Food Act、Food Standards Code；附录 B 映射。
-- IoT：源端采集与报警；profile 要求带单位、来源及 commitment 的窗口摘要；设备授权归属组织；无平台原始流／报警路径。
+- IoT：源端采集与报警；profile 要求带单位、来源及 commitment 的窗口摘要；设备和员工授权由企业管理；摘要由组织签名；无平台原始流／报警路径。
 - 监管调查采用追踪查询、证据导出和人工判断；自动监管筛查及 ML 不在本方案范围。
 
 ## 3. Architecture views — 架构视图
@@ -143,7 +144,7 @@
 - **Figure 1：System Context**。
   - 一个追踪系统：Traceability Core，包含有权限范围的调查、导出与洞察能力。
   - 人员：企业人员、消费者、监管者、治理方。
-  - 外部依赖：设备／企业系统、archive、KMS、chain、IdP、企业 registry、监管系统。
+  - 外部依赖：设备／企业系统、archive、KMS、chain、IdP、监管系统；不再对接外部企业身份 registry。
   - 监管者通过平台授权查询／导出；归档／密钥／链不只由平台控制。
 - **Figure 2：Core Container**。
 - 当前容器职责：
@@ -159,7 +160,7 @@
 
 - **Figure 3：Core Components**。
   - Capture API；Idempotency/Outbox Coordinator。
-  - Canonicalisation/Profile Validator；Signature/Authority Validator。
+  - Canonicalisation/Profile Validator；Signature/Membership Validator。
   - Submission State Machine；Archive/Anchor Orchestrator。
   - Evidence Graph Builder；Confirmed Event Store；QueryPort。
   - gate 由 orchestrator 管理；workers 执行意图；QueryPort 提供 `edges()`、`traverse()`。
@@ -170,7 +171,9 @@
   - 提交、canonical event、签名、profile、receipt。
   - ArchiveEnvelope、ArchiveAck、MerkleLeaf、AnchorBatch。
   - EvidenceEdge、EdgeQuery、EdgeGroup、QueryPort、ProtectedResourceRef。
-  - 确认状态、custody mode、edge type 枚举。
+  - 确认状态、edge type 枚举；不再区分 custody mode／assurance level。
+  - 四类身份记录：Organisation、UserMembership、OrganisationSigningKey、IdentityAuditRecord，位于 canonical event 之外的可变 registry。
+  - AcceptanceReceipt 保留接收时间、密钥 ID 和准入时成员／密钥状态。
 - **Figure 6：Physical Data Model**。
   - 九张表：submission、canonical_event、evidence_edge、archive_ack、merkle_leaf、anchor_batch、protected_resource、profile_version、query_event。
 - 跨视图论点：每个类有组件／容器归属；外部依赖经 port；逻辑实体映射物理键；SQL 查询副本不成为第二套业务事实。
@@ -187,7 +190,7 @@
   - Append-only events＋state machine → 替代可修改事件行／单一 processed 标志。
   - 每 30 分钟 Merkle batch anchoring → 替代逐事件上链／平台时间戳。
   - Ports/adapters＋版本化 contract → 替代核心直接依赖供应商 SDK。
-- SOLID：职责分离 SRP；扩展 custody adapter 支撑 OCP/DIP；统一 envelope 合约支撑 LSP；窄 QueryPort 支撑 ISP。
+- SOLID：职责分离 SRP；扩展 archive adapter 支撑 OCP/DIP；相同落盘字节确认合约支撑 LSP；窄 QueryPort 支撑 ISP。
 - 避免 design smells：统一图构建与读取策略、单向依赖、窄组件、供应商包止于 adapter；接受单部署单元的部署风险。
 
 ### 4.2 Data authority, models and analytics（rubric 4.6–4.10）
@@ -222,7 +225,7 @@
 
 - **Figure 9：Event Acceptance 动态图**。
   1. 提交事件、组织签名和幂等 ID。
-  2. 校验 profile／历史授权，原子提交状态及归档意图。
+  2. 校验 profile、有效组织成员和当前签名密钥，原子提交状态及归档意图。
   3. worker 获取 wrapped DEK，加密归档并获得 `ArchiveAck`。
   4. 发 acceptance receipt，分配 leaf／加入 batch。
   5. relayer 提交链式 root，观察 finality，提供 inclusion proof。
@@ -236,17 +239,17 @@
   - 正式通知、私有文档交付及实物召回使用既有外部流程；查询不依赖同步 archive／chain 调用。
 - 信任边界／数据流：参与者→admission；平台→KMS/holder；relayer→chain；worker→CDN；调查者按权限读取／导出。
 - STRIDE：
-  - Spoofing → 企业身份、delegation、历史授权。
+  - Spoofing → 已批准组织、IdP 角色映射和当前授权密钥；承认错误准入与密钥泄露风险。
   - Tampering → 签名、append-only、链式 root、证明。
   - Repudiation → 签名 envelope、历史密钥、holder receipt。
   - Information disclosure → owner-held 加密、QueryPort scope。
   - DoS → 配额、有界队列、背压、重试、holder 集合。
-  - Elevation of privilege → 无常驻 staff 权限、双批准 break-glass、隔离 relayer。
+  - Elevation of privilege → 最小权限、审计成员／密钥变更与特权操作、隔离 relayer。
 - 残余风险：真实声明可能虚假；平台可读 consortium 明文；串通、访问元数据、对方破产、密钥被攻陷。
 
 ### 4.5 IoT integration and insight views（rubric 4.B）
 
-- IoT：源端设备／系统采集和报警；adapter 提交窗口、单位、min/max/mean、超限时长、delegation 和原始样本 commitment。
+- IoT：源端设备／系统采集和报警；adapter 提交窗口、单位、min/max/mean、超限时长、组织签名和原始样本 commitment。
 - 不上传原始流、不要求平台报警；减少存储并适应间歇连接。
 - Insight 复用同一物化 lineage，标明组织、版本、watermark，不抹去争议与 provisional 状态。
 - 门户提供录入、交接、调查、洞察入口；详细屏幕设计延后，但保留离线、无障碍和状态区别要求。
@@ -276,7 +279,7 @@
 - 风险：holder／chain 故障、单 relayer 凭证、admission 治理不足、恢复时间未验证。
 - 接受的取舍：finality 前临时可见、元数据泄露、小团队单部署。
 - 评价限制：无 benchmark／恢复演练；是可建设提案，不是运行实测结果。
-- 验证优先级：签名／授权 replay、平台丢失后 archive 枚举、依赖故障注入、冲突召回负载、低端离线设备。
+- 验证优先级：历史签名验证、撤销密钥拒绝、平台丢失后 archive 枚举、依赖故障注入、冲突召回负载、低端离线设备。
 
 ### 5.3 Alternative architectures（rubric 5.4）
 
@@ -308,3 +311,5 @@
 - 本轮变更已同步正文及活动 PUML；旧监管分析图源移入 `docs/diagrams/retired/regulatory-analytics/`。后续继续按大纲讨论其他假设。
 
 - 2026-10-28：简化 recall 为授权查询、记录验证、影响范围计算与受限导出；移除通知发布／锚定以及私有文档请求／加密交付流程，同步正文与 Figure 10 及概览图。
+
+- 2026-10-28：身份治理收敛为治理方批准成员、外部 IdP 及组织／角色映射、组织签名与密钥轮换／撤销、变更审计；移除外部企业核验集成、delegation／custody 分类、可信签署时间和专用 break-glass 机制。

@@ -14,7 +14,7 @@ Agricultural products pass between firms with incompatible identifiers, records 
 
 | Stakeholder | Architectural interest and consequence |
 |---|---|
-| S1 Producers, growers, packers | Browser-first capture, offline queue and organisation-bound device signing avoid mandatory ERP or corporate PKI. |
+| S1 Producers, growers, packers | Browser-first capture, offline queue and organisation-authorised signing avoid mandatory ERP or employee certificates. |
 | S2 Processors | EPCIS transformation quantities preserve input/output lineage without a platform mass-balance verdict. |
 | S3 Distributors and cold-chain operators | Two-sided handovers and attributable sensor summaries, not uploaded raw telemetry. |
 | S4 Retailers | Conservative recall traversal and public snapshots that survive scan bursts. |
@@ -46,7 +46,7 @@ The following qualities connect stakeholder needs to measurable architecture tes
 | ID / stakeholder | Requirement and critical scenario | Risk and architectural consequence |
 |---|---|---|
 | SQ-1 Integrity / S6,S11 | Verify any CONFIRMED event against published proofs; QS-1 operator deletes a batch. | A broken batch sequence must be detectable; use chained Merkle commitments. |
-| SQ-2 Attribution / S1–S3,S6 | Verify a three-year-old signature after two rotations and suspension (QS-2). | Retain signing-time authority and key history separately from cryptographic validity. |
+| SQ-2 Attribution / S1–S3,S6 | QS-2 verify an accepted event after its organisation rotates or revokes a key. | Retain the original public key, signature and admission-time membership/key status; later revocation does not rewrite history. |
 | SQ-3 Availability / S4,S6 | QS-3 recall during archive outage never yields a false NO RECORD. | Declared degraded reads; fail-closed, retryable writes. |
 | SQ-4 Performance / S4,S5 | QS-4 public demand reaches 5,000 scans/s; bound synchronous traversal to 10,000 edges. | Use edge snapshots and an indexed query copy rather than origin joins at scan time. |
 | SQ-5 Recovery / S6,S9 | QS-5 platform account lost after receipt: receipted-event RPO 0; DB RPO ≤5 min, RTO ≤4 h, regional rebuild ≤24 h. | Archive, manifests and proofs must outlive platform tables; targets require drills. |
@@ -72,6 +72,8 @@ DM-1 requires events interpretable under their original profile; DM-2 forbids re
 | `quantity`, `uom` | Decimal(18,6) / UN-CEFACT; 22 / 3 | Asserted amount and unit; publisher; S2. |
 | `profileId`, `profileVersion` | Slug / semver; 64 / 20 | Frozen validation language; governance; DM-1/SQ-8. |
 | `signerOrganisationId` | UUID v5 / 36 | Accountable organisation, not a person; registry; DM-5/SQ-2. |
+| `keyId`, `publicKey` | UUID / base64-encoded public key; 36 / ≤1024 | Organisation-authorised key and retained verification material; organisation; SQ-2. |
+| `admittedAt` | ISO 8601 UTC / 30 | Platform admission time associated with retained membership/key status; platform; SQ-2. |
 | `canonicalPayloadDigest` | SHA-256 hex / 64 | Signed canonical content; platform; SQ-1. |
 | `plaintextCommitment` | Salted SHA-256 hex / 64 | Reference to owner-held evidence; owner; DM-2. |
 | `ArchiveAckDigest` | SHA-256 hex / 64 | Digest of holder's signed persistence acknowledgement; holder; DM-3. |
@@ -79,9 +81,9 @@ DM-1 requires events interpretable under their original profile; DM-2 forbids re
 
 The table covers the fields where architecture is decided; EPCIS 2.0/CBV supplies the standard business-event fields, and a retained versioned network profile constrains accepted extensions. Admission enforces typed, length-bounded profile fields. Profiles may add product-specific fields but cannot remove the core traceability floor, so a new product line changes approved validation rather than the shared event semantics.
 
-`captureRecordId` is a transport idempotency identity, distinct from the EPCIS business event identifier. A correction does not overwrite the signed statement, and structural validity permits conflicting claims, whereas signing authority, required fields and idempotency collisions are admission checks. A query consumer sees the recorded assertion and its lifecycle status, not a platform-issued certification.
+`captureRecordId` is a transport idempotency identity, distinct from the EPCIS business event identifier. A correction does not overwrite the signed statement, and structural validity permits conflicting claims, whereas current organisation membership, signing-key status, required fields and idempotency collisions are admission checks. A query consumer sees the recorded assertion and its lifecycle status, not a platform-issued certification. Admission checks membership and key status at platform receipt time; it does not establish the true signing time. Acceptance records retain that status and the original key for later verification. Key compromise may still require external investigation.
 
-Six scenarios fix what would otherwise be design preferences. **DS-1** a seven-year recall requires indexed, versioned lineage. **DS-2** competing transformations require multiple provenance edges and never arbitrary deduplication. **DS-3** a laboratory report is referenced by a commitment; its request and delivery remain outside the platform. **DS-4** 5 000 scans per second requires CDN projections. **DS-5** an expiring batch under legal hold requires an auditable retention transition. **DS-6** delayed offline events after a key rotation require a review state rather than assuming a timestamp proves authority.
+Six scenarios fix what would otherwise be design preferences. **DS-1** a seven-year recall requires indexed, versioned lineage. **DS-2** competing transformations require multiple provenance edges and never arbitrary deduplication. **DS-3** a laboratory report is referenced by a commitment; its request and delivery remain outside the platform. **DS-4** 5 000 scans per second requires CDN projections. **DS-5** an expiring batch under legal hold requires an auditable retention transition. **DS-6** an offline event arrives after its key is revoked: reject it and require resubmission with a new submission ID and a currently authorised key. Publisher event time does not prove signing time.
 
 One managed relational database provides typed EPCIS columns, exact decimals, referential checks, one transaction for event/idempotency/outbox, recursive bounded traversal, row-level scope predicates and point-in-time recovery. A document store weakens cross-event relational enforcement, a graph database should not become the canonical truth, and full-application event sourcing would needlessly event-source profiles and worker state. Private evidence is not stored as platform-readable blobs.
 
@@ -96,15 +98,15 @@ Participants need browser access rather than owned infrastructure; C6 rules out 
 | Public delivery | CDN plus versioned object snapshots | Per-scan origin/API reads. |
 | Canonical archive and wrapping keys | Separate trustee-owned object storage and managed KMS | Operator-controlled backup and platform-held KEK. |
 | Chain | Paid public network, batched root submission | Consortium validators with no operators. |
-| Identity | External identity provider and business registry | In-house passwords or platform-issued legal identity. |
+| Identity | External IdP; platform organisation/role mapping and organisation key registry | In-house passwords and automated legal-identity verification. |
 
 Australian deployment locations, standards-based PostgreSQL and portable canonical formats support residency and exit planning.
 
 ### 2.4 Security, privacy, regulation and device requirements — rubric 2.7–2.8 and 2.B
 
-SP-1 binds every write to an acting organisation, role and delegation; SP-2 keeps signatures and historical authorisation verifiable; SP-3 prevents the platform from decrypting owner-held evidence; SP-4 excludes natural-person fields from immutable history; SP-5 requires dual approval for high-impact governance; SP-6 audits reads and break-glass; SP-8 records residual threats. **Confidentiality:** QS-7 tests scoped evidence exports that exclude unrelated records and owner-held document contents. **Integrity:** QS-1/2 test public commitments and key history. **Availability:** QS-3/5 test explicitly degraded reads and separately recoverable receipts. Australian Privacy Principles/Privacy Act, NSW privacy obligations, NSW Food Act and Food Standards Code inform minimisation, retention, recall evidence and controlled exports; Appendix B maps each obligation to its answer.
+SP-1 binds every write to an approved organisation and authorised role; SP-2 verifies organisation signatures and retains admission-time key status; SP-3 prevents the platform from decrypting owner-held evidence; SP-4 excludes natural-person fields from immutable history; SP-5 audits membership, role and key changes; SP-6 audits reads, exports and privileged operations; SP-8 records residual threats. **Confidentiality:** QS-7 tests scoped evidence exports that exclude unrelated records and owner-held document contents. **Integrity:** QS-1/2 test public commitments and key history. **Availability:** QS-3/5 test explicitly degraded reads and separately recoverable receipts. Australian Privacy Principles/Privacy Act, NSW privacy obligations, NSW Food Act and Food Standards Code inform minimisation, retention, recall evidence and controlled exports; Appendix B maps each obligation to its answer.
 
-**IoT (2.B).** In a cold-chain excursion, a participant's device/system collects readings and alarms locally; a profile-required windowed summary, unit, provenance and commitment accompany an EPCIS event. Devices are organisation delegations, not independent platform identities. Raw streams and platform-side alarm paths stay out, which preserves a verifiable evidence reference while limiting retention.
+**IoT (2.B).** In a cold-chain excursion, a participant's device/system collects readings and alarms locally; a profile-required windowed summary, unit, provenance and commitment accompany an EPCIS event. The organisation signs submitted device summaries; device provisioning and staff authorisation remain its responsibility. Raw streams and platform-side alarm paths stay out, which preserves a verifiable evidence reference while limiting retention.
 
 Regulatory investigation uses trace queries, evidence exports and human review. Automated regulatory screening and ML are outside the proposed scope; the platform does not determine wrongdoing.
 
@@ -116,9 +118,9 @@ Four views narrow in sequence: context fixes the boundary, containers show runti
 
 ![Figure 1 — System context](docs/diagrams/preview/c4-context.png)
 
-*Figure 1 — One traceability system, four groups of users and eight external systems.*
+*Figure 1 — One traceability system, four groups of users and seven external systems.*
 
-Traceability Core holds shared canonical claims and supplies scoped investigation, export and insight views to authorised users, including regulators. Devices feed participant systems, which submit profile-conformant EPCIS summaries. Humans authenticate through an identity provider; the business registry establishes the accountable organisation. The archive, KMS and chain remain external because their evidentiary role depends on not being administered solely by the platform.
+Traceability Core holds shared canonical claims and supplies scoped investigation, export and insight views to authorised users, including regulators. Devices feed participant systems, which submit profile-conformant EPCIS summaries. Humans authenticate through an external IdP and map to an organisation and role. A designated governance body approves organisations before registration; automated legal-identity verification is outside scope. The archive, KMS and chain remain external because their evidentiary role depends on not being administered solely by the platform.
 
 ![Figure 2 — Core containers](docs/diagrams/preview/core-container.png)
 
@@ -145,7 +147,7 @@ Admission commits submission state and archive intent atomically; workers operat
 
 *Figure 4 — Components of the relayer, the only container that touches a chain.*
 
-The Core separates Capture API; Idempotency/Outbox Coordinator; Canonicalisation/Profile Validator; Signature/Authority Validator; Submission State Machine; Archive/Anchor Orchestrator; Evidence Graph Builder; Confirmed Event Store; and QueryPort. The orchestrator owns the gate, workers execute intents, and QueryPort exposes `edges()` and bounded `traverse()` but no business-truth verdict. The relayer isolates the single spending credential; deterministic leaves and archive-side manifests make proof regeneration possible. The Insights module consumes QueryPort and presents scoped product-line and cold-chain summaries from worker-maintained projections.
+The Core separates Capture API; Idempotency/Outbox Coordinator; Canonicalisation/Profile Validator; Signature/Membership Validator; Submission State Machine; Archive/Anchor Orchestrator; Evidence Graph Builder; Confirmed Event Store; and QueryPort. The orchestrator owns the gate, workers execute intents, and QueryPort exposes `edges()` and bounded `traverse()` but no business-truth verdict. The relayer isolates the single spending credential; deterministic leaves and archive-side manifests make proof regeneration possible. The Insights module consumes QueryPort and presents scoped product-line and cold-chain summaries from worker-maintained projections.
 
 The component view sets responsibility boundaries for the conceptual entities; the code view specifies their types and relationships.
 
@@ -158,13 +160,13 @@ The component view sets responsibility boundaries for the conceptual entities; t
 
 ![Figure 5 — Core code view](docs/diagrams/preview/core-code.png)
 
-*Figure 5 — Thirteen classes, one interface, three enumerations.*
+*Figure 5 — Core evidence contracts, organisation identity records and the scoped query interface.*
 
 ![Figure 6 — Physical data model](docs/diagrams/preview/core-physical-model.png)
 
 *Figure 6 — Nine tables; the constraints that matter are named in §4.2.*
 
-`SignatureEnvelope` binds an organisation and signing evidence but no employee identity; `AcceptanceReceipt` references external `ArchiveAck`; `ProtectedResourceRef` contains a salted commitment and a storage mode rather than private content. `EvidenceEdge`, `EdgeQuery` and `EdgeGroup` carry provenance, scope and watermark.
+`SignatureEnvelope` binds an organisation and key, with no employee identity; mutable organisation, role, key and identity-audit records sit outside canonical business events; `AcceptanceReceipt` references external `ArchiveAck`; `ProtectedResourceRef` contains a salted commitment and a storage mode rather than private content. `EvidenceEdge`, `EdgeQuery` and `EdgeGroup` carry provenance, scope and watermark.
 
 Conceptually, submissions become canonical events linked to profile versions, evidence references, acknowledgement, leaf and batch. Logically, derived edges and projections belong to query components, not to the archived record. Across views each class has one owning component and container, external dependencies enter through ports, and enumerations are published contracts (Figures 3 and 5). Figure 6 resolves the same event, submission, leaf and batch identities into physical keys and relations — the deliberate bridge between the conceptual, logical and physical models. The SQL tables are not a second source of business truth.
 
@@ -183,7 +185,7 @@ The architecture adopts one modular application deployable, not one unstructured
 | Merkle batch anchoring | One root per 30-minute window with independent verification (SQ-1/10) | Per-event on-chain transactions or a platform timestamp. |
 | Ports/adapters and versioned contracts | Archive/KMS/chain/identity can change without core rewrite (SQ-8) | Direct SDK dependencies and unversioned values. |
 
-Responsibility by reason to change implements **SRP** (validation, graph construction and gate are distinct); a new custody adapter extends the port rather than changing the core (**OCP/DIP**); one envelope serves custody implementations under the same contract (**LSP**); QueryPort's narrow two-operation interface follows **ISP**. The design also checks the five smells rather than merely naming them: one graph builder avoids scattered lineage; one read entrance avoids duplicate privacy policy; acyclic admission → outbox → worker direction avoids cycles; narrow components prevent concentration inside one deployable; vendor packages stop at adapters to avoid unstable dependencies. A modular monolith still concentrates deployment risk, accepted for C5/C6.
+Responsibility by reason to change implements **SRP** (validation, graph construction and gate are distinct); a new archive adapter extends the port rather than changing the core (**OCP/DIP**); archive adapters must preserve the same persisted-byte acknowledgement contract (**LSP**); QueryPort's narrow two-operation interface follows **ISP**. The design also checks the five smells rather than merely naming them: one graph builder avoids scattered lineage; one read entrance avoids duplicate privacy policy; acyclic admission → outbox → worker direction avoids cycles; narrow components prevent concentration inside one deployable; vendor packages stop at adapters to avoid unstable dependencies. A modular monolith still concentrates deployment risk, accepted for C5/C6.
 
 ### 4.2 Data authority, models and analytics — rubric 4.6–4.10
 
@@ -230,7 +232,7 @@ A qualified holder must be separately administered, retain and enumerate archive
 
 *Figure 10 — Authorised trace query, verification and scoped evidence export.*
 
-In Figure 9, (1) a participant submits the canonical event, organisation signature and client idempotency key; (2) admission validates profile and historical authority and commits state plus archive intent; (3) a worker obtains a wrapped per-event key from the externally governed KMS, stores an encrypted envelope with a qualified holder and records its signed `ArchiveAck`; (4) the platform issues a receipt and batches its deterministic leaf; (5) a segregated relayer publishes the chained Merkle root, observes finality and exposes inclusion proof; (6) only then does the event become CONFIRMED and contribute to public snapshots. Failed dependencies leave it pending; timeouts never silently promote it.
+In Figure 9, (1) a participant submits the canonical event, organisation signature and client idempotency key; (2) admission validates the profile, active organisation membership and current signing key and commits state plus archive intent; (3) a worker obtains a wrapped per-event key from the externally governed KMS, stores an encrypted envelope with a qualified holder and records its signed `ArchiveAck`; (4) the platform issues a receipt and batches its deterministic leaf; (5) a segregated relayer publishes the chained Merkle root, observes finality and exposes inclusion proof; (6) only then does the event become CONFIRMED and contribute to public snapshots. Failed dependencies leave it pending; timeouts never silently promote it.
 
 | Flow crossing | Classification | Enforced boundary |
 |---|---|---|
@@ -245,18 +247,18 @@ Figure 10 authorises the investigator, fixes a watermark and traverses scoped li
 
 | Category / threat | Mitigation and boundary | Residual risk |
 |---|---|---|
-| Spoofing: forged organisation/device | Verified legal organisation, delegated signer, authority-at-signing-time | Stolen participant credentials. |
+| Spoofing: forged organisation/device | Approved organisation, IdP role mapping and currently authorised signing key | Stolen credentials, compromised organisation keys or erroneous member approval. |
 | Tampering: altered/omitted batch | Signed digest, append-only events, chained roots, consistency/inclusion proof | Asynchronous finality and unavailable proofs. |
 | Repudiation: denial of a submitted claim | Envelope signature, historical key registry, signed holder receipts | External key custody and disputed real-world facts. |
 | Information disclosure: private evidence/out-of-scope query | Owner-held encryption and QueryPort enforcement | Metadata, access patterns and authorised runtime plaintext. |
 | Denial of service: flood or missing holder | Quotas, bounded queues, backpressure, retry; qualified holder set | Sustained saturation or absent acknowledgements. |
-| Elevation of privilege: operator or wallet compromise | No standing staff access, dual-approved anchored break-glass; isolated outbound relayer | Colluding approvers or compromised KMS/wallet. |
+| Elevation of privilege: operator or wallet compromise | Least-privilege roles, audited member/key changes and privileged operations; isolated outbound relayer | Compromised administrator or KMS/wallet. |
 
 These controls address SP-1–6 and SP-8 within stated trust boundaries. Anchoring proves a commitment, not physical truth. The platform runtime still reads CONSORTIUM plaintext; collusion, access metadata and partner insolvency remain risks. External holders control their own evidence, and the operator cannot alone fabricate a valid holder signature.
 
 ### 4.5 IoT integration and insight views — rubric 4.B, bonus
 
-IoT ingestion begins at the participant's sensors and local control system, which performs collection and real-time alarms. The integration adapter publishes a profile-conformant summary (window, unit, min/max/mean, excursion duration/alarm), device delegation and commitment to owner-retained samples. Neither raw streams nor mandatory platform-side alerting enter the shared record. This preserves a verifiable evidence reference while limiting retention and protecting rural intermittent links.
+IoT ingestion begins at the participant's sensors and local control system, which performs collection and real-time alarms. The integration adapter publishes a profile-conformant summary (window, unit, min/max/mean, excursion duration/alarm), an organisation signature and commitment to owner-retained samples. Neither raw streams nor mandatory platform-side alerting enter the shared record. This preserves a verifiable evidence reference while limiting retention and protecting rural intermittent links.
 
 Insight views are derived from the same materialised lineage, labelled by acting organisation, projection version and watermark. Product-line aggregation therefore cannot silently override disputed claims or reinterpret a provisional edge as established provenance. The portal provides role-specific capture, handover, investigation and insight entry points; detailed screen design is deferred, while offline capture, accessible field labels and state distinctions remain architectural acceptance criteria.
 
@@ -283,7 +285,7 @@ ATAM is chosen over HAZOP because this platform records evidence rather than con
 
 Sensitivity points are the anchoring window (cost against confirmation delay), qualified-holder liveness (receipt throughput against independence), the query traversal bound (recall completeness against latency) and visibility scope (regulatory authority against commercial confidentiality). Risks are an unavailable holder or chain, a single relayer spending credential, inadequate admission governance, and an untested regional recovery time.
 
-Accepted trade-offs are provisional visibility before finality, metadata leakage instead of hosting private content, and small-team operability over independent scaling of every module. No benchmark or recovery drill has yet proved the targets; the reference deployment is a buildable proposal, not an operational result. Test priority follows from that: signature and authority replay, independent archive enumeration after platform loss, holder and chain outage injection, non-collapsing recall under load, and low-end offline capture. A failed test reopens the requirement; it does not license a quietly weaker guarantee.
+Accepted trade-offs are provisional visibility before finality, metadata leakage instead of hosting private content, and small-team operability over independent scaling of every module. No benchmark or recovery drill has yet proved the targets; the reference deployment is a buildable proposal, not an operational result. Test priority follows from that: historical signature verification and revoked-key rejection, independent archive enumeration after platform loss, holder and chain outage injection, non-collapsing recall under load, and low-end offline capture. A failed test reopens the requirement; it does not license a quietly weaker guarantee.
 
 The key assessment is not whether the architecture eliminates all failures. Confirmation deliberately trades immediacy for independently checkable persistence and finality; rural accessibility trades synchronous verification for durable local capture.
 

@@ -9,8 +9,8 @@ Container_Boundary(core, "Traceability Core") {
   Component(capture, "Capture API", "Inbound REST endpoint", "Accepts EPCIS event, SignatureEnvelope, captureRecordId, profile reference")
   Component(idem, "Idempotency & Outbox Coordinator", "Transactional outbox", "Deduplicates by captureRecordId and digest, enqueues external side effects")
   Component(canon, "Canonicalisation & Profile Validator", "Deterministic digest", "Schema, profile version, core field floor, conformance check")
-  Component(sig, "Signature & Authority Validator", "EventSignatureVerifier", "Envelope, organisation, key, delegation, trusted signing time")
-  Component(sm, "Submission State Machine", "Lifecycle", "SUBMITTED to CONFIRMED, REVIEW_REQUIRED and terminal failure states")
+  Component(sig, "Signature & Membership Validator", "EventSignatureVerifier", "Verifies signature, approved membership and current key status at receipt")
+  Component(sm, "Submission State Machine", "Lifecycle", "SUBMITTED to CONFIRMED, retry and rejection states")
   Component(orch, "Archive & Anchor Orchestrator", "Gate keeper", "Owns the confirmation gate: records the archive and anchor intent, checks the acknowledged digest, issues the receipt")
   Component(graph, "Evidence Graph Builder", "edgeDerivationVersion", "Edges from EPCIS semantics only; derivation is versioned and replayable for audit")
   ComponentDb(store, "Confirmed Event Store", "Append-only tables in PostgreSQL", "Canonical fields, edges, QueryStore materialisation")
@@ -18,7 +18,7 @@ Container_Boundary(core, "Traceability Core") {
 }
 
 Component_Ext(modules, "Semantic Modules (same process)", "Handover, Recall, Compliance, Consumer, Insights")
-Component_Ext(idgov, "Identity & Governance registries", "Organisation, key, delegation, governance history")
+Component_Ext(idgov, "Organisation & Key Registry", "Approved members, user role mappings, key history and identity change audit")
 Component_Ext(profiles, "Product Profile Registry", "Governance-published, immutable versions")
 
 Rel(capture, idem, "Check and register")
@@ -30,7 +30,7 @@ Rel(orch, store, "Archive and anchor intent; append on confirmation")
 Rel(graph, store, "Read canonical events, write edges")
 Rel_Down(query, store, "Scoped read")
 Rel(modules, query, "edges(), traverse()")
-Rel(sig, idgov, "Authority, key state")
+Rel(sig, idgov, "Membership, key state")
 Rel(canon, profiles, "Profile, floor, conformance")
 
 SHOW_LEGEND()
